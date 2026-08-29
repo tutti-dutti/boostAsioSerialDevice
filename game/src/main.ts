@@ -5,71 +5,72 @@ import { upgradeCost } from "./game/types";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 app.innerHTML = `
-  <header class="top-bar">
-    <h1 class="brand">Cookie Guard</h1>
-    <p class="story">You baked a giant magic cookie! Hungry snack thieves want it. Call cute animal friends to protect it!</p>
-  </header>
+  <section class="home" id="home">
+    <h1 class="home-brand">Cookie Guard</h1>
+    <p class="home-line">Protect your giant cookie with cute animal friends.</p>
+    <button class="home-play" id="play-btn" type="button">Play</button>
+    <p class="home-note">No ads. Just the game.</p>
+  </section>
 
-  <div class="stats" id="stats"></div>
+  <section class="play-screen hidden" id="play-screen">
+    <header class="top-bar">
+      <div class="brand-small">Cookie Guard</div>
+      <button class="home-link" id="back-home" type="button">Home</button>
+    </header>
 
-  <div class="stage-wrap">
-    <canvas id="stage"></canvas>
-    <div class="toast" id="toast"></div>
-    <div class="overlay" id="start">
-      <div class="overlay-card">
-        <h2>Cookie Guard</h2>
-        <p>Same kind of game as those idle tower games — but with cookies, animals, and snack thieves!</p>
-        <p>1) Get friends with ⭐<br/>2) Tap a friend, then tap a circle<br/>3) Stop the thieves!</p>
-        <button class="big" id="play-btn">Play!</button>
+    <div class="stats" id="stats"></div>
+
+    <div class="stage-wrap">
+      <canvas id="stage"></canvas>
+      <div class="toast" id="toast"></div>
+      <div class="overlay hidden" id="over">
+        <div class="overlay-card">
+          <h2>Cookie gone!</h2>
+          <p>The thieves ate it. Try again?</p>
+          <button class="big" id="retry-btn" type="button">Play again</button>
+        </div>
       </div>
     </div>
-    <div class="overlay hidden" id="over">
-      <div class="overlay-card">
-        <h2>Cookie gone!</h2>
-        <p>The thieves ate your cookie. Want to try again?</p>
-        <button class="big" id="retry-btn">Play again</button>
-      </div>
+
+    <div class="hud">
+      <section class="panel">
+        <h2>Friends</h2>
+        <div class="row">
+          <button class="big" id="summon" type="button">Summon (1⭐)</button>
+          <button class="pink" id="lucky" type="button">Lucky (3⭐)</button>
+        </div>
+        <div class="inventory" id="bag"></div>
+        <p class="hint">Tap a friend, then tap a circle on the path.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Actions</h2>
+        <div class="row">
+          <button class="green" id="upgrade" type="button">Upgrade</button>
+          <button id="sell" type="button">To bag</button>
+        </div>
+        <div class="row">
+          <button class="spell" id="crumb" type="button">Crumb (5🪙)</button>
+          <button class="spell" id="frost" type="button">Frost (4🪙)</button>
+          <button class="spell" id="zap" type="button">Zap (6🪙)</button>
+        </div>
+        <p class="hint" id="select-hint">Tap a friend on the path to upgrade.</p>
+        <div class="row">
+          <button id="new-game" type="button">New game</button>
+        </div>
+      </section>
     </div>
-  </div>
-
-  <div class="hud">
-    <section class="panel">
-      <h2>Get friends</h2>
-      <div class="row">
-        <button class="big" id="summon">Summon (1⭐)</button>
-        <button class="pink" id="lucky">Lucky summon (3⭐)</button>
-      </div>
-      <h2>Your bag</h2>
-      <div class="inventory" id="bag"></div>
-      <p class="hint" id="bag-hint">Tap a friend here, then tap an empty circle on the path.</p>
-    </section>
-
-    <section class="panel">
-      <h2>Help &amp; spells</h2>
-      <div class="row">
-        <button class="green" id="upgrade">Upgrade friend</button>
-        <button id="sell">Put back in bag</button>
-      </div>
-      <div class="row">
-        <button class="spell" id="crumb">Crumb boom (5🪙)</button>
-        <button class="spell" id="frost">Frost chill (4🪙)</button>
-        <button class="spell" id="zap">Zap zap (6🪙)</button>
-      </div>
-      <p class="hint" id="select-hint">Tap a friend on the path to upgrade them.</p>
-      <div class="row" style="margin-top:0.6rem">
-        <button id="new-game">New game</button>
-      </div>
-    </section>
-  </div>
+  </section>
 `;
 
+const home = document.querySelector<HTMLElement>("#home")!;
+const playScreen = document.querySelector<HTMLElement>("#play-screen")!;
 const canvas = document.querySelector<HTMLCanvasElement>("#stage")!;
 const game = new Game(canvas);
 
 const stats = document.querySelector("#stats")!;
 const bag = document.querySelector("#bag")!;
 const toast = document.querySelector("#toast")!;
-const start = document.querySelector("#start")!;
 const over = document.querySelector("#over")!;
 const selectHint = document.querySelector("#select-hint")!;
 
@@ -82,19 +83,19 @@ function rarityLabel(r: string) {
 
 function refresh() {
   stats.innerHTML = `
-    <div class="stat">🪙 Gold: <strong>${game.gold}</strong></div>
-    <div class="stat">⭐ Stars: <strong>${game.stars}</strong></div>
-    <div class="stat">🌊 Wave: <strong>${game.wave}</strong></div>
-    <div class="stat">🍪 Cookie: <strong>${game.cookieHp}/${game.cookieMax}</strong></div>
+    <div class="stat">🪙 ${game.gold}</div>
+    <div class="stat">⭐ ${game.stars}</div>
+    <div class="stat">Wave ${game.wave}</div>
+    <div class="stat">🍪 ${game.cookieHp}/${game.cookieMax}</div>
   `;
 
   if (!game.bag.length) {
-    bag.innerHTML = `<span class="empty-inv">Bag is empty — press Summon!</span>`;
+    bag.innerHTML = `<span class="empty-inv">Press Summon to get friends</span>`;
   } else {
     bag.innerHTML = game.bag
       .map(
         (f, i) => `
-      <button class="inv-item ${game.selectedBag === i ? "selected" : ""}" data-i="${i}">
+      <button class="inv-item ${game.selectedBag === i ? "selected" : ""}" data-i="${i}" type="button">
         <span class="emoji">${f.emoji}</span>
         <span>${f.name}</span>
         <span class="rarity-${f.rarity}">${rarityLabel(f.rarity)}</span>
@@ -112,9 +113,9 @@ function refresh() {
 
   if (game.selectedSlot != null && game.slots[game.selectedSlot]?.friend) {
     const f = game.slots[game.selectedSlot].friend!;
-    selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — upgrade costs ${upgradeCost(f)} gold`;
+    selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — upgrade ${upgradeCost(f)}🪙`;
   } else {
-    selectHint.textContent = "Tap a friend on the path to upgrade them.";
+    selectHint.textContent = "Tap a friend on the path to upgrade.";
   }
 
   toast.textContent = game.toastText;
@@ -128,10 +129,22 @@ function refresh() {
 game.onChange = refresh;
 refresh();
 
-document.querySelector("#play-btn")!.addEventListener("click", () => {
-  start.classList.add("hidden");
+function showHome() {
+  game.running = false;
+  home.classList.remove("hidden");
+  playScreen.classList.add("hidden");
+}
+
+function showPlay() {
+  home.classList.add("hidden");
+  playScreen.classList.remove("hidden");
   game.running = true;
-});
+  game.paint();
+  refresh();
+}
+
+document.querySelector("#play-btn")!.addEventListener("click", showPlay);
+document.querySelector("#back-home")!.addEventListener("click", showHome);
 
 document.querySelector("#retry-btn")!.addEventListener("click", () => {
   game.reset();
@@ -146,10 +159,9 @@ document.querySelector("#crumb")!.addEventListener("click", () => game.cast("cru
 document.querySelector("#frost")!.addEventListener("click", () => game.cast("frost"));
 document.querySelector("#zap")!.addEventListener("click", () => game.cast("zap"));
 document.querySelector("#new-game")!.addEventListener("click", () => {
-  if (confirm("Start over? You will lose your progress.")) game.reset();
+  if (confirm("Start over?")) game.reset();
 });
 
-// pause until play
 game.running = false;
 
 let last = performance.now();
@@ -162,5 +174,6 @@ function loop(now: number) {
 }
 requestAnimationFrame(loop);
 
-// autosave heartbeat
-setInterval(() => game.save(), 10000);
+setInterval(() => {
+  if (game.running) game.save();
+}, 15000);

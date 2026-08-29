@@ -48,6 +48,7 @@ export class Game {
   gameOver = false;
   toastTimer = 0;
   toastText = "";
+  toastCooldown = 0;
   onChange: () => void = () => {};
   spellCool = { crumb: 0, frost: 0, zap: 0 };
 
@@ -61,21 +62,21 @@ export class Game {
     this.canvas.addEventListener("pointerdown", (e) => this.onClick(e));
   }
 
-  toast(msg: string) {
+  /** Quiet tips only — never spam popups */
+  toast(msg: string, force = false) {
+    if (!force && this.toastCooldown > 0) return;
     this.toastText = msg;
-    this.toastTimer = 2;
+    this.toastTimer = 1.4;
+    this.toastCooldown = 4;
   }
 
   grantIdleGold() {
     const last = Number(localStorage.getItem("cookie-guard-last") || Date.now());
     const now = Date.now();
     const secs = Math.min(60 * 60 * 8, Math.max(0, (now - last) / 1000));
-    const earned = Math.floor(secs / 20); // 1 gold / 20 sec idle
+    const earned = Math.floor(secs / 20);
     localStorage.setItem("cookie-guard-last", String(now));
-    if (earned > 0) {
-      this.gold += earned;
-      this.toast(`Welcome back! +${earned} gold while away`);
-    }
+    if (earned > 0) this.gold += earned;
   }
 
   save() {
@@ -144,39 +145,38 @@ export class Game {
     this.wavePause = 2;
     this.gameOver = false;
     this.running = true;
-    this.toast("New game!");
     this.onChange();
   }
 
   summon(lucky = false) {
     const cost = lucky ? 3 : SUMMON_COST;
     if (this.stars < cost) {
-      this.toast("Need more stars!");
+      this.toast("Need more stars", true);
       return;
     }
     this.stars -= cost;
     const friend = pickFriend(lucky);
     this.bag.push(friend);
-    this.toast(`You got ${friend.emoji} ${friend.name}!`);
+    this.toast(`${friend.emoji} ${friend.name}!`, true);
     this.save();
     this.onChange();
   }
 
   upgradeSelected() {
     if (this.selectedSlot == null) {
-      this.toast("Tap a friend on the path first");
+      this.toast("Tap a friend on the path first", true);
       return;
     }
     const slot = this.slots[this.selectedSlot];
     if (!slot.friend) return;
     const cost = upgradeCost(slot.friend);
     if (this.gold < cost) {
-      this.toast("Need more gold!");
+      this.toast("Need more gold", true);
       return;
     }
     this.gold -= cost;
     slot.friend.level += 1;
-    this.toast(`${slot.friend.def.name} is now level ${slot.friend.level}!`);
+    this.toast(`Level ${slot.friend.level}!`, true);
     this.save();
     this.onChange();
   }
@@ -189,25 +189,20 @@ export class Game {
     this.gold += Math.max(1, Math.floor(upgradeCost(slot.friend) * 0.35));
     slot.friend = null;
     this.selectedSlot = null;
-    this.toast("Friend went back to your bag");
     this.save();
     this.onChange();
   }
 
   cast(kind: "crumb" | "frost" | "zap") {
     const costs = { crumb: 5, frost: 4, zap: 6 };
-    if (this.spellCool[kind] > 0) {
-      this.toast("Spell not ready yet");
-      return;
-    }
+    if (this.spellCool[kind] > 0) return;
     if (this.gold < costs[kind]) {
-      this.toast("Need more gold!");
+      this.toast("Need more gold", true);
       return;
     }
     this.gold -= costs[kind];
     this.spellCool[kind] = kind === "zap" ? 10 : kind === "crumb" ? 8 : 7;
 
-    // hit middle of path / densest area
     let tx = COOKIE.x - 120;
     let ty = COOKIE.y;
     if (this.thieves.length) {
@@ -227,7 +222,6 @@ export class Game {
         const p = pathPoint(t.progress);
         if (Math.hypot(p.x - tx, p.y - ty) < 95) this.hurt(t, 40, p.x, p.y);
       }
-      this.toast("Cookie crumbs boom!");
     } else if (kind === "frost") {
       this.booms.push({ kind: "frost", x: tx, y: ty, life: 1, radius: 110 });
       for (const t of this.thieves) {
@@ -238,7 +232,6 @@ export class Game {
           this.hurt(t, 10, p.x, p.y);
         }
       }
-      this.toast("Everyone got chilly!");
     } else {
       this.booms.push({ kind: "zap", x: tx, y: ty, life: 1, radius: 70 });
       const alive = this.thieves.filter((t) => t.alive).slice(0, 4);
@@ -247,7 +240,6 @@ export class Game {
         this.hurt(t, 55, p.x, p.y);
         this.booms.push({ kind: "zap", x: p.x, y: p.y, life: 0.8, radius: 30 });
       }
-      this.toast("Zap zap zap!");
     }
     this.onChange();
   }
@@ -279,12 +271,11 @@ export class Game {
           this.bag.splice(this.selectedBag, 1);
           this.selectedBag = null;
           this.selectedSlot = slot.id;
-          this.toast(`${friend.emoji} ready to guard!`);
           this.save();
           this.onChange();
           return;
         }
-        this.toast("Pick a friend from your bag first");
+        this.toast("Pick a friend from your bag first", true);
         this.onChange();
         return;
       }
@@ -328,6 +319,7 @@ export class Game {
   update(dt: number) {
     this.time += dt;
     if (this.toastTimer > 0) this.toastTimer -= dt;
+    if (this.toastCooldown > 0) this.toastCooldown -= dt;
     for (const k of Object.keys(this.spellCool) as (keyof typeof this.spellCool)[]) {
       if (this.spellCool[k] > 0) this.spellCool[k] -= dt;
     }
@@ -352,12 +344,11 @@ export class Game {
       this.stars += 1;
       this.gold += 3;
       this.wavePause = 2.5;
-      this.toast(`Wave ${this.wave - 1} clear! +1⭐ +3🪙`);
+      // no popup spam — stats bar already shows wave/gold/stars
       this.save();
       this.onChange();
     }
 
-    // move thieves
     for (const t of this.thieves) {
       if (!t.alive) continue;
       if (t.slowTimer > 0) t.slowTimer -= dt;
@@ -366,13 +357,11 @@ export class Game {
       if (t.progress >= 1) {
         t.alive = false;
         this.cookieHp -= t.def.boss ? 4 : 1;
-        this.toast(t.def.boss ? "Oh no! King Raccoon bit the cookie!" : "A thief stole a bite!");
         this.onChange();
         if (this.cookieHp <= 0) {
           this.cookieHp = 0;
           this.gameOver = true;
           this.running = false;
-          this.toast("The cookie is gone...");
           this.onChange();
         }
       }
