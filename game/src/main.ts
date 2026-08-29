@@ -1,5 +1,6 @@
 import "./style.css";
 import { Game } from "./game/Game";
+import { rarityLabel } from "./game/data";
 import { upgradeCost } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -40,13 +41,13 @@ app.innerHTML = `
           <button class="pink" id="lucky" type="button">Lucky (3⭐)</button>
         </div>
         <div class="inventory" id="bag"></div>
-        <p class="hint">Tap a friend, then tap a circle on the path.</p>
+        <p class="hint">Tap a friend, then tap a circle. Top-down view!</p>
       </section>
 
       <section class="panel">
         <h2>Actions</h2>
         <div class="row">
-          <button class="green" id="upgrade" type="button">Upgrade</button>
+          <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
           <button id="sell" type="button">To bag</button>
         </div>
         <div class="row">
@@ -54,7 +55,7 @@ app.innerHTML = `
           <button class="spell" id="frost" type="button">Frost (4🪙)</button>
           <button class="spell" id="zap" type="button">Zap (6🪙)</button>
         </div>
-        <p class="hint" id="select-hint">Tap a friend on the path to upgrade.</p>
+        <p class="hint" id="select-hint">Fish can evolve when you upgrade!</p>
         <div class="row">
           <button id="new-game" type="button">New game</button>
         </div>
@@ -74,13 +75,6 @@ const toast = document.querySelector("#toast")!;
 const over = document.querySelector("#over")!;
 const selectHint = document.querySelector("#select-hint")!;
 
-function rarityLabel(r: string) {
-  if (r === "mythic") return "MYTHIC";
-  if (r === "epic") return "EPIC";
-  if (r === "rare") return "RARE";
-  return "COMMON";
-}
-
 function refresh() {
   stats.innerHTML = `
     <div class="stat">🪙 ${game.gold}</div>
@@ -95,7 +89,7 @@ function refresh() {
     bag.innerHTML = game.bag
       .map(
         (f, i) => `
-      <button class="inv-item ${game.selectedBag === i ? "selected" : ""}" data-i="${i}" type="button">
+      <button class="inv-item ${game.selectedBag === i ? "selected" : ""} rarity-${f.rarity}" data-i="${i}" type="button">
         <span class="emoji">${f.emoji}</span>
         <span>${f.name}</span>
         <span class="rarity-${f.rarity}">${rarityLabel(f.rarity)}</span>
@@ -113,9 +107,14 @@ function refresh() {
 
   if (game.selectedSlot != null && game.slots[game.selectedSlot]?.friend) {
     const f = game.slots[game.selectedSlot].friend!;
-    selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — upgrade ${upgradeCost(f)}🪙`;
+    let extra = "";
+    if (f.def.id === "fish") extra = " · Floppy Fin · tiny evolve chance!";
+    if (f.def.id === "fox") extra = " · builds walls every 30s";
+    if (f.def.id === "shark") extra = " · can become Megalodon!";
+    if (f.def.rarity === "god") extra = " · GOD TIER!";
+    selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
   } else {
-    selectHint.textContent = "Tap a friend on the path to upgrade.";
+    selectHint.textContent = "Tap a friend on the path. Fish can evolve on Upgrade!";
   }
 
   toast.textContent = game.toastText;

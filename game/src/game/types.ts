@@ -18,6 +18,8 @@ export interface PlacedFriend {
   level: number;
   cooldown: number;
   slotId: number;
+  /** Fox wall ability timer */
+  abilityTimer: number;
 }
 
 export interface Thief {
@@ -27,6 +29,7 @@ export interface Thief {
   maxHp: number;
   progress: number;
   slowTimer: number;
+  blockedTimer: number;
   alive: boolean;
 }
 
@@ -39,6 +42,8 @@ export interface Shot {
   damage: number;
   color: string;
   targetId: string;
+  floppy?: boolean;
+  godBeam?: boolean;
 }
 
 export interface FloatText {
@@ -50,15 +55,26 @@ export interface FloatText {
 }
 
 export interface Boom {
-  kind: "crumb" | "frost" | "zap";
+  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam";
   x: number;
   y: number;
   life: number;
   radius: number;
 }
 
+/** Temporary fox defense on the path */
+export interface Wall {
+  x: number;
+  y: number;
+  life: number;
+  maxLife: number;
+  progress: number;
+}
+
 export function friendDamage(f: PlacedFriend): number {
-  return Math.round(f.def.damage * (1 + (f.level - 1) * 0.35));
+  const tier =
+    f.def.rarity === "god" ? 1.15 : f.def.rarity === "legendary" ? 1.05 : 1;
+  return Math.round(f.def.damage * (1 + (f.level - 1) * 0.35) * tier);
 }
 
 export function friendRange(f: PlacedFriend): number {
@@ -66,7 +82,14 @@ export function friendRange(f: PlacedFriend): number {
 }
 
 export function upgradeCost(f: PlacedFriend): number {
-  const mult = f.def.rarity === "mythic" ? 2.5 : f.def.rarity === "epic" ? 1.8 : f.def.rarity === "rare" ? 1.3 : 1;
+  const mult =
+    f.def.rarity === "god"
+      ? 4
+      : f.def.rarity === "legendary"
+        ? 2.2
+        : f.def.rarity === "rare"
+          ? 1.35
+          : 1;
   return Math.round(6 * Math.pow(1.5, f.level - 1) * mult);
 }
 

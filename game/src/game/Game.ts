@@ -2,12 +2,13 @@ import {
   FRIENDS,
   SUMMON_COST,
   pickFriend,
+  tryEvolve,
   thiefForWave,
   waveCount,
   waveHpScale,
   type FriendDef,
 } from "./data";
-import { COOKIE, SLOT_SPOTS, W, H, pathPoint } from "./path";
+import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress } from "./path";
 import { draw, drawRangeHint } from "./render";
 import {
   friendDamage,
@@ -16,13 +17,13 @@ import {
   upgradeCost,
   type Boom,
   type FloatText,
-  type PlacedFriend,
   type Shot,
   type Slot,
   type Thief,
+  type Wall,
 } from "./types";
 
-const SAVE_KEY = "cookie-guard-save-v1";
+const SAVE_KEY = "cookie-guard-save-v2";
 
 export class Game {
   canvas: HTMLCanvasElement;
@@ -35,6 +36,7 @@ export class Game {
   shots: Shot[] = [];
   floats: FloatText[] = [];
   booms: Boom[] = [];
+  walls: Wall[] = [];
   gold = 20;
   stars = 5;
   wave = 1;
@@ -62,12 +64,11 @@ export class Game {
     this.canvas.addEventListener("pointerdown", (e) => this.onClick(e));
   }
 
-  /** Quiet tips only — never spam popups */
   toast(msg: string, force = false) {
     if (!force && this.toastCooldown > 0) return;
     this.toastText = msg;
-    this.toastTimer = 1.4;
-    this.toastCooldown = 4;
+    this.toastTimer = 1.6;
+    this.toastCooldown = 3.5;
   }
 
   grantIdleGold() {
@@ -118,10 +119,11 @@ export class Game {
           level: slot.level || 1,
           cooldown: 0,
           slotId: i,
+          abilityTimer: def.ability === "foxWall" ? 30 : 0,
         };
       });
     } catch {
-      /* ignore bad save */
+      /* ignore */
     }
   }
 
@@ -135,6 +137,7 @@ export class Game {
     this.shots = [];
     this.floats = [];
     this.booms = [];
+    this.walls = [];
     this.gold = 20;
     this.stars = 5;
     this.wave = 1;
@@ -157,7 +160,13 @@ export class Game {
     this.stars -= cost;
     const friend = pickFriend(lucky);
     this.bag.push(friend);
-    this.toast(`${friend.emoji} ${friend.name}!`, true);
+    const tag =
+      friend.rarity === "god"
+        ? "GOD!"
+        : friend.rarity === "legendary"
+          ? "LEGENDARY!"
+          : friend.name;
+    this.toast(`${friend.emoji} ${tag}`, true);
     this.save();
     this.onChange();
   }
@@ -175,6 +184,22 @@ export class Game {
       return;
     }
     this.gold -= cost;
+
+    // Fish / Shark evolution rolls on upgrade
+    if (slot.friend.def.canEvolve) {
+      const evolved = tryEvolve(slot.friend.def);
+      if (evolved) {
+        slot.friend.def = evolved;
+        slot.friend.level = Math.max(1, slot.friend.level);
+        slot.friend.abilityTimer = evolved.ability === "foxWall" ? 30 : 0;
+        this.toast(`${evolved.emoji} Evolved into ${evolved.name}!!!`, true);
+        this.booms.push({ kind: "beam", x: slot.x, y: slot.y, life: 1.2, radius: 60 });
+        this.save();
+        this.onChange();
+        return;
+      }
+    }
+
     slot.friend.level += 1;
     this.toast(`Level ${slot.friend.level}!`, true);
     this.save();
@@ -203,16 +228,14 @@ export class Game {
     this.gold -= costs[kind];
     this.spellCool[kind] = kind === "zap" ? 10 : kind === "crumb" ? 8 : 7;
 
-    let tx = COOKIE.x - 120;
+    let tx = COOKIE.x - 80;
     let ty = COOKIE.y;
-    if (this.thieves.length) {
-      const alive = this.thieves.filter((t) => t.alive);
-      if (alive.length) {
-        const mid = alive[Math.floor(alive.length / 2)];
-        const p = pathPoint(mid.progress);
-        tx = p.x;
-        ty = p.y;
-      }
+    const alive = this.thieves.filter((t) => t.alive);
+    if (alive.length) {
+      const mid = alive[Math.floor(alive.length / 2)];
+      const p = pathPoint(mid.progress);
+      tx = p.x;
+      ty = p.y;
     }
 
     if (kind === "crumb") {
@@ -234,8 +257,7 @@ export class Game {
       }
     } else {
       this.booms.push({ kind: "zap", x: tx, y: ty, life: 1, radius: 70 });
-      const alive = this.thieves.filter((t) => t.alive).slice(0, 4);
-      for (const t of alive) {
+      for (const t of alive.slice(0, 4)) {
         const p = pathPoint(t.progress);
         this.hurt(t, 55, p.x, p.y);
         this.booms.push({ kind: "zap", x: p.x, y: p.y, life: 0.8, radius: 30 });
@@ -267,6 +289,7 @@ export class Game {
             level: 1,
             cooldown: 0,
             slotId: slot.id,
+            abilityTimer: friend.ability === "foxWall" ? 2 : 0,
           };
           this.bag.splice(this.selectedBag, 1);
           this.selectedBag = null;
@@ -301,19 +324,32 @@ export class Game {
       maxHp: hp,
       progress: 0,
       slowTimer: 0,
+      blockedTimer: 0,
       alive: true,
     });
   }
 
-  hurt(t: Thief, dmg: number, x: number, y: number) {
+  hurt(t: Thief, dmg: number, x: number, y: number, floppy = false) {
     t.hp -= dmg;
     this.floats.push({ x, y: y - 10, text: `-${dmg}`, color: "#ff6b6b", life: 0.8 });
+    if (floppy) {
+      t.slowTimer = Math.max(t.slowTimer, 1.8);
+      this.booms.push({ kind: "floppy", x, y, life: 0.5, radius: 28 });
+    }
     if (t.hp <= 0) {
       t.alive = false;
       this.gold += t.def.gold;
       if (Math.random() < 0.22) this.stars += 1;
       this.floats.push({ x, y: y - 24, text: `+${t.def.gold}🪙`, color: "#c4782a", life: 1 });
     }
+  }
+
+  placeFoxWall(slotX: number, slotY: number) {
+    // Place wall a bit ahead on the path near this fox
+    const prog = Math.min(0.95, nearestProgress(slotX, slotY) + 0.06);
+    const p = pathPoint(prog);
+    this.walls.push({ x: p.x, y: p.y, life: 10, maxLife: 10, progress: prog });
+    this.booms.push({ kind: "wall", x: p.x, y: p.y, life: 0.8, radius: 40 });
   }
 
   update(dt: number) {
@@ -344,16 +380,40 @@ export class Game {
       this.stars += 1;
       this.gold += 3;
       this.wavePause = 2.5;
-      // no popup spam — stats bar already shows wave/gold/stars
       this.save();
       this.onChange();
     }
 
+    // Fox walls tick
+    for (const slot of this.slots) {
+      const f = slot.friend;
+      if (!f || f.def.ability !== "foxWall") continue;
+      f.abilityTimer -= dt;
+      if (f.abilityTimer <= 0) {
+        this.placeFoxWall(slot.x, slot.y);
+        f.abilityTimer = 30;
+      }
+    }
+
+    // Walls expire + block thieves
+    for (const w of this.walls) w.life -= dt;
+    this.walls = this.walls.filter((w) => w.life > 0);
+
     for (const t of this.thieves) {
       if (!t.alive) continue;
       if (t.slowTimer > 0) t.slowTimer -= dt;
+      if (t.blockedTimer > 0) t.blockedTimer -= dt;
+
+      // hit a wall?
+      for (const w of this.walls) {
+        if (Math.abs(t.progress - w.progress) < 0.025) {
+          t.blockedTimer = Math.max(t.blockedTimer, 0.35);
+        }
+      }
+
       const slow = t.slowTimer > 0 ? 0.45 : 1;
-      t.progress += ((t.def.speed * slow) / 900) * dt;
+      const block = t.blockedTimer > 0 ? 0.15 : 1;
+      t.progress += ((t.def.speed * slow * block) / 900) * dt;
       if (t.progress >= 1) {
         t.alive = false;
         this.cookieHp -= t.def.boss ? 4 : 1;
@@ -367,7 +427,7 @@ export class Game {
       }
     }
 
-    // friends shoot
+    // Friends shoot
     for (const slot of this.slots) {
       const f = slot.friend;
       if (!f) continue;
@@ -392,16 +452,17 @@ export class Game {
           y: slot.y,
           tx: p.x,
           ty: p.y,
-          speed: 320,
+          speed: f.def.ability === "godBeam" ? 420 : 320,
           damage: friendDamage(f),
           color: f.def.color,
           targetId: best.uid,
+          floppy: f.def.ability === "floppyFin",
+          godBeam: f.def.ability === "godBeam",
         });
         f.cooldown = 1 / f.def.attackSpeed;
       }
     }
 
-    // shots
     for (const s of this.shots) {
       const dx = s.tx - s.x;
       const dy = s.ty - s.y;
@@ -411,13 +472,25 @@ export class Game {
         const t = this.thieves.find((x) => x.uid === s.targetId && x.alive);
         if (t) {
           const p = pathPoint(t.progress);
-          this.hurt(t, s.damage, p.x, p.y);
+          let dmg = s.damage;
+          if (s.godBeam) {
+            dmg = Math.round(dmg * 1.4);
+            this.booms.push({ kind: "beam", x: p.x, y: p.y, life: 0.6, radius: 40 });
+            // splash nearby
+            for (const other of this.thieves) {
+              if (!other.alive || other.uid === t.uid) continue;
+              const op = pathPoint(other.progress);
+              if (Math.hypot(op.x - p.x, op.y - p.y) < 55) {
+                this.hurt(other, Math.round(dmg * 0.45), op.x, op.y);
+              }
+            }
+          }
+          this.hurt(t, dmg, p.x, p.y, !!s.floppy);
         }
         s.speed = -1;
       } else {
         s.x += (dx / d) * step;
         s.y += (dy / d) * step;
-        // lead a little toward live target
         const t = this.thieves.find((x) => x.uid === s.targetId && x.alive);
         if (t) {
           const p = pathPoint(t.progress);
@@ -452,6 +525,7 @@ export class Game {
       shots: this.shots,
       floats: this.floats,
       booms: this.booms,
+      walls: this.walls,
       cookieHp: this.cookieHp,
       cookieMax: this.cookieMax,
       selectedSlot: this.selectedSlot,
@@ -464,5 +538,3 @@ export class Game {
     }
   }
 }
-
-export type { PlacedFriend };
