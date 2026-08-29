@@ -1,22 +1,25 @@
 # Cookie Guard
 
-A simple kid-friendly idle tower defense game.
+Kid-friendly idle tower defense (top-down, like Summoner's Greed style).
 
-**No ads. No popups. Clean home screen.**
+**No ads. Clean home screen.**
 
-## Story
+## Animals
 
-You baked a giant magic cookie. Hungry snack thieves try to steal bites. Summon cute animal friends, place them on the path, and protect the cookie!
+| Tier | Animals |
+|------|---------|
+| Basic | Hummingbird, Bunny, Squirrel, Hedgehog, Chipmunk, Forest Mouse |
+| Tier 2 | Owl, Deer, Beaver, Wolf, Fox, Fish |
+| Legendary | Otter, Brown Bear, Polar Bear, Bald Eagle (+ Shark via evolve) |
+| GOD | Red Panda (0.5% summon), Megalodon (via evolve) |
 
-## How to play
+### Specials
+- **Fish** — Floppy Fin (slows thieves). On Upgrade: **0.5%** → Shark, **0.1%** → Megalodon
+- **Fox** — builds path walls every **30s** that last **10s**
+- **Red Panda** — strongest GOD beam attacks
+- **Megalodon** — GOD tier sea boss animal
 
-1. Press **Play** on the clean home screen.
-2. Press **Summon** (costs ⭐ stars) to get animal friends.
-3. Tap a friend in your bag, then tap an empty circle on the path.
-4. Friends shoot thieves automatically.
-5. Earn 🪙 gold and ⭐ stars. Upgrade friends. Use spells when it gets hard.
-
-## Run it
+## Run
 
 ```bash
 cd game
