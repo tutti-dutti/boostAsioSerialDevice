@@ -1,7 +1,8 @@
 {
-  "name": "game",
+  "name": "cookie-guard",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Kid-friendly top-down idle tower defense — protect your cookie!",
   "type": "module",
   "scripts": {
     "dev": "vite",
