@@ -84,5 +84,6 @@ export function waveCount(wave: number): number {
 }
 
 export function waveHpScale(wave: number): number {
-  return 1 + (wave - 1) * 0.16 + Math.floor(wave / 10) * 0.35;
+  // Gentler scaling so early waves stay fun for kids
+  return 1 + (wave - 1) * 0.1 + Math.floor(wave / 10) * 0.25;
 }

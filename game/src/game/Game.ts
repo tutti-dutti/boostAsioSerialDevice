@@ -35,11 +35,11 @@ export class Game {
   shots: Shot[] = [];
   floats: FloatText[] = [];
   booms: Boom[] = [];
-  gold = 12;
-  stars = 3;
+  gold = 20;
+  stars = 5;
   wave = 1;
-  cookieHp = 20;
-  cookieMax = 20;
+  cookieHp = 40;
+  cookieMax = 40;
   spawnLeft = 0;
   spawnTimer = 0;
   wavePause = 2;
@@ -99,11 +99,11 @@ export class Game {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return;
       const data = JSON.parse(raw);
-      this.gold = data.gold ?? 12;
-      this.stars = data.stars ?? 3;
+      this.gold = data.gold ?? 20;
+      this.stars = data.stars ?? 5;
       this.wave = data.wave ?? 1;
-      this.cookieHp = data.cookieHp ?? 20;
-      this.cookieMax = data.cookieMax ?? 20;
+      this.cookieHp = data.cookieHp ?? 40;
+      this.cookieMax = data.cookieMax ?? 40;
       this.bag = (data.bag || [])
         .map((id: string) => FRIENDS.find((f) => f.id === id))
         .filter(Boolean);
@@ -134,11 +134,11 @@ export class Game {
     this.shots = [];
     this.floats = [];
     this.booms = [];
-    this.gold = 12;
-    this.stars = 3;
+    this.gold = 20;
+    this.stars = 5;
     this.wave = 1;
-    this.cookieHp = 20;
-    this.cookieMax = 20;
+    this.cookieHp = 40;
+    this.cookieMax = 40;
     this.spawnLeft = 0;
     this.spawnTimer = 0;
     this.wavePause = 2;
