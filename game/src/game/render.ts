@@ -52,10 +52,25 @@ function gate(ctx: CanvasRenderingContext2D) {
   ctx.strokeStyle = "#3a2810";
   ctx.lineWidth = 3;
   ctx.stroke();
+
+  // Arrow pointing along the path's starting direction
+  const next = PATH[1] ?? { x: GATE.x + 1, y: GATE.y };
+  const ang = Math.atan2(next.y - GATE.y, next.x - GATE.x);
+  ctx.save();
+  ctx.translate(GATE.x, GATE.y);
+  ctx.rotate(ang);
   ctx.fillStyle = "#fff6e8";
-  ctx.font = "800 10px Nunito, sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("IN", GATE.x, GATE.y + 3);
+  ctx.beginPath();
+  ctx.moveTo(12, 0);
+  ctx.lineTo(-8, -9);
+  ctx.lineTo(-4, 0);
+  ctx.lineTo(-8, 9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#3a2810";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
 }
 
 function cookieBiteCenters(x: number, y: number, r: number, bites: CookieBite[]) {
