@@ -56,7 +56,7 @@ app.innerHTML = `
         <div class="row">
           <button class="danger" id="delete-unit" type="button">Delete unit</button>
         </div>
-        <p class="hint">Tap a friend once to equip, then tap a + spot to deploy. Freeze (🐧🦭) stops Speed; Heavy Hit (🦡🫎🐻) cracks Strength.</p>
+        <p class="hint">Equip from bag, tap grass to deploy (not the path). Drag friends to move them.</p>
       </section>
 
       <section class="panel">
@@ -166,35 +166,43 @@ function refresh() {
     });
   }
 
-  if (game.selectedSlot != null && game.slots[game.selectedSlot]?.friend) {
-    const f = game.slots[game.selectedSlot].friend!;
-    let extra = "";
-    if (f.def.ability === "floppyFin") extra += " · Floppy Fin";
-    if (f.def.ability === "foxWall") extra += " · builds walls";
-    if (f.def.ability === "godBeam") extra += " · God Beam";
-    if (f.def.ability === "freeze") extra += " · FREEZE";
-    if (f.def.ability === "heavyHit") extra += " · HEAVY HIT";
-    extra += ` · ${weaponRoleLabel(weaponRoleFor(f.def))}`;
-    if (f.def.canEvolve && f.def.evolvesTo) {
-      const pct = Math.round(evolveChanceFor(f.def) * 1000) / 10;
-      const label = Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
-      const target =
-        f.def.evolvesTo === "werewolf"
-          ? "Werewolf"
-          : f.def.evolvesTo === "giantpanda"
-            ? "Giant Panda"
-            : "mythical";
-      extra += ` · ${label}% → ${target}!`;
+  if (game.selectedSlot != null) {
+    const slot = game.slots.find((s) => s.id === game.selectedSlot);
+    if (slot?.friend) {
+      const f = slot.friend;
+      let extra = "";
+      if (f.def.ability === "floppyFin") extra += " · Floppy Fin";
+      if (f.def.ability === "foxWall") extra += " · builds walls";
+      if (f.def.ability === "godBeam") extra += " · God Beam";
+      if (f.def.ability === "freeze") extra += " · FREEZE";
+      if (f.def.ability === "heavyHit") extra += " · HEAVY HIT";
+      extra += ` · ${weaponRoleLabel(weaponRoleFor(f.def))}`;
+      if (f.def.canEvolve && f.def.evolvesTo) {
+        const pct = Math.round(evolveChanceFor(f.def) * 1000) / 10;
+        const label = Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
+        const target =
+          f.def.evolvesTo === "werewolf"
+            ? "Werewolf"
+            : f.def.evolvesTo === "giantpanda"
+              ? "Giant Panda"
+              : "mythical";
+        extra += ` · ${label}% → ${target}!`;
+      }
+      if (f.def.id === "giantpanda") extra = " · MEGA Giant Panda!";
+      if (f.def.rarity === "mythical" && f.def.id !== "giantpanda") extra = " · MYTHICAL form!";
+      if (f.def.rarity === "god") extra = " · GOD TIER!";
+      selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
+    } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
+      const f = game.bag[game.selectedBag];
+      selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass (not the path) to deploy`;
+    } else {
+      selectHint.textContent = "Drag friends to move. Equip from bag, then tap grass to deploy.";
     }
-    if (f.def.id === "giantpanda") extra = " · MEGA Giant Panda!";
-    if (f.def.rarity === "mythical" && f.def.id !== "giantpanda") extra = " · MYTHICAL form!";
-    if (f.def.rarity === "god") extra = " · GOD TIER!";
-    selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
   } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
     const f = game.bag[game.selectedBag];
-    selectHint.textContent = `${f.emoji} ${f.name} equipped — tap a glowing + spot to deploy`;
+    selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass (not the path) to deploy`;
   } else {
-    selectHint.textContent = "Mix vs Speed + vs Strength friends to counter both thief types.";
+    selectHint.textContent = "Drag friends to move. Equip from bag, then tap grass to deploy.";
   }
 
   toast.textContent = game.toastText;

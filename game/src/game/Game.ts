@@ -12,7 +12,7 @@ import {
   weaponRoleFor,
   type FriendDef,
 } from "./data";
-import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses } from "./path";
+import { COOKIE, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses, canPlaceAt } from "./path";
 import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell, playCookieMunch } from "./sound";
 import {
@@ -24,7 +24,6 @@ import {
   damageVsThief,
   type Boom,
   type FloatText,
-  type PlacedFriend,
   type Shot,
   type Slot,
   type Thief,
@@ -45,6 +44,13 @@ export class Game {
   bag: FriendDef[] = [];
   selectedBag: number | null = null;
   selectedSlot: number | null = null;
+  /** Free-place drag state */
+  draggingSlot: number | null = null;
+  dragMoved = false;
+  dragOrigin: { x: number; y: number } | null = null;
+  /** Ghost cursor while equipping a bag friend */
+  deployGhost: { x: number; y: number; valid: boolean } | null = null;
+  nextSlotId = 1;
   thieves: Thief[] = [];
   shots: Shot[] = [];
   floats: FloatText[] = [];
@@ -82,35 +88,93 @@ export class Game {
     this.load();
     this.syncMapForWave(false);
     this.grantIdleGold();
-    this.canvas.addEventListener("pointerdown", (e) => this.onClick(e));
+    this.canvas.style.touchAction = "none";
+    this.canvas.addEventListener("pointerdown", (e) => this.onPointerDown(e));
+    this.canvas.addEventListener("pointermove", (e) => this.onPointerMove(e));
+    this.canvas.addEventListener("pointerup", (e) => this.onPointerUp(e));
+    this.canvas.addEventListener("pointercancel", (e) => this.onPointerUp(e));
   }
 
-  /** Rebuild pads for the wave's map; optionally keep friends by slot index */
+  canvasPos(e: PointerEvent) {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * W,
+      y: ((e.clientY - rect.top) / rect.height) * H,
+    };
+  }
+
+  occupiedPoints(ignoreSlotId?: number) {
+    return this.slots
+      .filter((s) => s.friend && s.id !== ignoreSlotId)
+      .map((s) => ({ id: s.id, x: s.x, y: s.y }));
+  }
+
+  isValidPlace(x: number, y: number, ignoreSlotId?: number) {
+    return canPlaceAt(x, y, { ignoreSlotId, others: this.occupiedPoints(ignoreSlotId) });
+  }
+
+  hitFriendSlot(x: number, y: number, radius = 36): Slot | null {
+    let best: Slot | null = null;
+    let bestD = radius;
+    for (const slot of this.slots) {
+      if (!slot.friend) continue;
+      const d = Math.hypot(slot.x - x, slot.y - y);
+      if (d <= bestD) {
+        best = slot;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  slotById(id: number | null): Slot | null {
+    if (id == null) return null;
+    return this.slots.find((s) => s.id === id) ?? null;
+  }
+
+  /** Switch course layout; keep free-placed friends if still off the path */
   applyMapForWave(wave: number, announce: boolean) {
-    const prevFriends = this.slots.map((s) => s.friend);
+    const kept = this.slots.filter((s) => s.friend).map((s) => ({
+      friend: s.friend!,
+      x: s.x,
+      y: s.y,
+    }));
     const map = setActiveCourseMap(this.courseIndex, wave);
     this.mapTier = mapTierForWave(wave);
-    this.slots = SLOT_SPOTS.map((p, i) => ({
-      id: i,
-      x: p.x,
-      y: p.y,
-      friend: null as PlacedFriend | null,
-    }));
+    this.slots = [];
     const overflow: FriendDef[] = [];
-    for (let i = 0; i < prevFriends.length; i++) {
-      const f = prevFriends[i];
-      if (!f) continue;
-      if (i < this.slots.length) {
-        f.slotId = i;
-        this.slots[i].friend = f;
-      } else {
-        overflow.push(f.def);
+    for (const item of kept) {
+      const f = item.friend;
+      let x = item.x;
+      let y = item.y;
+      if (!this.isValidPlace(x, y)) {
+        // Nudge outward from the path a few times
+        let placed = false;
+        for (let a = 0; a < 12 && !placed; a++) {
+          const ang = (a / 12) * Math.PI * 2;
+          const nx = item.x + Math.cos(ang) * 48;
+          const ny = item.y + Math.sin(ang) * 48;
+          if (this.isValidPlace(nx, ny)) {
+            x = nx;
+            y = ny;
+            placed = true;
+          }
+        }
+        if (!placed) {
+          overflow.push(f.def);
+          continue;
+        }
       }
+      const id = this.nextSlotId++;
+      f.slotId = id;
+      this.slots.push({ id, x, y, friend: f });
     }
     if (overflow.length) this.bag.push(...overflow);
     this.walls = [];
     this.shots = [];
     this.selectedSlot = null;
+    this.draggingSlot = null;
+    this.deployGhost = null;
     if (announce) {
       const hard = this.mapTier > 0 ? " (harder!)" : "";
       const roll = this.courseRandom ? " 🎲" : "";
@@ -120,12 +184,16 @@ export class Game {
 
   syncMapForWave(announce: boolean) {
     const next = mapTierForWave(this.wave);
-    if (next !== this.mapTier || this.slots.length === 0) {
-      const changed = this.slots.length > 0 && next !== this.mapTier;
+    // Always ensure map is loaded; recreate when tier changes
+    if (next !== this.mapTier) {
+      const changed = this.mapTier !== next;
       if (changed && this.courseRandom) {
         this.courseIndex = randomCourseIndex(this.courseIndex);
       }
       this.applyMapForWave(this.wave, announce && changed);
+    } else if (this.mapTier === 0 && this.wave === 1 && !this.slots.length) {
+      // ensure active map lengths exist on fresh start
+      setActiveCourseMap(this.courseIndex, this.wave);
     }
   }
 
@@ -213,9 +281,14 @@ export class Game {
       courseIndex: this.courseIndex,
       courseRandom: this.courseRandom,
       bag: this.bag.map((f) => f.id),
-      slots: this.slots.map((s) =>
-        s.friend ? { id: s.friend.def.id, level: s.friend.level } : null,
-      ),
+      slots: this.slots
+        .filter((s) => s.friend)
+        .map((s) => ({
+          id: s.friend!.def.id,
+          level: s.friend!.level,
+          x: s.x,
+          y: s.y,
+        })),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     localStorage.setItem("cookie-guard-last", String(Date.now()));
@@ -237,20 +310,33 @@ export class Game {
       this.bag = (data.bag || [])
         .map((id: string) => FRIENDS.find((f) => f.id === id))
         .filter(Boolean);
-      (data.slots || []).forEach((slot: { id: string; level: number } | null, i: number) => {
-        if (!slot || !this.slots[i]) return;
+      this.slots = [];
+      for (const slot of data.slots || []) {
+        if (!slot) continue;
         const def = FRIENDS.find((f) => f.id === slot.id);
-        if (!def) return;
-        this.slots[i].friend = {
-          uid: uid("f"),
-          def,
-          level: slot.level || 1,
-          cooldown: 0,
-          slotId: i,
-          abilityTimer: def.ability === "foxWall" ? 30 : 0,
-          orbitAngle: Math.random() * Math.PI * 2,
-        };
-      });
+        if (!def) continue;
+        const x = typeof slot.x === "number" ? slot.x : W / 2;
+        const y = typeof slot.y === "number" ? slot.y : H / 2;
+        if (!this.isValidPlace(x, y)) {
+          this.bag.push(def);
+          continue;
+        }
+        const id = this.nextSlotId++;
+        this.slots.push({
+          id,
+          x,
+          y,
+          friend: {
+            uid: uid("f"),
+            def,
+            level: slot.level || 1,
+            cooldown: 0,
+            slotId: id,
+            abilityTimer: def.ability === "foxWall" ? 30 : 0,
+            orbitAngle: Math.random() * Math.PI * 2,
+          },
+        });
+      }
       // Always wait for Start Wave after loading a save
       this.waveWaiting = true;
       this.waveInProgress = false;
@@ -264,10 +350,12 @@ export class Game {
 
   reset() {
     localStorage.removeItem(SAVE_KEY);
-    this.slots.forEach((s) => (s.friend = null));
+    this.slots = [];
     this.bag = [];
     this.selectedBag = null;
     this.selectedSlot = null;
+    this.draggingSlot = null;
+    this.deployGhost = null;
     this.thieves = [];
     this.shots = [];
     this.floats = [];
@@ -313,12 +401,11 @@ export class Game {
   }
 
   upgradeSelected() {
-    if (this.selectedSlot == null) {
-      this.toast("Tap a friend on the path first", true);
+    const slot = this.slotById(this.selectedSlot);
+    if (!slot?.friend) {
+      this.toast("Tap a friend on the board first", true);
       return;
     }
-    const slot = this.slots[this.selectedSlot];
-    if (!slot.friend) return;
     const cost = upgradeCost(slot.friend);
     if (this.gold < cost) {
       this.toast("Need more gold", true);
@@ -359,12 +446,11 @@ export class Game {
   }
 
   sellSelected() {
-    if (this.selectedSlot == null) return;
-    const slot = this.slots[this.selectedSlot];
-    if (!slot.friend) return;
+    const slot = this.slotById(this.selectedSlot);
+    if (!slot?.friend) return;
     this.bag.push(slot.friend.def);
     this.gold += Math.max(1, Math.floor(upgradeCost(slot.friend) * 0.35));
-    slot.friend = null;
+    this.slots = this.slots.filter((s) => s.id !== slot.id);
     this.selectedSlot = null;
     this.save();
     this.onChange();
@@ -376,9 +462,9 @@ export class Game {
     for (const slot of this.slots) {
       if (!slot.friend) continue;
       this.bag.push(slot.friend.def);
-      slot.friend = null;
       n += 1;
     }
+    this.slots = [];
     this.selectedSlot = null;
     if (!n) {
       this.toast("Board is already empty", true);
@@ -401,14 +487,10 @@ export class Game {
       this.onChange();
       return;
     }
-    if (this.selectedSlot != null) {
-      const slot = this.slots[this.selectedSlot];
-      if (!slot?.friend) {
-        this.toast("Pick a friend in the bag or on the board first", true);
-        return;
-      }
+    const slot = this.slotById(this.selectedSlot);
+    if (slot?.friend) {
       const name = `${slot.friend.def.emoji} ${slot.friend.def.name}`;
-      slot.friend = null;
+      this.slots = this.slots.filter((s) => s.id !== slot.id);
       this.selectedSlot = null;
       this.toast(`Deleted ${name}`, true);
       this.save();
@@ -467,84 +549,128 @@ export class Game {
     this.onChange();
   }
 
-  onClick(e: PointerEvent) {
+  onPointerDown(e: PointerEvent) {
     if (this.gameOver) return;
-    const rect = this.canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * W;
-    const y = ((e.clientY - rect.top) / rect.height) * H;
+    const { x, y } = this.canvasPos(e);
+    this.canvas.setPointerCapture(e.pointerId);
 
-    // Find nearest pad (larger radius so one tap is enough)
-    let nearest: Slot | null = null;
-    let nearestD = Infinity;
-    for (const slot of this.slots) {
-      const d = Math.hypot(slot.x - x, slot.y - y);
-      if (d < nearestD) {
-        nearestD = d;
-        nearest = slot;
-      }
-    }
-
-    const equipping = this.selectedBag != null;
-    const hitR = equipping ? 42 : 32;
-
-    if (!nearest || nearestD > hitR) {
-      // Missed pads — keep equipped friend so the next tap can still deploy
-      if (!equipping) this.selectedSlot = null;
+    const hit = this.hitFriendSlot(x, y);
+    if (hit && this.selectedBag == null) {
+      this.draggingSlot = hit.id;
+      this.dragMoved = false;
+      this.dragOrigin = { x: hit.x, y: hit.y };
+      this.selectedSlot = hit.id;
       this.onChange();
       return;
     }
 
-    // Equipped friend: one tap on an empty pad deploys there
-    if (equipping) {
-      if (nearest.friend) {
-        this.toast("That spot is full — tap an empty + circle", true);
+    if (this.selectedBag != null) {
+      if (this.isValidPlace(x, y)) {
+        this.deployAt(x, y);
+      } else {
+        this.toast("Place on grass — not on the path!", true);
         this.onChange();
-        return;
       }
-      const friend = this.bag[this.selectedBag!];
-      if (!friend) {
-        this.selectedBag = null;
-        this.onChange();
-        return;
-      }
-      nearest.friend = {
-        uid: uid("f"),
-        def: friend,
-        level: 1,
-        cooldown: 0,
-        slotId: nearest.id,
-        abilityTimer: friend.ability === "foxWall" ? 2 : 0,
-        orbitAngle: Math.random() * Math.PI * 2,
-      };
-      this.bag.splice(this.selectedBag!, 1);
-      this.selectedBag = null;
-      this.selectedSlot = nearest.id;
-      this.toast(`${friend.emoji} Deployed!`, true);
-      this.save();
-      this.onChange();
       return;
     }
 
-    // Not equipping: tap a placed friend to select it
-    if (nearest.friend) {
-      this.selectedSlot = nearest.id;
-      this.selectedBag = null;
-      this.onChange();
-      return;
-    }
-
-    this.toast("Tap a friend in your bag first, then tap a + spot", true);
     this.selectedSlot = null;
     this.onChange();
   }
 
-  /** One tap in the bag equips a friend for the next pad tap */
+  onPointerMove(e: PointerEvent) {
+    const { x, y } = this.canvasPos(e);
+
+    if (this.selectedBag != null && this.draggingSlot == null) {
+      this.deployGhost = { x, y, valid: this.isValidPlace(x, y) };
+      this.paint();
+      return;
+    }
+
+    if (this.draggingSlot == null) return;
+    const slot = this.slots.find((s) => s.id === this.draggingSlot);
+    if (!slot) return;
+    if (this.dragOrigin && Math.hypot(x - this.dragOrigin.x, y - this.dragOrigin.y) > 6) {
+      this.dragMoved = true;
+    }
+    if (this.isValidPlace(x, y, slot.id)) {
+      slot.x = x;
+      slot.y = y;
+    }
+    this.paint();
+  }
+
+  onPointerUp(e: PointerEvent) {
+    try {
+      this.canvas.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+
+    if (this.draggingSlot != null) {
+      const slot = this.slots.find((s) => s.id === this.draggingSlot);
+      if (slot && this.dragOrigin && !this.isValidPlace(slot.x, slot.y, slot.id)) {
+        slot.x = this.dragOrigin.x;
+        slot.y = this.dragOrigin.y;
+      }
+      if (slot && this.dragMoved) {
+        this.toast(`${slot.friend?.def.emoji ?? ""} Moved!`, true);
+        this.save();
+      }
+      this.draggingSlot = null;
+      this.dragMoved = false;
+      this.dragOrigin = null;
+      this.onChange();
+      return;
+    }
+
+    if (this.selectedBag == null) this.deployGhost = null;
+  }
+
+  deployAt(x: number, y: number) {
+    if (this.selectedBag == null) return;
+    const friend = this.bag[this.selectedBag];
+    if (!friend) {
+      this.selectedBag = null;
+      this.onChange();
+      return;
+    }
+    if (!this.isValidPlace(x, y)) {
+      this.toast("Can't place there — avoid the path", true);
+      this.onChange();
+      return;
+    }
+    const id = this.nextSlotId++;
+    this.slots.push({
+      id,
+      x,
+      y,
+      friend: {
+        uid: uid("f"),
+        def: friend,
+        level: 1,
+        cooldown: 0,
+        slotId: id,
+        abilityTimer: friend.ability === "foxWall" ? 2 : 0,
+        orbitAngle: Math.random() * Math.PI * 2,
+      },
+    });
+    this.bag.splice(this.selectedBag, 1);
+    this.selectedBag = null;
+    this.selectedSlot = id;
+    this.deployGhost = null;
+    this.toast(`${friend.emoji} Deployed! Drag to move anytime.`, true);
+    this.save();
+    this.onChange();
+  }
+
+  /** One tap in the bag equips a friend for free placement */
   equipFromBag(index: number) {
     if (index < 0 || index >= this.bag.length) return;
     this.selectedBag = index;
     this.selectedSlot = null;
     const f = this.bag[index];
-    this.toast(`${f.emoji} Equipped — tap a + spot to deploy`, true);
+    this.toast(`${f.emoji} Equipped — tap grass (not the path) to deploy`, true);
     this.onChange();
   }
 
@@ -905,10 +1031,9 @@ export class Game {
       deployMode: this.selectedBag != null,
       waveWaiting: this.waveWaiting,
       paused: this.paused,
+      deployGhost: this.deployGhost,
     });
-    if (this.selectedSlot != null) {
-      const slot = this.slots[this.selectedSlot];
-      if (slot?.friend) drawRangeHint(this.ctx, slot);
-    }
+    const selected = this.slotById(this.selectedSlot);
+    if (selected?.friend) drawRangeHint(this.ctx, selected);
   }
 }

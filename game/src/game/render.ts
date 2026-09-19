@@ -259,31 +259,12 @@ function slots(
   list: Slot[],
   selected: number | null,
   deployMode = false,
-  time = 0,
+  _time = 0,
 ) {
   for (const s of list) {
+    if (!s.friend) continue; // free placement — no empty pad clutter
     const on = selected === s.id;
-    if (!s.friend) {
-      const pulse = deployMode ? 0.55 + Math.sin(time * 6 + s.id) * 0.2 : 0.22;
-      ctx.fillStyle = deployMode
-        ? `rgba(255, 210, 74, ${pulse})`
-        : on
-          ? "rgba(255,210,74,0.35)"
-          : "rgba(255,255,255,0.22)";
-      ctx.strokeStyle = deployMode ? "#e8a04a" : on ? "#e8a04a" : "rgba(42,48,64,0.3)";
-      ctx.lineWidth = deployMode ? 3 : 2;
-      ctx.setLineDash(deployMode ? [] : [5, 4]);
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, deployMode ? 26 : 24, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = deployMode ? "#c4782a" : "rgba(42,48,64,0.4)";
-      ctx.font = "800 16px Nunito, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("+", s.x, s.y);
-    } else if (s.friend.def.flies) {
+    if (s.friend.def.flies) {
       const f = s.friend;
       const orbitR = flyerOrbitRadius(f);
       // nest pad
@@ -317,6 +298,33 @@ function slots(
       drawFriendPad(ctx, s.friend, s.x, s.y, on);
     }
   }
+
+  // Soft board hint only while deploying — no pad grid
+  if (deployMode) {
+    void deployMode;
+  }
+}
+
+function deployGhost(
+  ctx: CanvasRenderingContext2D,
+  ghost: { x: number; y: number; valid: boolean } | null | undefined,
+) {
+  if (!ghost) return;
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = ghost.valid ? "rgba(126, 220, 120, 0.45)" : "rgba(220, 80, 80, 0.4)";
+  ctx.strokeStyle = ghost.valid ? "#3a9a40" : "#c04030";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(ghost.x, ghost.y, 28, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = ghost.valid ? "#2a6030" : "#6a2020";
+  ctx.font = "800 18px Nunito, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(ghost.valid ? "+" : "✕", ghost.x, ghost.y);
+  ctx.restore();
 }
 
 function thieves(
@@ -466,6 +474,7 @@ export interface DrawState {
   deployMode?: boolean;
   waveWaiting?: boolean;
   paused?: boolean;
+  deployGhost?: { x: number; y: number; valid: boolean } | null;
 }
 
 export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
@@ -474,6 +483,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   gate(ctx);
   walls(ctx, s.walls);
   slots(ctx, s.slots, s.selectedSlot, !!s.deployMode, s.time);
+  deployGhost(ctx, s.deployGhost);
   thieves(ctx, s.thieves, s.thiefPos);
   shots(ctx, s.shots);
   booms(ctx, s.booms);
@@ -497,7 +507,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
     ctx.fillStyle = "rgba(232, 160, 74, 0.92)";
     ctx.font = "800 16px Nunito, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Equipped — tap a glowing + spot to deploy", W / 2, H - 16);
+    ctx.fillText("Tap grass to deploy — not on the path. Drag friends to move.", W / 2, H - 16);
   }
 
   if (s.bossFight) {

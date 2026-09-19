@@ -478,3 +478,29 @@ export function nearestProgress(x: number, y: number): number {
   }
   return best;
 }
+
+/** Distance from a point to the nearest spot on the active path */
+export function distanceToPath(x: number, y: number): number {
+  const t = nearestProgress(x, y);
+  const p = pathPoint(t);
+  return Math.hypot(p.x - x, p.y - y);
+}
+
+/** Keep friends off the path (and away from cookie/gate) */
+export const PATH_CLEARANCE = 38;
+
+export function canPlaceAt(
+  x: number,
+  y: number,
+  opts: { ignoreSlotId?: number; others?: { id: number; x: number; y: number }[] } = {},
+): boolean {
+  if (x < 30 || x > W - 30 || y < 30 || y > H - 30) return false;
+  if (distanceToPath(x, y) < PATH_CLEARANCE) return false;
+  if (Math.hypot(x - COOKIE.x, y - COOKIE.y) < 52) return false;
+  if (Math.hypot(x - GATE.x, y - GATE.y) < 42) return false;
+  for (const o of opts.others || []) {
+    if (opts.ignoreSlotId != null && o.id === opts.ignoreSlotId) continue;
+    if (Math.hypot(o.x - x, o.y - y) < 40) return false;
+  }
+  return true;
+}
