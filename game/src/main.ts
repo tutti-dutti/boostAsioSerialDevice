@@ -2,6 +2,7 @@ import "./style.css";
 import { Game } from "./game/Game";
 import { rarityLabel, evolveChanceFor } from "./game/data";
 import { unlockAudio, setMuted, isMuted } from "./game/sound";
+import { getActiveMap } from "./game/path";
 import { upgradeCost } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -84,6 +85,7 @@ function refresh() {
     <div class="stat">🪙 ${game.gold}</div>
     <div class="stat">⭐ ${game.stars}</div>
     <div class="stat">Wave ${game.wave}</div>
+    <div class="stat">🗺️ ${getActiveMap().name}</div>
     <div class="stat">🍪 ${game.cookieHp}/${game.cookieMax}</div>
   `;
 

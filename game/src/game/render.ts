@@ -1,18 +1,17 @@
-import { COOKIE, GATE, PATH, W, H } from "./path";
+import { COOKIE, GATE, PATH, W, H, getActiveMap } from "./path";
 import type { Boom, FloatText, PlacedFriend, Shot, Slot, Thief, Wall } from "./types";
 import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
 function grass(ctx: CanvasRenderingContext2D) {
-  // Top-down grass field
-  ctx.fillStyle = "#5cb85a";
+  const map = getActiveMap();
+  ctx.fillStyle = map.grassB;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "#6ecf6a";
+  ctx.fillStyle = map.grassA;
   for (let y = 0; y < H; y += 28) {
     for (let x = 0; x < W; x += 28) {
       if ((x + y) % 56 === 0) ctx.fillRect(x, y, 28, 28);
     }
   }
-  // soft vignette
   const g = ctx.createRadialGradient(W / 2, H / 2, 120, W / 2, H / 2, 520);
   g.addColorStop(0, "rgba(0,0,0,0)");
   g.addColorStop(1, "rgba(20,40,20,0.18)");
@@ -21,8 +20,8 @@ function grass(ctx: CanvasRenderingContext2D) {
 }
 
 function path(ctx: CanvasRenderingContext2D) {
-  // dirt path — top-down
-  ctx.strokeStyle = "#c4a060";
+  const map = getActiveMap();
+  ctx.strokeStyle = map.pathColor;
   ctx.lineWidth = 44;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -31,10 +30,11 @@ function path(ctx: CanvasRenderingContext2D) {
   for (let i = 1; i < PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
   ctx.stroke();
   ctx.strokeStyle = "#d8b878";
+  ctx.globalAlpha = 0.55;
   ctx.lineWidth = 30;
   ctx.stroke();
+  ctx.globalAlpha = 1;
 
-  // path edge dots
   ctx.fillStyle = "rgba(90,60,20,0.25)";
   for (let i = 0; i < PATH.length; i++) {
     ctx.beginPath();
@@ -347,7 +347,8 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   ctx.fillStyle = "rgba(42,48,64,0.65)";
   ctx.font = "800 15px Nunito, sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText(`Wave ${s.wave} · Top-down`, 14, 24);
+  const map = getActiveMap();
+  ctx.fillText(`Wave ${s.wave} · ${map.name}`, 14, 24);
 }
 
 export function drawRangeHint(ctx: CanvasRenderingContext2D, slot: Slot) {

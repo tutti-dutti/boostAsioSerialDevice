@@ -8,7 +8,7 @@ import {
   waveHpScale,
   type FriendDef,
 } from "./data";
-import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress } from "./path";
+import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress, mapIndexForWave, setActiveMap } from "./path";
 import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell } from "./sound";
 import {
@@ -20,6 +20,7 @@ import {
   upgradeCost,
   type Boom,
   type FloatText,
+  type PlacedFriend,
   type Shot,
   type Slot,
   type Thief,
@@ -31,7 +32,8 @@ const SAVE_KEY = "cookie-guard-save-v2";
 export class Game {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
-  slots: Slot[] = SLOT_SPOTS.map((p, i) => ({ id: i, x: p.x, y: p.y, friend: null }));
+  slots: Slot[] = [];
+  mapIndex = 0;
   bag: FriendDef[] = [];
   selectedBag: number | null = null;
   selectedSlot: number | null = null;
@@ -62,9 +64,50 @@ export class Game {
     this.ctx = canvas.getContext("2d")!;
     canvas.width = W;
     canvas.height = H;
+    this.applyMap(0, false);
     this.load();
+    this.syncMapForWave(false);
     this.grantIdleGold();
     this.canvas.addEventListener("pointerdown", (e) => this.onClick(e));
+  }
+
+  /** Rebuild pads for a map; optionally keep friends by slot index */
+  applyMap(index: number, announce: boolean) {
+    const prevFriends = this.slots.map((s) => s.friend);
+    const map = setActiveMap(index);
+    this.mapIndex = index;
+    this.slots = SLOT_SPOTS.map((p, i) => ({
+      id: i,
+      x: p.x,
+      y: p.y,
+      friend: null as PlacedFriend | null,
+    }));
+    const overflow: FriendDef[] = [];
+    for (let i = 0; i < prevFriends.length; i++) {
+      const f = prevFriends[i];
+      if (!f) continue;
+      if (i < this.slots.length) {
+        f.slotId = i;
+        this.slots[i].friend = f;
+      } else {
+        overflow.push(f.def);
+      }
+    }
+    if (overflow.length) this.bag.push(...overflow);
+    this.walls = [];
+    this.shots = [];
+    this.selectedSlot = null;
+    if (announce) {
+      this.toast(`🗺️ New map: ${map.name}!`, true);
+    }
+  }
+
+  syncMapForWave(announce: boolean) {
+    const next = mapIndexForWave(this.wave);
+    if (next !== this.mapIndex || this.slots.length === 0) {
+      const changed = this.slots.length > 0 && next !== this.mapIndex;
+      this.applyMap(next, announce && changed);
+    }
   }
 
   toast(msg: string, force = false) {
@@ -152,6 +195,7 @@ export class Game {
     this.wavePause = 2;
     this.gameOver = false;
     this.running = true;
+    this.syncMapForWave(false);
     this.onChange();
   }
 
@@ -385,6 +429,7 @@ export class Game {
       this.wave += 1;
       this.stars += 1;
       this.gold += 3;
+      this.syncMapForWave(true);
       this.wavePause = 2.5;
       this.save();
       this.onChange();
