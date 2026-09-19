@@ -5,7 +5,7 @@ export const W = 1000;
 export const H = 560;
 
 /** Waves per map before rotating to the next layout */
-export const WAVES_PER_MAP = 100;
+export const WAVES_PER_MAP = 30;
 
 export interface ArenaMap {
   id: string;
@@ -19,7 +19,7 @@ export interface ArenaMap {
   pathColor: string;
 }
 
-/** Distinct maps that rotate every 100 waves */
+/** Distinct maps that rotate every 30 waves */
 export const MAPS: ArenaMap[] = [
   {
     id: "forest",
@@ -267,7 +267,7 @@ function rebuildLengths(path: Vec2[]) {
 
 rebuildLengths(active.path);
 
-/** Live layout used by gameplay + render (switched every 100 waves) */
+/** Live layout used by gameplay + render (switched every 30 waves) */
 export let PATH = active.path;
 export let SLOT_SPOTS = active.slots;
 export let COOKIE = active.cookie;
