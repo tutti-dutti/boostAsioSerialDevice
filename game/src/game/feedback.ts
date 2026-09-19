@@ -101,7 +101,9 @@ export function submitFeedback(input: {
   }
 
   try {
-    void navigator.clipboard?.writeText(`${title}\n\n${body}`);
+    void navigator.clipboard?.writeText(`${title}\n\n${body}`).catch(() => {
+      /* clipboard optional */
+    });
   } catch {
     /* clipboard optional */
   }
