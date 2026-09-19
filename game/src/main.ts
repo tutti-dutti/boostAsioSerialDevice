@@ -1,6 +1,6 @@
 import "./style.css";
 import { Game } from "./game/Game";
-import { rarityLabel, evolveChanceFor, weaponRoleFor, weaponRoleLabel } from "./game/data";
+import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, type FriendDef } from "./game/data";
 import { unlockAudio, setMuted, isMuted } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost } from "./game/types";
@@ -106,6 +106,16 @@ app.innerHTML = `
           <button class="spell" id="zap" type="button">Zap (6🪙)</button>
         </div>
         <p class="hint" id="select-hint">Upgrade to try a 5% mythical evolve!</p>
+        <div class="evolve-lineage hidden" id="evolve-lineage" aria-live="polite">
+          <div class="evolve-row">
+            <span class="evolve-label">Evolved from</span>
+            <span class="evolve-value" id="evolve-from">—</span>
+          </div>
+          <div class="evolve-row">
+            <span class="evolve-label">Evolves into</span>
+            <span class="evolve-value" id="evolve-into">—</span>
+          </div>
+        </div>
         <div class="row">
           <button id="new-game" type="button">New game</button>
         </div>
@@ -124,6 +134,9 @@ const bag = document.querySelector("#bag")!;
 const toast = document.querySelector("#toast")!;
 const over = document.querySelector("#over")!;
 const selectHint = document.querySelector("#select-hint")!;
+const evolveLineageEl = document.querySelector("#evolve-lineage")!;
+const evolveFromEl = document.querySelector("#evolve-from")!;
+const evolveIntoEl = document.querySelector("#evolve-into")!;
 const homeCourseChips = document.querySelector("#home-course-chips")!;
 const playCourseChips = document.querySelector("#play-course-chips")!;
 const homeScoresList = document.querySelector("#home-scores-list")!;
@@ -248,6 +261,17 @@ function refresh() {
     });
   }
 
+  function showEvolveLineage(def: FriendDef | null) {
+    if (!def) {
+      evolveLineageEl.classList.add("hidden");
+      return;
+    }
+    const line = evolveLineage(def);
+    evolveFromEl.textContent = line.fromLabel;
+    evolveIntoEl.textContent = line.intoLabel;
+    evolveLineageEl.classList.remove("hidden");
+  }
+
   if (game.selectedSlot != null) {
     const slot = game.slots.find((s) => s.id === game.selectedSlot);
     if (slot?.friend) {
@@ -259,32 +283,26 @@ function refresh() {
       if (f.def.ability === "freeze") extra += " · FREEZE";
       if (f.def.ability === "heavyHit") extra += " · HEAVY HIT";
       extra += ` · ${weaponRoleLabel(weaponRoleFor(f.def))}`;
-      if (f.def.canEvolve && f.def.evolvesTo) {
-        const pct = Math.round(evolveChanceFor(f.def) * 1000) / 10;
-        const label = Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
-        const target =
-          f.def.evolvesTo === "werewolf"
-            ? "Werewolf"
-            : f.def.evolvesTo === "giantpanda"
-              ? "Giant Panda"
-              : "mythical";
-        extra += ` · ${label}% → ${target}!`;
-      }
-      if (f.def.id === "giantpanda") extra = " · MEGA Giant Panda!";
-      if (f.def.rarity === "mythical" && f.def.id !== "giantpanda") extra = " · MYTHICAL form!";
-      if (f.def.rarity === "god") extra = " · GOD TIER!";
+      if (f.def.id === "giantpanda") extra += " · MEGA Giant Panda!";
+      else if (f.def.rarity === "mythical") extra += " · MYTHICAL form!";
+      else if (f.def.rarity === "god") extra += " · GOD TIER!";
       selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
+      showEvolveLineage(f.def);
     } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
       const f = game.bag[game.selectedBag];
       selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass (not the path) to deploy`;
+      showEvolveLineage(f);
     } else {
       selectHint.textContent = "Drag friends to move. Equip from bag, then tap grass to deploy.";
+      showEvolveLineage(null);
     }
   } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
     const f = game.bag[game.selectedBag];
     selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass (not the path) to deploy`;
+    showEvolveLineage(f);
   } else {
     selectHint.textContent = "Drag friends to move. Equip from bag, then tap grass to deploy.";
+    showEvolveLineage(null);
   }
 
   toast.textContent = game.toastText;

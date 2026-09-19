@@ -672,6 +672,43 @@ button.danger {
   border-color: #e8c15a;
 }
 
+.evolve-lineage {
+  margin-top: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  background: #fff6e8;
+  border: 3px solid rgba(196, 120, 42, 0.45);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.evolve-lineage.hidden {
+  display: none;
+}
+
+.evolve-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  text-align: left;
+}
+
+.evolve-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cookie-dark);
+}
+
+.evolve-value {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
 /* —— Tablet / large touch layout —— */
 @media (min-width: 768px) {
   .top-bar,

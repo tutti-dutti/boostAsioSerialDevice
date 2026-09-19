@@ -179,6 +179,40 @@ export function evolveChanceFor(_current: FriendDef): number {
   return EVOLVE_CHANCE;
 }
 
+export function friendById(id: string): FriendDef | undefined {
+  return FRIENDS.find((f) => f.id === id);
+}
+
+/** Base form that evolves into this id (if any) */
+export function evolvesFrom(id: string): FriendDef | undefined {
+  return FRIENDS.find((f) => f.evolvesTo === id);
+}
+
+/** Next form this friend can evolve into (if any) */
+export function evolveInto(def: FriendDef): FriendDef | undefined {
+  if (!def.canEvolve || !def.evolvesTo) return undefined;
+  return friendById(def.evolvesTo);
+}
+
+export function evolveLineage(def: FriendDef): {
+  from: FriendDef | null;
+  into: FriendDef | null;
+  fromLabel: string;
+  intoLabel: string;
+} {
+  const from = evolvesFrom(def.id) ?? null;
+  const into = evolveInto(def) ?? null;
+  const pct = Math.round(EVOLVE_CHANCE * 100);
+  return {
+    from,
+    into,
+    fromLabel: from ? `${from.emoji} ${from.name}` : "Base form (nothing before)",
+    intoLabel: into
+      ? `${into.emoji} ${into.name} (${pct}% on upgrade)`
+      : "Fully evolved (no further form)",
+  };
+}
+
 export function tryEvolve(current: FriendDef): FriendDef | null {
   if (!current.canEvolve || !current.evolvesTo) return null;
   if (Math.random() >= evolveChanceFor(current)) return null;

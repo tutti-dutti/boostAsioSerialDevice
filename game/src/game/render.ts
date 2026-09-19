@@ -1,4 +1,5 @@
 import { COOKIE, GATE, PATH, W, H, getActiveMap } from "./path";
+import { evolveLineage } from "./data";
 import type { Boom, FloatText, PlacedFriend, Shot, Slot, Thief, Wall } from "./types";
 import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
@@ -252,6 +253,51 @@ function drawFriendPad(
   ctx.fillStyle = "#2a3040";
   ctx.font = "800 10px Nunito, sans-serif";
   ctx.fillText(String(f.level), badgeX, badgeY + 1);
+
+  if (selected) {
+    drawEvolveInfo(ctx, f, x, y, r);
+  }
+}
+
+function drawEvolveInfo(
+  ctx: CanvasRenderingContext2D,
+  f: PlacedFriend,
+  x: number,
+  y: number,
+  r: number,
+) {
+  const line = evolveLineage(f.def);
+  const lines = [`From: ${line.fromLabel}`, `Into: ${line.intoLabel}`];
+  ctx.font = "800 12px Nunito, sans-serif";
+  const padX = 10;
+  const padY = 7;
+  const lineH = 15;
+  let maxW = 0;
+  for (const t of lines) maxW = Math.max(maxW, ctx.measureText(t).width);
+  const boxW = maxW + padX * 2;
+  const boxH = padY * 2 + lineH * lines.length;
+  let boxX = x - boxW / 2;
+  let boxY = y - r - boxH - 10;
+  if (boxY < 8) boxY = y + r + 12;
+  if (boxX < 8) boxX = 8;
+  if (boxX + boxW > W - 8) boxX = W - 8 - boxW;
+
+  ctx.fillStyle = "rgba(255, 248, 238, 0.94)";
+  ctx.strokeStyle = "#c4782a";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.roundRect(boxX, boxY, boxW, boxH, 10);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#2a3040";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  lines.forEach((t, i) => {
+    ctx.fillText(t, boxX + padX, boxY + padY + i * lineH);
+  });
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
 }
 
 function slots(
