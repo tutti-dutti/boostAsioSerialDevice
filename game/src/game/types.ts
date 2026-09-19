@@ -23,6 +23,26 @@ export interface PlacedFriend {
   abilityTimer: number;
   /** Bird orbit angle around the pad (radians) */
   orbitAngle: number;
+  /** Beaver dam points earned from kills */
+  beaverPoints?: number;
+}
+
+/** Kill points needed for a beaver to build one dam */
+export const BEAVER_DAM_COST = 5;
+
+export function isBeaverBuilder(f: PlacedFriend | FriendDef): boolean {
+  const id = "def" in f ? f.def.id : f.id;
+  return id === "beaver" || id === "giantpanda";
+}
+
+export function beaverKillPoints(thief: ThiefDef): number {
+  if (thief.boss) return 3;
+  if (thief.kind === "strength") return 2;
+  return 1;
+}
+
+export function beaverDamMaxHp(level: number): number {
+  return 36 + Math.max(1, level) * 10;
 }
 
 /** Orbit radius = shoot radius for flyers */
@@ -75,6 +95,8 @@ export interface Shot {
   freeze?: boolean;
   heavyHit?: boolean;
   weaponRole?: WeaponRole;
+  /** Slot that fired this shot (for kill credit) */
+  ownerSlotId?: number;
 }
 
 export interface FloatText {
@@ -86,7 +108,7 @@ export interface FloatText {
 }
 
 export interface Boom {
-  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy";
+  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy" | "dam";
   x: number;
   y: number;
   life: number;
@@ -100,6 +122,16 @@ export interface Wall {
   life: number;
   maxLife: number;
   progress: number;
+}
+
+/** Beaver dam on the path — blocks thieves until smashed */
+export interface Dam {
+  x: number;
+  y: number;
+  progress: number;
+  hp: number;
+  maxHp: number;
+  ownerSlotId: number;
 }
 
 export function friendDamage(f: PlacedFriend): number {

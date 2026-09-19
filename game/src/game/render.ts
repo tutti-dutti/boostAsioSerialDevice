@@ -1,6 +1,6 @@
 import { COOKIE, GATE, PATH, W, H, getActiveMap } from "./path";
 import { evolveLineage, friendDisplayScale, friendFootprintRadius } from "./data";
-import type { Boom, FloatText, PlacedFriend, Shot, Slot, Thief, Wall } from "./types";
+import type { Boom, Dam, FloatText, PlacedFriend, Shot, Slot, Thief, Wall } from "./types";
 import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
 function grass(ctx: CanvasRenderingContext2D) {
@@ -418,6 +418,39 @@ function walls(ctx: CanvasRenderingContext2D, list: Wall[]) {
   }
 }
 
+function dams(ctx: CanvasRenderingContext2D, list: Dam[]) {
+  for (const d of list) {
+    const hpPct = Math.max(0, d.hp / d.maxHp);
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = "#6a4828";
+    ctx.strokeStyle = "#c9a66b";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(d.x - 26, d.y - 16, 52, 32, 8);
+    ctx.fill();
+    ctx.stroke();
+    // log stripes
+    ctx.strokeStyle = "rgba(40, 24, 12, 0.35)";
+    ctx.lineWidth = 2;
+    for (const ox of [-12, 0, 12]) {
+      ctx.beginPath();
+      ctx.moveTo(d.x + ox, d.y - 12);
+      ctx.lineTo(d.x + ox, d.y + 12);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = "20px serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("🪵", d.x, d.y);
+    // HP bar
+    ctx.fillStyle = "rgba(20,16,12,0.55)";
+    ctx.fillRect(d.x - 22, d.y + 18, 44, 6);
+    ctx.fillStyle = hpPct > 0.35 ? "#7ecf6a" : "#e07050";
+    ctx.fillRect(d.x - 22, d.y + 18, 44 * hpPct, 6);
+  }
+}
+
 function shots(ctx: CanvasRenderingContext2D, list: Shot[]) {
   for (const s of list) {
     ctx.fillStyle = s.color;
@@ -458,6 +491,7 @@ function booms(ctx: CanvasRenderingContext2D, list: Boom[]) {
       zap: "#ffd24a",
       floppy: "#5eb8e0",
       wall: "#c4782a",
+      dam: "#8a6040",
       beam: "#ff5040",
       freeze: "#9ad4ff",
       heavy: "#c87838",
@@ -494,6 +528,7 @@ export interface DrawState {
   floats: FloatText[];
   booms: Boom[];
   walls: Wall[];
+  dams?: Dam[];
   cookieHp: number;
   cookieMax: number;
   cookieBiteFlash?: number;
@@ -513,6 +548,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   path(ctx);
   gate(ctx);
   walls(ctx, s.walls);
+  dams(ctx, s.dams || []);
   slots(ctx, s.slots, s.selectedSlot);
   deployGhost(ctx, s.deployGhost, !!s.deployMode);
   thieves(ctx, s.thieves, s.thiefPos);

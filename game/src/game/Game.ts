@@ -23,7 +23,12 @@ import {
   uid,
   upgradeCost,
   damageVsThief,
+  isBeaverBuilder,
+  beaverKillPoints,
+  beaverDamMaxHp,
+  BEAVER_DAM_COST,
   type Boom,
+  type Dam,
   type FloatText,
   type Shot,
   type Slot,
@@ -32,6 +37,7 @@ import {
 } from "./types";
 
 const SAVE_KEY = "cookie-guard-save-v2";
+const MAX_DAMS = 3;
 
 export class Game {
   canvas: HTMLCanvasElement;
@@ -57,6 +63,7 @@ export class Game {
   floats: FloatText[] = [];
   booms: Boom[] = [];
   walls: Wall[] = [];
+  dams: Dam[] = [];
   gold = 20;
   stars = 5;
   wave = 1;
@@ -239,6 +246,7 @@ export class Game {
     }
     if (overflow.length) this.bag.push(...overflow);
     this.walls = [];
+    this.dams = [];
     this.shots = [];
     this.selectedSlot = null;
     this.draggingSlot = null;
@@ -356,7 +364,16 @@ export class Game {
           level: s.friend!.level,
           x: s.x,
           y: s.y,
+          beaverPoints: s.friend!.beaverPoints ?? 0,
         })),
+      dams: this.dams.map((d) => ({
+        x: d.x,
+        y: d.y,
+        progress: d.progress,
+        hp: d.hp,
+        maxHp: d.maxHp,
+        ownerSlotId: d.ownerSlotId,
+      })),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     localStorage.setItem("cookie-guard-last", String(Date.now()));
@@ -403,11 +420,25 @@ export class Game {
             slotId: id,
             abilityTimer: def.ability === "foxWall" ? 30 : 0,
             orbitAngle: Math.random() * Math.PI * 2,
+            beaverPoints: typeof slot.beaverPoints === "number" ? slot.beaverPoints : 0,
           },
         };
         this.slots.push(placed);
         this.ensureOffPath(placed);
       }
+      this.dams = Array.isArray(data.dams)
+        ? data.dams
+            .filter((d: Dam) => d && typeof d.progress === "number" && d.hp > 0)
+            .slice(0, MAX_DAMS)
+            .map((d: Dam) => ({
+              x: d.x,
+              y: d.y,
+              progress: d.progress,
+              hp: d.hp,
+              maxHp: d.maxHp || d.hp,
+              ownerSlotId: d.ownerSlotId ?? -1,
+            }))
+        : [];
       // Always wait for Start Wave after loading a save
       this.waveWaiting = true;
       this.waveInProgress = false;
@@ -433,6 +464,7 @@ export class Game {
     this.floats = [];
     this.booms = [];
     this.walls = [];
+    this.dams = [];
     this.gold = 20;
     this.stars = 5;
     this.wave = 1;
@@ -739,6 +771,7 @@ export class Game {
         slotId: id,
         abilityTimer: friend.ability === "foxWall" ? 2 : 0,
         orbitAngle: Math.random() * Math.PI * 2,
+        beaverPoints: 0,
       },
     });
     this.bag.splice(this.selectedBag, 1);
@@ -821,7 +854,16 @@ export class Game {
     });
   }
 
-  hurt(t: Thief, dmg: number, x: number, y: number, floppy = false, chill = false, freeze = false) {
+  hurt(
+    t: Thief,
+    dmg: number,
+    x: number,
+    y: number,
+    floppy = false,
+    chill = false,
+    freeze = false,
+    killerSlotId?: number,
+  ) {
     t.hp -= dmg;
     this.floats.push({ x, y: y - 10, text: `-${dmg}`, color: freeze ? "#7ec8ff" : "#ff6b6b", life: 0.8 });
     if (freeze) {
@@ -846,7 +888,74 @@ export class Game {
         this.stars += 1;
       }
       this.floats.push({ x, y: y - 24, text: `+${t.def.gold}🪙`, color: "#c4782a", life: 1 });
+      this.creditBeaverKill(killerSlotId, t, x, y);
     }
+  }
+
+  creditBeaverKill(killerSlotId: number | undefined, t: Thief, x: number, y: number) {
+    if (killerSlotId == null) return;
+    const slot = this.slots.find((s) => s.id === killerSlotId);
+    if (!slot?.friend || !isBeaverBuilder(slot.friend)) return;
+    const pts = beaverKillPoints(t.def);
+    const before = slot.friend.beaverPoints ?? 0;
+    slot.friend.beaverPoints = before + pts;
+    this.floats.push({
+      x,
+      y: y - 38,
+      text: `+${pts}🪵`,
+      color: "#8a6040",
+      life: 1,
+    });
+    if (before < BEAVER_DAM_COST && (slot.friend.beaverPoints ?? 0) >= BEAVER_DAM_COST) {
+      this.toast(`🦫 Dam ready! Tap Build Dam (${BEAVER_DAM_COST}🪵)`, true);
+    }
+    this.onChange();
+  }
+
+  selectedBeaver(): Slot | null {
+    const slot = this.slotById(this.selectedSlot);
+    if (!slot?.friend || !isBeaverBuilder(slot.friend)) return null;
+    return slot;
+  }
+
+  canBuildDam(): boolean {
+    const slot = this.selectedBeaver();
+    if (!slot?.friend) return false;
+    if (this.dams.length >= MAX_DAMS) return false;
+    return (slot.friend.beaverPoints ?? 0) >= BEAVER_DAM_COST;
+  }
+
+  buildBeaverDam() {
+    const slot = this.selectedBeaver();
+    if (!slot?.friend) {
+      this.toast("Select a beaver first", true);
+      return;
+    }
+    if (this.dams.length >= MAX_DAMS) {
+      this.toast("Too many dams — wait for enemies to smash one", true);
+      return;
+    }
+    const points = slot.friend.beaverPoints ?? 0;
+    if (points < BEAVER_DAM_COST) {
+      this.toast(`Need ${BEAVER_DAM_COST}🪵 (have ${points})`, true);
+      return;
+    }
+    slot.friend.beaverPoints = points - BEAVER_DAM_COST;
+    const prog = Math.min(0.92, nearestProgress(slot.x, slot.y) + 0.08);
+    const p = pathPoint(prog);
+    const maxHp = beaverDamMaxHp(slot.friend.level);
+    this.dams.push({
+      x: p.x,
+      y: p.y,
+      progress: prog,
+      hp: maxHp,
+      maxHp,
+      ownerSlotId: slot.id,
+    });
+    this.booms.push({ kind: "dam", x: p.x, y: p.y, life: 0.9, radius: 44 });
+    this.toast(`🦫 Dam built! Blocks the path`, true);
+    this.save();
+    this.onChange();
   }
 
   placeFoxWall(slotX: number, slotY: number) {
@@ -916,23 +1025,49 @@ export class Game {
     for (const w of this.walls) w.life -= dt;
     this.walls = this.walls.filter((w) => w.life > 0);
 
+    // Dams: hard-block path; thieves smash them
+    const smashed: Dam[] = [];
     for (const t of this.thieves) {
       if (!t.alive) continue;
       if (t.slowTimer > 0) t.slowTimer -= dt;
       if (t.freezeTimer > 0) t.freezeTimer -= dt;
       if (t.blockedTimer > 0) t.blockedTimer -= dt;
 
-      // hit a wall?
+      // hit a fox wall?
       for (const w of this.walls) {
         if (Math.abs(t.progress - w.progress) < 0.025) {
           t.blockedTimer = Math.max(t.blockedTimer, 0.35);
         }
       }
 
+      // Beaver dam — stop and chew
+      for (const dam of this.dams) {
+        if (dam.hp <= 0) continue;
+        const gate = dam.progress - 0.012;
+        if (t.progress >= gate) {
+          t.progress = Math.min(t.progress, gate);
+          t.blockedTimer = Math.max(t.blockedTimer, 0.25);
+          const dps =
+            t.def.boss ? 22 : t.def.kind === "strength" ? 14 : 7;
+          dam.hp -= dps * dt;
+          if (dam.hp <= 0) {
+            dam.hp = 0;
+            smashed.push(dam);
+          }
+        }
+      }
+
       const frozen = t.freezeTimer > 0;
       const slow = frozen ? 0.1 : t.slowTimer > 0 ? 0.45 : 1;
       const block = t.blockedTimer > 0 ? 0.15 : 1;
-      t.progress += ((t.def.speed * slow * block) / 900) * dt;
+      // Don't advance into a dam
+      let next = t.progress + ((t.def.speed * slow * block) / 900) * dt;
+      for (const dam of this.dams) {
+        if (dam.hp <= 0) continue;
+        const gate = dam.progress - 0.012;
+        if (t.progress < gate && next > gate) next = gate;
+      }
+      t.progress = next;
       if (t.progress >= 1) {
         t.alive = false;
         const dmg = t.def.boss ? (isLevelBossWave(this.wave) ? 8 : 4) : 1;
@@ -961,6 +1096,17 @@ export class Game {
           this.onChange();
         }
       }
+    }
+    if (smashed.length) {
+      for (const dam of smashed) {
+        this.booms.push({ kind: "dam", x: dam.x, y: dam.y, life: 0.7, radius: 36 });
+        this.floats.push({ x: dam.x, y: dam.y - 16, text: "Dam smashed!", color: "#8a6040", life: 1.1 });
+      }
+      this.dams = this.dams.filter((d) => d.hp > 0);
+      this.toast("🪵 Dam destroyed!", true);
+      this.onChange();
+    } else {
+      this.dams = this.dams.filter((d) => d.hp > 0);
     }
 
     // Friends shoot
@@ -1039,6 +1185,7 @@ export class Game {
           freeze: f.def.ability === "freeze",
           heavyHit: f.def.ability === "heavyHit",
           weaponRole: role,
+          ownerSlotId: slot.id,
         });
         playShoot(kind);
         f.cooldown += 1 / f.def.attackSpeed;
@@ -1066,7 +1213,7 @@ export class Game {
               if (!other.alive || other.uid === t.uid) continue;
               const op = pathPoint(other.progress);
               if (Math.hypot(op.x - p.x, op.y - p.y) < 55) {
-                this.hurt(other, Math.round(dmg * 0.45), op.x, op.y);
+                this.hurt(other, Math.round(dmg * 0.45), op.x, op.y, false, false, false, s.ownerSlotId);
               }
             }
           }
@@ -1075,7 +1222,7 @@ export class Game {
             this.booms.push({ kind: "heavy", x: p.x, y: p.y, life: 0.45, radius: 36 });
           }
           const chill = s.weaponRole === "antiSpeed" && !s.floppy && !s.freeze;
-          this.hurt(t, dmg, p.x, p.y, !!s.floppy, chill, !!s.freeze);
+          this.hurt(t, dmg, p.x, p.y, !!s.floppy, chill, !!s.freeze, s.ownerSlotId);
           playHit();
         }
         s.speed = -1;
@@ -1123,6 +1270,7 @@ export class Game {
       floats: this.floats,
       booms: this.booms,
       walls: this.walls,
+      dams: this.dams,
       cookieHp: this.cookieHp,
       cookieMax: this.cookieMax,
       cookieBiteFlash: Math.max(0, this.cookieBiteFlash),

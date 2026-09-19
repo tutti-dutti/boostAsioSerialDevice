@@ -3,7 +3,7 @@ import { Game } from "./game/Game";
 import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, type FriendDef } from "./game/data";
 import { unlockAudio, setMuted, isMuted } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
-import { upgradeCost } from "./game/types";
+import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST } from "./game/types";
 import {
   formatScoreDate,
   getSavedPlayerName,
@@ -99,6 +99,9 @@ app.innerHTML = `
         <div class="row">
           <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
           <button id="sell" type="button">To bag</button>
+        </div>
+        <div class="row beaver-dam-row hidden" id="beaver-dam-row">
+          <button class="dam-btn" id="build-dam" type="button">Build Dam (5🪵)</button>
         </div>
         <div class="row">
           <button id="clear-board" type="button">Clear board</button>
@@ -319,6 +322,10 @@ function refresh() {
       if (f.def.id === "giantpanda") extra += " · MEGA Giant Panda!";
       else if (f.def.rarity === "mythical") extra += " · MYTHICAL form!";
       else if (f.def.rarity === "god") extra += " · GOD TIER!";
+      if (isBeaverBuilder(f)) {
+        const pts = f.beaverPoints ?? 0;
+        extra += ` · ${pts}/${BEAVER_DAM_COST}🪵 dam points`;
+      }
       selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
       showEvolveLineage(f.def);
     } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
@@ -367,6 +374,18 @@ function refresh() {
   pauseAction.textContent = pauseLabel;
   pauseAction.disabled = game.gameOver;
   pauseAction.classList.toggle("is-paused", game.paused);
+
+  const beaverRow = document.querySelector("#beaver-dam-row")!;
+  const buildDamBtn = document.querySelector("#build-dam") as HTMLButtonElement;
+  const beaverSlot = game.selectedBeaver();
+  if (beaverSlot?.friend) {
+    beaverRow.classList.remove("hidden");
+    const pts = beaverSlot.friend.beaverPoints ?? 0;
+    buildDamBtn.textContent = `Build Dam (${pts}/${BEAVER_DAM_COST}🪵)`;
+    buildDamBtn.disabled = !game.canBuildDam() || game.gameOver;
+  } else {
+    beaverRow.classList.add("hidden");
+  }
 
   refreshCourses();
 }
@@ -513,6 +532,10 @@ document.querySelector("#play-random-course")!.addEventListener("click", () => {
 
 document.querySelector("#upgrade")!.addEventListener("click", () => game.upgradeSelected());
 document.querySelector("#sell")!.addEventListener("click", () => game.sellSelected());
+document.querySelector("#build-dam")!.addEventListener("click", () => {
+  unlockAudio();
+  game.buildBeaverDam();
+});
 document.querySelector("#clear-board")!.addEventListener("click", () => {
   if (confirm("Move all board friends back to the bag?")) game.clearBoard();
 });
