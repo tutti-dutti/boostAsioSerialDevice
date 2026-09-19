@@ -9,18 +9,19 @@ import {
   waveSpeedScale,
   isLevelBossWave,
   levelBossForWave,
+  weaponRoleFor,
   type FriendDef,
 } from "./data";
 import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses } from "./path";
 import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell, playCookieMunch } from "./sound";
 import {
-  friendDamage,
   friendRange,
   flyerOrbitSpeed,
   flyerWorldPos,
   uid,
   upgradeCost,
+  damageVsThief,
   type Boom,
   type FloatText,
   type PlacedFriend,
@@ -603,12 +604,14 @@ export class Game {
     });
   }
 
-  hurt(t: Thief, dmg: number, x: number, y: number, floppy = false) {
+  hurt(t: Thief, dmg: number, x: number, y: number, floppy = false, chill = false) {
     t.hp -= dmg;
     this.floats.push({ x, y: y - 10, text: `-${dmg}`, color: "#ff6b6b", life: 0.8 });
     if (floppy) {
       t.slowTimer = Math.max(t.slowTimer, 1.8);
       this.booms.push({ kind: "floppy", x, y, life: 0.5, radius: 28 });
+    } else if (chill) {
+      t.slowTimer = Math.max(t.slowTimer, t.def.kind === "speed" ? 1.15 : 0.55);
     }
     if (t.hp <= 0) {
       t.alive = false;
@@ -752,15 +755,26 @@ export class Game {
         // Flyers: hit anything inside the nest circle (pad center)
         const originX = isFlyer ? slot.x : slot.x;
         const originY = isFlyer ? slot.y : slot.y;
+        const role = weaponRoleFor(f.def);
         let best: Thief | null = null;
-        let bestD = Infinity;
+        let bestScore = -Infinity;
         for (const t of this.thieves) {
           if (!t.alive) continue;
           const p = pathPoint(t.progress);
           const d = Math.hypot(p.x - originX, p.y - originY);
-          if (d <= range && d < bestD) {
+          if (d > range) continue;
+          // Prefer matching counters; still fall back to nearest threat
+          let score = -d;
+          const kind = t.def.kind ?? "strength";
+          if (role === "antiSpeed" && kind === "speed") score += 80;
+          if (role === "antiStrength" && kind === "strength") score += 80;
+          if (role === "antiSpeed" && kind === "strength") score -= 12;
+          if (role === "antiStrength" && kind === "speed") score -= 12;
+          // Prefer thieves closer to the cookie
+          score += t.progress * 40;
+          if (score > bestScore) {
             best = t;
-            bestD = d;
+            bestScore = score;
           }
         }
         if (!best) break;
@@ -781,11 +795,12 @@ export class Game {
           tx: p.x,
           ty: p.y,
           speed: isFlyer ? 480 : isLegend ? 420 : f.def.ability === "godBeam" ? 420 : 320,
-          damage: friendDamage(f),
+          damage: damageVsThief(f, best.def),
           color: f.def.color,
           targetId: best.uid,
           floppy: f.def.ability === "floppyFin",
           godBeam: f.def.ability === "godBeam",
+          weaponRole: role,
         });
         playShoot(kind);
         f.cooldown += 1 / f.def.attackSpeed;
@@ -804,6 +819,7 @@ export class Game {
         if (t) {
           const p = pathPoint(t.progress);
           let dmg = s.damage;
+          // Retarget role bonus if the thief kind changed mid-flight (shouldn't) — keep shot dmg
           if (s.godBeam) {
             dmg = Math.round(dmg * 1.4);
             this.booms.push({ kind: "beam", x: p.x, y: p.y, life: 0.6, radius: 40 });
@@ -816,7 +832,8 @@ export class Game {
               }
             }
           }
-          this.hurt(t, dmg, p.x, p.y, !!s.floppy);
+          const chill = s.weaponRole === "antiSpeed" && !s.floppy;
+          this.hurt(t, dmg, p.x, p.y, !!s.floppy, chill);
           playHit();
         }
         s.speed = -1;

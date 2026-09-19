@@ -1,6 +1,6 @@
 import "./style.css";
 import { Game } from "./game/Game";
-import { rarityLabel, evolveChanceFor } from "./game/data";
+import { rarityLabel, evolveChanceFor, weaponRoleFor, weaponRoleLabel } from "./game/data";
 import { unlockAudio, setMuted, isMuted } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost } from "./game/types";
@@ -56,7 +56,7 @@ app.innerHTML = `
         <div class="row">
           <button class="danger" id="delete-unit" type="button">Delete unit</button>
         </div>
-        <p class="hint">Tap a friend once to equip, then tap a + spot to deploy.</p>
+        <p class="hint">Tap a friend once to equip, then tap a + spot to deploy. Birds/fish chase Speed; bears crack Strength.</p>
       </section>
 
       <section class="panel">
@@ -172,6 +172,7 @@ function refresh() {
     if (f.def.ability === "floppyFin") extra += " · Floppy Fin";
     if (f.def.ability === "foxWall") extra += " · builds walls";
     if (f.def.ability === "godBeam") extra += " · God Beam";
+    extra += ` · ${weaponRoleLabel(weaponRoleFor(f.def))}`;
     if (f.def.canEvolve && f.def.evolvesTo) {
       const pct = Math.round(evolveChanceFor(f.def) * 1000) / 10;
       const label = Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
@@ -191,7 +192,7 @@ function refresh() {
     const f = game.bag[game.selectedBag];
     selectHint.textContent = `${f.emoji} ${f.name} equipped — tap a glowing + spot to deploy`;
   } else {
-    selectHint.textContent = "Tap a bag friend once to equip, then tap a + spot to deploy.";
+    selectHint.textContent = "Mix vs Speed + vs Strength friends to counter both thief types.";
   }
 
   toast.textContent = game.toastText;

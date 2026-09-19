@@ -1,4 +1,5 @@
-import type { FriendDef, ThiefDef } from "./data";
+import type { FriendDef, ThiefDef, WeaponRole } from "./data";
+import { weaponRoleFor } from "./data";
 
 export interface Vec2 {
   x: number;
@@ -69,6 +70,7 @@ export interface Shot {
   targetId: string;
   floppy?: boolean;
   godBeam?: boolean;
+  weaponRole?: WeaponRole;
 }
 
 export interface FloatText {
@@ -100,6 +102,21 @@ export function friendDamage(f: PlacedFriend): number {
   const tier =
     f.def.rarity === "god" ? 1.15 : f.def.rarity === "mythical" ? 1.1 : 1;
   return Math.round(f.def.damage * (1 + (f.level - 1) * 0.35) * tier);
+}
+
+/** Damage after speed/strength weapon counters */
+export function damageVsThief(f: PlacedFriend, thief: ThiefDef): number {
+  let dmg = friendDamage(f);
+  const role = weaponRoleFor(f.def);
+  const kind = thief.kind ?? "strength";
+  if (role === "antiSpeed") {
+    if (kind === "speed") dmg *= 1.55;
+    else if (kind === "strength") dmg *= 0.82;
+  } else if (role === "antiStrength") {
+    if (kind === "strength") dmg *= 1.6;
+    else if (kind === "speed") dmg *= 0.78;
+  }
+  return Math.max(1, Math.round(dmg));
 }
 
 export function friendRange(f: PlacedFriend): number {

@@ -4,6 +4,9 @@ export type Rarity = "common" | "rare" | "legendary" | "mythical" | "god";
 
 export type AbilityId = "none" | "floppyFin" | "foxWall" | "godBeam";
 
+/** How this friend specializes against thief archetypes */
+export type WeaponRole = "antiSpeed" | "antiStrength" | "balanced";
+
 export interface FriendDef {
   id: string;
   name: string;
@@ -14,6 +17,8 @@ export interface FriendDef {
   range: number;
   attackSpeed: number;
   ability: AbilityId;
+  /** Counters: antiSpeed slows/chips runners; antiStrength cracks tanks */
+  weaponRole?: WeaponRole;
   canEvolve?: boolean;
   /** Target mythical / next form id */
   evolvesTo?: string;
@@ -297,4 +302,31 @@ export function rarityLabel(r: Rarity): string {
   if (r === "legendary") return "LEGENDARY";
   if (r === "rare") return "TIER 2";
   return "BASIC";
+}
+
+/** Resolve weapon specialty (defaults from traits if unset) */
+export function weaponRoleFor(def: FriendDef): WeaponRole {
+  if (def.weaponRole) return def.weaponRole;
+  if (def.flies || def.ability === "floppyFin" || def.ability === "foxWall") return "antiSpeed";
+  if (def.damage >= 50 || def.attackSpeed <= 0.5) return "antiStrength";
+  // Ground specialists without extreme stats
+  if (
+    def.id === "hedgehog" ||
+    def.id === "beaver" ||
+    def.id === "wolf" ||
+    def.id === "spikeking" ||
+    def.id === "werewolf"
+  ) {
+    return "antiStrength";
+  }
+  if (def.id === "chipmunk" || def.id === "mouse" || def.id === "jewelmunk" || def.id === "shadowmouse") {
+    return "antiSpeed";
+  }
+  return "balanced";
+}
+
+export function weaponRoleLabel(role: WeaponRole): string {
+  if (role === "antiSpeed") return "vs Speed";
+  if (role === "antiStrength") return "vs Strength";
+  return "Balanced";
 }
