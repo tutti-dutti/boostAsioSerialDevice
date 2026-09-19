@@ -93,6 +93,7 @@ app.innerHTML = `
         <div class="friends-tools">
           <button class="big" id="summon" type="button">Summon 1⭐</button>
           <button class="pink" id="lucky" type="button">Lucky 3⭐</button>
+          <button class="danger" id="clear-bag" type="button">Clear unused</button>
         </div>
         <div class="inventory" id="bag"></div>
       </div>
@@ -711,6 +712,19 @@ document.querySelector("#clear-board")!.addEventListener("click", () => {
     message: "Move all board friends back to the bag?",
     confirmLabel: "Clear board",
     onConfirm: () => game.clearBoard(),
+  });
+});
+document.querySelector("#clear-bag")!.addEventListener("click", () => {
+  unlockAudio();
+  if (!game.bag.length) {
+    game.clearBag();
+    return;
+  }
+  openConfirm({
+    title: "Clear unused?",
+    message: `Delete all ${game.bag.length} unused friend${game.bag.length === 1 ? "" : "s"} still in the bag? Friends on the board are kept. This cannot be undone.`,
+    confirmLabel: "Clear unused",
+    onConfirm: () => game.clearBag(),
   });
 });
 document.querySelector("#clear-others")!.addEventListener("click", () => {

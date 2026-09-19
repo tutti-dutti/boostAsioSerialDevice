@@ -736,6 +736,21 @@ export class Game {
     this.onChange();
   }
 
+  /** Permanently remove every unused (bag-only) friend */
+  clearBag() {
+    const n = this.bag.length;
+    if (!n) {
+      this.toast("No unused friends in the bag", true);
+      return;
+    }
+    this.bag = [];
+    this.selectedBag = null;
+    this.deployGhost = null;
+    this.toast(`Removed ${n} unused friend${n === 1 ? "" : "s"}`, true);
+    this.save();
+    this.onChange();
+  }
+
   /** Permanently remove selected bag unit or selected board unit */
   deleteSelected() {
     if (this.selectedBag != null) {
