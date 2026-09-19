@@ -18,6 +18,14 @@ import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell, playCookieMunch } from "./sound";
 import { funnyQuipFor } from "./quips";
 import {
+  difficultyTuning,
+  isDifficulty,
+  loadDifficultyPreference,
+  saveDifficultyPreference,
+  scaleWaveCount,
+  type Difficulty,
+} from "./difficulty";
+import {
   friendRange,
   flyerOrbitSpeed,
   flyerWorldPos,
@@ -58,6 +66,8 @@ export class Game {
   courseIndex = 0;
   /** When true, each new map tier picks a different random course */
   courseRandom = true;
+  /** Easy = softer thieves; Hard = tougher packs */
+  difficulty: Difficulty = "easy";
   bag: FriendDef[] = [];
   selectedBag: number | null = null;
   selectedSlot: number | null = null;
@@ -104,6 +114,8 @@ export class Game {
     canvas.width = W;
     canvas.height = H;
     this.courseIndex = randomCourseIndex();
+    this.difficulty = loadDifficultyPreference();
+    this.applyStartingResources(false);
     this.applyMapForWave(1, false);
     this.load();
     this.syncMapForWave(false);
@@ -113,6 +125,34 @@ export class Game {
     this.canvas.addEventListener("pointermove", (e) => this.onPointerMove(e));
     this.canvas.addEventListener("pointerup", (e) => this.onPointerUp(e));
     this.canvas.addEventListener("pointercancel", (e) => this.onPointerUp(e));
+  }
+
+  get difficultyLabel(): string {
+    return difficultyTuning(this.difficulty).label;
+  }
+
+  /** Apply Easy/Hard starting gold, stars, and cookie HP */
+  applyStartingResources(overwriteProgress: boolean) {
+    const t = difficultyTuning(this.difficulty);
+    if (overwriteProgress || this.wave <= 1) {
+      this.gold = t.startGold;
+      this.stars = t.startStars;
+      this.cookieHp = t.cookieHp;
+      this.cookieMax = t.cookieHp;
+    }
+  }
+
+  setDifficulty(d: Difficulty) {
+    if (this.difficulty === d) return;
+    this.difficulty = d;
+    saveDifficultyPreference(d);
+    // Fresh runs pick up new starting resources; mid-run keeps progress
+    if (this.wave <= 1 && !this.waveInProgress && this.thieves.every((t) => !t.alive)) {
+      this.applyStartingResources(true);
+    }
+    this.toast(`${difficultyTuning(d).label} mode`, true);
+    this.save();
+    this.onChange();
   }
 
   canvasPos(e: PointerEvent) {
@@ -377,6 +417,7 @@ export class Game {
       cookieMax: this.cookieMax,
       courseIndex: this.courseIndex,
       courseRandom: this.courseRandom,
+      difficulty: this.difficulty,
       bag: this.bag.map((f) => f.id),
       slots: this.slots
         .filter((s) => s.friend)
@@ -413,6 +454,10 @@ export class Game {
       this.cookieMax = data.cookieMax ?? 55;
       if (typeof data.courseIndex === "number") this.courseIndex = data.courseIndex;
       if (typeof data.courseRandom === "boolean") this.courseRandom = data.courseRandom;
+      if (isDifficulty(data.difficulty)) {
+        this.difficulty = data.difficulty;
+        saveDifficultyPreference(this.difficulty);
+      }
       this.applyMapForWave(this.wave, false);
       this.bag = (data.bag || [])
         .map((id: string) => FRIENDS.find((f) => f.id === id))
@@ -491,11 +536,8 @@ export class Game {
     this.walls = [];
     this.dams = [];
     this.poisonClouds = [];
-    this.gold = 20;
-    this.stars = 5;
     this.wave = 1;
-    this.cookieHp = 55;
-    this.cookieMax = 55;
+    this.applyStartingResources(true);
     this.cookieBiteFlash = 0;
     this.spawnLeft = 0;
     this.spawnTimer = 0;
@@ -855,14 +897,15 @@ export class Game {
   startWave() {
     this.waveWaiting = false;
     this.waveInProgress = true;
-    this.spawnLeft = waveCount(this.wave);
+    this.spawnLeft = scaleWaveCount(waveCount(this.wave), this.difficulty);
     this.spawnTimer = 0.2;
     this.autoWaveTimer = 0;
+    const mode = difficultyTuning(this.difficulty).label;
     if (isLevelBossWave(this.wave)) {
       const boss = levelBossForWave(this.wave);
-      this.toast(`⚔️ BOSS FIGHT! ${boss.emoji} ${boss.name}!`, true);
+      this.toast(`⚔️ BOSS FIGHT! ${boss.emoji} ${boss.name}! (${mode})`, true);
     } else {
-      this.toast(`Wave ${this.wave} — go!`, true);
+      this.toast(`Wave ${this.wave} — ${mode} mode!`, true);
     }
   }
 
@@ -870,11 +913,16 @@ export class Game {
     const base = thiefForWave(this.wave);
     const scale = waveHpScale(this.wave);
     const spd = waveSpeedScale(this.wave);
+    const diff = difficultyTuning(this.difficulty);
     // Keep archetypes sharp after wave scaling: speed stays fragile, strength stays slow
     const hpMult = base.kind === "speed" ? 0.85 : base.kind === "strength" ? 1.12 : 1;
     const spdMult = base.kind === "speed" ? 1.08 : base.kind === "strength" ? 0.82 : 1;
-    const def = { ...base, speed: Math.max(10, Math.round(base.speed * spd * spdMult)) };
-    const hp = Math.max(1, Math.round(def.hp * scale * hpMult));
+    const def = {
+      ...base,
+      speed: Math.max(10, Math.round(base.speed * spd * spdMult * diff.speed)),
+      gold: Math.max(1, Math.round(base.gold * diff.gold)),
+    };
+    const hp = Math.max(1, Math.round(def.hp * scale * hpMult * diff.hp));
     this.thieves.push({
       uid: uid("t"),
       def,
@@ -1644,6 +1692,7 @@ export class Game {
       selectedSlot: this.selectedSlot,
       time: this.time,
       wave: this.wave,
+      difficulty: this.difficultyLabel,
       bossFight: isLevelBossWave(this.wave) && this.waveInProgress,
       deployMode: this.selectedBag != null,
       waveWaiting: this.waveWaiting,

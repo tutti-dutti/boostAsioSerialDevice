@@ -5,6 +5,7 @@ import { unlockAudio, setMuted, isMuted } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST } from "./game/types";
 import {
+  difficultyBadge,
   formatScoreDate,
   getSavedPlayerName,
   isHighScoreWorthy,
@@ -12,6 +13,7 @@ import {
   submitHighScore,
   type HighScore,
 } from "./game/highscores";
+import { DIFFICULTIES, type Difficulty } from "./game/difficulty";
 import { submitFeedback, type FeedbackKind } from "./game/feedback";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -24,6 +26,14 @@ app.innerHTML = `
       <p class="course-label">Choose a course</p>
       <div class="course-chips" id="home-course-chips"></div>
       <button class="course-random" id="home-random-course" type="button">🎲 Random course</button>
+    </div>
+    <div class="mode-picker" id="home-modes">
+      <p class="course-label">Difficulty</p>
+      <div class="mode-chips" id="home-mode-chips" role="group" aria-label="Difficulty">
+        <button class="mode-chip mode-easy" data-mode="easy" type="button">Easy</button>
+        <button class="mode-chip mode-hard" data-mode="hard" type="button">Hard</button>
+      </div>
+      <p class="mode-blurb" id="home-mode-blurb">Softer thieves — great for learning</p>
     </div>
     <button class="home-play" id="play-btn" type="button">Play</button>
     <button class="home-feedback" id="home-feedback-btn" type="button">Feedback &amp; ideas</button>
@@ -172,6 +182,8 @@ const evolveFromEl = document.querySelector("#evolve-from")!;
 const evolveIntoEl = document.querySelector("#evolve-into")!;
 const homeCourseChips = document.querySelector("#home-course-chips")!;
 const playCourseChips = document.querySelector("#play-course-chips")!;
+const homeModeChips = document.querySelector("#home-mode-chips")!;
+const homeModeBlurb = document.querySelector("#home-mode-blurb")!;
 const homeScoresList = document.querySelector("#home-scores-list")!;
 const homeScoresEmpty = document.querySelector("#home-scores-empty")!;
 const overScoreLine = document.querySelector("#over-score-line")!;
@@ -197,7 +209,11 @@ function renderScoresList(container: Element, scores: HighScore[], compact = fal
       <span class="score-rank">${i + 1}.</span>
       <span class="score-name">${escapeHtml(s.name)}</span>
       <span class="score-wave">Wave ${s.wave}</span>
-      ${compact ? "" : `<span class="score-meta">${s.gold}🪙 · ${formatScoreDate(s.at)}</span>`}
+      ${
+        compact
+          ? `<span class="score-mode mode-tag-${s.difficulty ?? "easy"}">${difficultyBadge(s.difficulty)}</span>`
+          : `<span class="score-meta"><span class="mode-tag mode-tag-${s.difficulty ?? "easy"}">${difficultyBadge(s.difficulty)}</span> · ${s.gold}🪙 · ${formatScoreDate(s.at)}</span>`
+      }
     </li>`,
     )
     .join("");
@@ -215,11 +231,11 @@ function refreshHomeScores() {
 }
 
 function setupGameOverScoreUi() {
-  overScoreLine.textContent = `Reached wave ${game.wave} with ${game.gold}🪙. The thieves ate it!`;
+  overScoreLine.textContent = `Reached wave ${game.wave} on ${game.difficultyLabel} with ${game.gold}🪙. The thieves ate it!`;
   const scores = loadHighScores();
   renderScoresList(overScoresList, scores, true);
 
-  const worthy = !scoreSavedThisRun && isHighScoreWorthy(game.wave, game.gold);
+  const worthy = !scoreSavedThisRun && isHighScoreWorthy(game.wave, game.gold, game.difficulty);
   scoreSave.classList.toggle("hidden", !worthy);
   if (worthy && !scorePromptShown) {
     scorePromptShown = true;
@@ -232,13 +248,30 @@ function setupGameOverScoreUi() {
 function saveCurrentScore() {
   if (scoreSavedThisRun) return;
   const name = scoreNameInput.value.trim() || getSavedPlayerName() || "Player";
-  const list = submitHighScore(name, game.wave, game.gold);
+  const list = submitHighScore(name, game.wave, game.gold, game.difficulty);
   scoreSavedThisRun = true;
   scoreSave.classList.add("hidden");
-  scoreSaveStatus.textContent = `Saved — nice run, ${name}!`;
+  scoreSaveStatus.textContent = `Saved — nice ${game.difficultyLabel} run, ${name}!`;
   renderScoresList(overScoresList, list, true);
   refreshHomeScores();
 }
+
+function refreshModes() {
+  homeModeChips.querySelectorAll<HTMLButtonElement>(".mode-chip").forEach((btn) => {
+    const mode = btn.dataset.mode as Difficulty;
+    btn.classList.toggle("selected", game.difficulty === mode);
+  });
+  homeModeBlurb.textContent = DIFFICULTIES[game.difficulty].blurb;
+}
+
+homeModeChips.querySelectorAll<HTMLButtonElement>(".mode-chip").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    unlockAudio();
+    const mode = btn.dataset.mode as Difficulty;
+    if (mode === "easy" || mode === "hard") game.setDifficulty(mode);
+    refreshModes();
+  });
+});
 
 function renderCourseChips(container: Element, opts: { requireIdle: boolean }) {
   const courses = listCourses();
@@ -276,6 +309,7 @@ function refresh() {
     <div class="stat">🪙 ${game.gold}</div>
     <div class="stat">⭐ ${game.stars}</div>
     <div class="stat">Wave ${game.wave}</div>
+    <div class="stat mode-stat mode-stat-${game.difficulty}">${game.difficultyLabel}</div>
     <div class="stat">🗺️ ${getActiveMap().name}${game.courseRandom ? " 🎲" : ""}</div>
     <div class="stat">🍪 ${game.cookieHp}/${game.cookieMax}</div>
   `;
@@ -422,6 +456,7 @@ function refresh() {
 
 game.onChange = refresh;
 refresh();
+refreshModes();
 refreshHomeScores();
 
 function showHome() {
@@ -430,6 +465,7 @@ function showHome() {
   home.classList.remove("hidden");
   playScreen.classList.add("hidden");
   refreshCourses();
+  refreshModes();
   refreshHomeScores();
 }
 
