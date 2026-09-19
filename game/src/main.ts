@@ -34,7 +34,7 @@ app.innerHTML = `
         <button class="mode-chip mode-medium" data-mode="medium" type="button">Medium</button>
         <button class="mode-chip mode-hard" data-mode="hard" type="button">Hard</button>
       </div>
-      <p class="mode-blurb" id="home-mode-blurb">Softer thieves — great for learning</p>
+      <p class="mode-blurb" id="home-mode-blurb">Softer thieves — learn roles & place freely</p>
     </div>
     <button class="home-play" id="play-btn" type="button">Play</button>
     <button class="home-feedback" id="home-feedback-btn" type="button">Feedback &amp; ideas</button>

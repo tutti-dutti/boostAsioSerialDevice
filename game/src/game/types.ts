@@ -216,18 +216,19 @@ export function damageVsThief(f: PlacedFriend, thief: ThiefDef): number {
   let dmg = friendDamage(f);
   const role = weaponRoleFor(f.def);
   const kind = thief.kind ?? "strength";
+  // On-role hits hard; off-role still contributes so mixed boards stay viable
   if (role === "antiSpeed") {
-    if (kind === "speed") dmg *= 1.55;
-    else if (kind === "strength") dmg *= 0.82;
+    if (kind === "speed") dmg *= 1.7;
+    else if (kind === "strength") dmg *= 0.7;
   } else if (role === "antiStrength") {
-    if (kind === "strength") dmg *= 1.6;
-    else if (kind === "speed") dmg *= 0.78;
+    if (kind === "strength") dmg *= 1.75;
+    else if (kind === "speed") dmg *= 0.68;
   }
   // Heavy hitters punch well above their weight vs tanks
-  if (f.def.ability === "heavyHit" && kind === "strength") dmg *= 1.35;
-  if (f.def.ability === "heavyHit" && kind === "speed") dmg *= 0.9;
-  // Freeze units trade raw damage for control
-  if (f.def.ability === "freeze" && kind === "speed") dmg *= 1.15;
+  if (f.def.ability === "heavyHit" && kind === "strength") dmg *= 1.3;
+  if (f.def.ability === "heavyHit" && kind === "speed") dmg *= 0.85;
+  // Freeze units trade raw damage for control — slight bonus vs runners
+  if (f.def.ability === "freeze" && kind === "speed") dmg *= 1.12;
   return Math.max(1, Math.round(dmg));
 }
 
