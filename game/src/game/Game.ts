@@ -428,8 +428,8 @@ export class Game {
     for (let i = 0; i < bites; i++) {
       const idx = this.cookieBites.length;
       // Spread around the rim; jitter so consecutive chomps don't stack
-      const angle = -Math.PI * 0.4 + idx * 0.52 + (Math.random() - 0.5) * 0.22;
-      const size = 0.95 + Math.min(0.4, dmg * 0.08) + (Math.random() - 0.5) * 0.15;
+      const angle = -Math.PI * 0.4 + idx * 0.55 + (Math.random() - 0.5) * 0.18;
+      const size = 1.05 + Math.min(0.45, dmg * 0.1) + (Math.random() - 0.5) * 0.12;
       this.cookieBites.push({ angle, size });
       this.cookieBitePulse = this.cookieBites.length - 1;
     }
@@ -437,7 +437,7 @@ export class Game {
       this.cookieBites = this.cookieBites.slice(-16);
       this.cookieBitePulse = this.cookieBites.length - 1;
     }
-    this.cookieBiteFlash = 0.7;
+    this.cookieBiteFlash = 0.85;
   }
 
   grantIdleGold() {

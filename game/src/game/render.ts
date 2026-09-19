@@ -60,11 +60,11 @@ function gate(ctx: CanvasRenderingContext2D) {
 
 function cookieBiteCenters(x: number, y: number, r: number, bites: CookieBite[]) {
   return bites.map((b) => {
-    const br = 11 + b.size * 7;
-    // Center sits on the rim so the circle scoops a classic cookie bite
+    // Deep scoop so a real chunk is missing from the cookie
+    const br = 15 + b.size * 9;
     return {
-      bx: x + Math.cos(b.angle) * (r - br * 0.2),
-      by: y + Math.sin(b.angle) * (r - br * 0.2),
+      bx: x + Math.cos(b.angle) * (r - br * 0.42),
+      by: y + Math.sin(b.angle) * (r - br * 0.42),
       br,
       angle: b.angle,
       size: b.size,
@@ -82,85 +82,100 @@ function cookie(
 ) {
   const x = COOKIE.x;
   const y = COOKIE.y;
-  const r = 38;
-  // Prefer stored marks; fall back to HP missing for safety
+  const r = 40;
   const marks =
     biteMarks.length > 0
       ? biteMarks
       : Array.from({ length: Math.min(12, Math.max(0, max - hp)) }, (_, i) => ({
-          angle: -Math.PI * 0.35 + i * 0.48,
-          size: 0.9 + (i % 3) * 0.1,
+          angle: -Math.PI * 0.35 + i * 0.5,
+          size: 1,
         }));
   const bites = cookieBiteCenters(x, y, r, marks);
+  const body = biteFlash > 0.2 ? "#f6c06a" : "#e8a04a";
 
   ctx.save();
   if (biteFlash > 0) {
-    const shake = biteFlash * 8;
+    const shake = biteFlash * 10;
     ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
   }
 
   // Soft plate under cookie
   ctx.fillStyle = "rgba(255, 246, 232, 0.35)";
   ctx.beginPath();
-  ctx.arc(x, y, r + 8, 0, Math.PI * 2);
+  ctx.arc(x, y, r + 10, 0, Math.PI * 2);
   ctx.fill();
 
-  // Cookie body with bites cut out (evenodd)
+  // Cookie body with bites cut out — grass shows through the scoops
   ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.arc(x, y, r, 0, Math.PI * 2, false);
   for (const b of bites) {
     ctx.moveTo(b.bx + b.br, b.by);
     ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2, true);
   }
-  ctx.fillStyle = biteFlash > 0.25 ? "#f6c06a" : "#e8a04a";
+  ctx.fillStyle = body;
   ctx.fill("evenodd");
 
-  // Chew edge + crumb crust inside each bite (no full-circle stroke covering them)
+  // Chew-edge stroke only (do NOT fill the scoop — that would erase the bite)
   for (let i = 0; i < bites.length; i++) {
     const b = bites[i];
     const hot = biteFlash > 0 && i === pulseIndex;
+    const half = Math.asin(Math.min(0.98, (b.br * 0.9) / r));
+    // Arc along the cookie rim where it was bitten
     ctx.beginPath();
-    ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2);
-    ctx.strokeStyle = hot ? "#6a3010" : "#8a5020";
-    ctx.lineWidth = hot ? 4.5 : 3;
+    ctx.arc(x, y, r - 1, b.angle - half, b.angle + half);
+    ctx.strokeStyle = hot ? "#4a2008" : "#6a3418";
+    ctx.lineWidth = hot ? 5 : 3.5;
     ctx.stroke();
-
-    // Inner biscuit tone in the bite hollow
-    ctx.fillStyle = hot ? "rgba(106, 48, 16, 0.35)" : "rgba(138, 80, 32, 0.22)";
+    // Inner crescent of the bite circle (the chew face)
     ctx.beginPath();
-    ctx.arc(b.bx, b.by, b.br - 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Tooth scallops along the bite rim
-    ctx.fillStyle = hot ? "#5a2810" : "#6a3a18";
-    for (let t = 0; t < 6; t++) {
-      const ta = b.angle + Math.PI + (t - 2.5) * 0.28;
-      const tx = b.bx + Math.cos(ta) * (b.br - 2);
-      const ty = b.by + Math.sin(ta) * (b.br - 2);
-      if (Math.hypot(tx - x, ty - y) > r + 1) continue;
+    ctx.arc(b.bx, b.by, b.br, b.angle - half * 1.4 + Math.PI, b.angle + half * 1.4 + Math.PI);
+    ctx.strokeStyle = hot ? "#5a2810" : "#7a4020";
+    ctx.lineWidth = hot ? 4 : 3;
+    ctx.stroke();
+    // Tooth scallops on the chew face
+    ctx.fillStyle = hot ? "#4a2008" : "#6a3418";
+    for (let t = 0; t < 5; t++) {
+      const ta = b.angle + Math.PI + (t - 2) * 0.32;
+      const tx = b.bx + Math.cos(ta) * (b.br - 1);
+      const ty = b.by + Math.sin(ta) * (b.br - 1);
+      if (Math.hypot(tx - x, ty - y) > r - 1) continue;
       ctx.beginPath();
-      ctx.arc(tx, ty, hot ? 2.4 : 1.9, 0, Math.PI * 2);
+      ctx.arc(tx, ty, hot ? 2.8 : 2.2, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
-  // Outer rim only where not bitten — sample arcs between bites
+  // Outer rim on unbitten arcs only
   ctx.strokeStyle = "#c4782a";
   ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.stroke();
-  // Cover bitten rim segments with cream so the full ring doesn't seal the bites
-  for (const b of bites) {
-    const half = Math.asin(Math.min(0.95, b.br / r)) * 1.15;
+  if (bites.length === 0) {
     ctx.beginPath();
-    ctx.arc(x, y, r, b.angle - half, b.angle + half);
-    ctx.strokeStyle = biteFlash > 0.25 ? "#f6c06a" : "#e8a04a";
-    ctx.lineWidth = 5;
+    ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.stroke();
+  } else {
+    const gaps = bites
+      .map((b) => {
+        const half = Math.asin(Math.min(0.98, (b.br * 0.95) / r));
+        return { a0: b.angle - half, a1: b.angle + half };
+      })
+      .sort((a, b) => a.a0 - b.a0);
+    let cursor = -Math.PI;
+    for (const g of gaps) {
+      if (g.a0 > cursor + 0.04) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, cursor, g.a0);
+        ctx.stroke();
+      }
+      cursor = Math.max(cursor, g.a1);
+    }
+    if (cursor < Math.PI - 0.04) {
+      ctx.beginPath();
+      ctx.arc(x, y, r, cursor, Math.PI);
+      ctx.stroke();
+    }
   }
 
-  // Chocolate chips (skip if inside a bite)
+  // Chocolate chips (skip bitten areas)
   ctx.fillStyle = "#6a3a18";
   const chips: [number, number][] = [
     [-10, -8],
@@ -176,27 +191,25 @@ function cookie(
   for (const [cx, cy] of chips) {
     const px = x + cx;
     const py = y + cy;
-    const eaten = bites.some((b) => Math.hypot(px - b.bx, py - b.by) < b.br + 1);
-    if (eaten) continue;
-    if (Math.hypot(cx, cy) > r - 8) continue;
+    if (Math.hypot(cx, cy) > r - 9) continue;
+    if (bites.some((b) => Math.hypot(px - b.bx, py - b.by) < b.br + 1)) continue;
     ctx.beginPath();
     ctx.arc(px, py, 4, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Flying crumbs on impact + lingering crumbs near bites
+  // Crumbs outside each bite
   if (bites.length > 0) {
     ctx.fillStyle = "#d4a060";
     for (let i = 0; i < bites.length; i++) {
       const b = bites[i];
-      const burst = biteFlash > 0 && i === pulseIndex ? 1 + biteFlash * 1.8 : 1;
-      for (let c = 0; c < 4; c++) {
-        const spread = 10 + c * 5 * burst;
+      const burst = biteFlash > 0 && i === pulseIndex ? 1 + biteFlash * 2 : 1;
+      for (let c = 0; c < 5; c++) {
         ctx.beginPath();
         ctx.arc(
-          x + Math.cos(b.angle + (c - 1.5) * 0.22) * (r + spread),
-          y + Math.sin(b.angle + (c - 1.5) * 0.22) * (r + spread),
-          (2 + (c % 2)) * (burst > 1 ? 1.3 : 1),
+          x + Math.cos(b.angle + (c - 2) * 0.2) * (r + 8 + c * 5 * burst),
+          y + Math.sin(b.angle + (c - 2) * 0.2) * (r + 8 + c * 5 * burst),
+          (2.2 + (c % 2)) * (burst > 1 ? 1.35 : 1),
           0,
           Math.PI * 2,
         );
@@ -205,26 +218,25 @@ function cookie(
     }
   }
 
-  // Fresh bite highlight ring
   if (biteFlash > 0 && pulseIndex >= 0 && bites[pulseIndex]) {
     const b = bites[pulseIndex];
-    ctx.strokeStyle = `rgba(255, 230, 160, ${Math.min(1, biteFlash * 1.4)})`;
+    ctx.strokeStyle = `rgba(255, 230, 160, ${Math.min(1, biteFlash * 1.5)})`;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(b.bx, b.by, b.br + 4 + (1 - biteFlash) * 10, 0, Math.PI * 2);
+    ctx.arc(b.bx, b.by, b.br + 5 + (1 - biteFlash) * 12, 0, Math.PI * 2);
     ctx.stroke();
   }
 
   ctx.fillStyle = "#fff6e8";
   ctx.font = "800 11px Nunito, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(bites.length > 0 ? "BITTEN!" : "COOKIE", x, y + 54);
+  ctx.fillText(bites.length > 0 ? "BITTEN!" : "COOKIE", x, y + 56);
 
   const pct = Math.max(0, hp / max);
   ctx.fillStyle = "rgba(0,0,0,0.3)";
-  ctx.fillRect(x - 34, y + 60, 68, 8);
+  ctx.fillRect(x - 34, y + 62, 68, 8);
   ctx.fillStyle = pct > 0.3 ? "#6ecf7a" : "#ff6b6b";
-  ctx.fillRect(x - 34, y + 60, 68 * pct, 8);
+  ctx.fillRect(x - 34, y + 62, 68 * pct, 8);
   ctx.restore();
 }
 

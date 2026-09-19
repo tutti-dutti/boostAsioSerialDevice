@@ -172,6 +172,7 @@ const home = document.querySelector<HTMLElement>("#home")!;
 const playScreen = document.querySelector<HTMLElement>("#play-screen")!;
 const canvas = document.querySelector<HTMLCanvasElement>("#stage")!;
 const game = new Game(canvas);
+(window as unknown as { __cg: Game }).__cg = game;
 
 const stats = document.querySelector("#stats")!;
 const bag = document.querySelector("#bag")!;
