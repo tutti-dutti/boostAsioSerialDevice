@@ -653,6 +653,30 @@ export class Game {
     this.onChange();
   }
 
+  /** Move every board friend except the selected one back into the bag */
+  clearUnselected() {
+    const keep = this.slotById(this.selectedSlot);
+    if (!keep?.friend) {
+      this.toast("Select a friend to keep first", true);
+      return;
+    }
+    let n = 0;
+    for (const slot of this.slots) {
+      if (slot.id === keep.id || !slot.friend) continue;
+      this.bag.push(slot.friend.def);
+      n += 1;
+    }
+    this.slots = this.slots.filter((s) => s.id === keep.id);
+    this.selectedSlot = keep.id;
+    if (!n) {
+      this.toast("No other friends on the board", true);
+      return;
+    }
+    this.toast(`Cleared ${n} other friend${n === 1 ? "" : "s"} to bag`, true);
+    this.save();
+    this.onChange();
+  }
+
   /** Permanently remove selected bag unit or selected board unit */
   deleteSelected() {
     if (this.selectedBag != null) {

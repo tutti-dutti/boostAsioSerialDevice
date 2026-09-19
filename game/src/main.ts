@@ -118,6 +118,7 @@ app.innerHTML = `
         </div>
         <div class="row">
           <button id="clear-board" type="button">Clear board</button>
+          <button id="clear-others" type="button">Clear others</button>
         </div>
         <div class="row">
           <button class="spell" id="crumb" type="button">Crumb (5🪙)</button>
@@ -608,6 +609,16 @@ document.querySelector("#eagle-land")!.addEventListener("click", () => {
 });
 document.querySelector("#clear-board")!.addEventListener("click", () => {
   if (confirm("Move all board friends back to the bag?")) game.clearBoard();
+});
+document.querySelector("#clear-others")!.addEventListener("click", () => {
+  unlockAudio();
+  if (!game.selectedSlot || !game.slotById(game.selectedSlot)?.friend) {
+    game.clearUnselected();
+    return;
+  }
+  if (confirm("Move all other board friends back to the bag? (keeps the selected one)")) {
+    game.clearUnselected();
+  }
 });
 document.querySelector("#delete-unit")!.addEventListener("click", () => {
   if (confirm("Delete this friend forever?")) game.deleteSelected();
