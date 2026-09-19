@@ -1,6 +1,6 @@
 const DIFF_KEY = "cookie-guard-difficulty-v1";
 
-export type Difficulty = "easy" | "hard";
+export type Difficulty = "easy" | "medium" | "hard";
 
 export interface DifficultyTuning {
   id: Difficulty;
@@ -21,9 +21,11 @@ export interface DifficultyTuning {
   startGold: number;
   startStars: number;
   cookieHp: number;
-  /** High-score weight so Hard ranks above the same wave on Easy */
+  /** High-score weight so tougher modes rank above easier same-wave runs */
   scoreWeight: number;
 }
+
+export const DIFFICULTY_ORDER: Difficulty[] = ["easy", "medium", "hard"];
 
 export const DIFFICULTIES: Record<Difficulty, DifficultyTuning> = {
   easy: {
@@ -40,6 +42,21 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyTuning> = {
     startStars: 7,
     cookieHp: 70,
     scoreWeight: 1,
+  },
+  medium: {
+    id: "medium",
+    label: "Medium",
+    blurb: "Balanced fight — fair packs, fair rewards",
+    hp: 1.28,
+    speed: 1.08,
+    count: 1.12,
+    gold: 0.92,
+    spawnPace: 0.92,
+    cookieDmg: 1.25,
+    startGold: 18,
+    startStars: 5,
+    cookieHp: 50,
+    scoreWeight: 1.25,
   },
   hard: {
     id: "hard",
@@ -59,7 +76,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyTuning> = {
 };
 
 export function isDifficulty(v: unknown): v is Difficulty {
-  return v === "easy" || v === "hard";
+  return v === "easy" || v === "medium" || v === "hard";
 }
 
 export function difficultyTuning(d: Difficulty): DifficultyTuning {

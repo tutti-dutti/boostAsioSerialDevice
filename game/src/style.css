@@ -267,6 +267,11 @@ body {
   background: #dff5e4;
 }
 
+.mode-chip.mode-medium {
+  border-color: #c4a030;
+  background: #fff3c8;
+}
+
 .mode-chip.mode-hard {
   border-color: #c45a4a;
   background: #ffe4de;
@@ -280,6 +285,11 @@ body {
 .mode-chip.mode-easy.selected {
   background: #b8e8c4;
   border-color: #2a7848;
+}
+
+.mode-chip.mode-medium.selected {
+  background: #ffe08a;
+  border-color: #a87818;
 }
 
 .mode-chip.mode-hard.selected {
@@ -299,6 +309,10 @@ body {
   color: #2a7848;
 }
 
+.mode-stat-medium {
+  color: #a87818;
+}
+
 .mode-stat-hard {
   color: #a83828;
 }
@@ -316,6 +330,12 @@ body {
 .score-mode.mode-tag-easy {
   color: #2a7848;
   background: rgba(184, 232, 196, 0.7);
+}
+
+.mode-tag-medium,
+.score-mode.mode-tag-medium {
+  color: #8a6810;
+  background: rgba(255, 224, 138, 0.75);
 }
 
 .mode-tag-hard,

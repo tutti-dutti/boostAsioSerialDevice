@@ -13,7 +13,7 @@ import {
   submitHighScore,
   type HighScore,
 } from "./game/highscores";
-import { DIFFICULTIES, type Difficulty } from "./game/difficulty";
+import { DIFFICULTIES, isDifficulty, type Difficulty } from "./game/difficulty";
 import { submitFeedback, type FeedbackKind } from "./game/feedback";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -31,6 +31,7 @@ app.innerHTML = `
       <p class="course-label">Difficulty</p>
       <div class="mode-chips" id="home-mode-chips" role="group" aria-label="Difficulty">
         <button class="mode-chip mode-easy" data-mode="easy" type="button">Easy</button>
+        <button class="mode-chip mode-medium" data-mode="medium" type="button">Medium</button>
         <button class="mode-chip mode-hard" data-mode="hard" type="button">Hard</button>
       </div>
       <p class="mode-blurb" id="home-mode-blurb">Softer thieves — great for learning</p>
@@ -277,7 +278,7 @@ homeModeChips.querySelectorAll<HTMLButtonElement>(".mode-chip").forEach((btn) =>
   btn.addEventListener("click", () => {
     unlockAudio();
     const mode = btn.dataset.mode as Difficulty;
-    if (mode === "easy" || mode === "hard") game.setDifficulty(mode);
+    if (isDifficulty(mode)) game.setDifficulty(mode);
     refreshModes();
   });
 });
