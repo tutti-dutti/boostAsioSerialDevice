@@ -1,6 +1,7 @@
 import "./style.css";
 import { Game } from "./game/Game";
 import { rarityLabel } from "./game/data";
+import { unlockAudio, setMuted, isMuted } from "./game/sound";
 import { upgradeCost } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -16,7 +17,10 @@ app.innerHTML = `
   <section class="play-screen hidden" id="play-screen">
     <header class="top-bar">
       <div class="brand-small">Cookie Guard</div>
-      <button class="home-link" id="back-home" type="button">Home</button>
+      <div class="top-actions">
+        <button class="home-link" id="mute-btn" type="button">Sound: On</button>
+        <button class="home-link" id="back-home" type="button">Home</button>
+      </div>
     </header>
 
     <div class="stats" id="stats"></div>
@@ -135,6 +139,7 @@ function showHome() {
 }
 
 function showPlay() {
+  unlockAudio();
   home.classList.add("hidden");
   playScreen.classList.remove("hidden");
   game.running = true;
@@ -145,7 +150,14 @@ function showPlay() {
 document.querySelector("#play-btn")!.addEventListener("click", showPlay);
 document.querySelector("#back-home")!.addEventListener("click", showHome);
 
+const muteBtn = document.querySelector<HTMLButtonElement>("#mute-btn")!;
+muteBtn.addEventListener("click", () => {
+  setMuted(!isMuted());
+  muteBtn.textContent = isMuted() ? "Sound: Off" : "Sound: On";
+});
+
 document.querySelector("#retry-btn")!.addEventListener("click", () => {
+  unlockAudio();
   game.reset();
   over.classList.add("hidden");
 });

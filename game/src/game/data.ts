@@ -14,6 +14,8 @@ export interface FriendDef {
   ability: AbilityId;
   /** Fish can evolve; shark can become megalodon */
   canEvolve?: boolean;
+  /** Flying animals: sniper range + ultra-fast low-damage shots */
+  flies?: boolean;
 }
 
 export interface ThiefDef {
@@ -30,7 +32,7 @@ export interface ThiefDef {
 /** Basic forest animals + hummingbird */
 export const FRIENDS: FriendDef[] = [
   // —— Basic (common) ——
-  { id: "hummingbird", name: "Hummingbird", emoji: "🐦", rarity: "common", color: "#7ecf9a", damage: 5, range: 85, attackSpeed: 1.8, ability: "none" },
+  { id: "hummingbird", name: "Hummingbird", emoji: "🐦", rarity: "common", color: "#7ecf9a", damage: 2, range: 95, attackSpeed: 1.15, ability: "none", flies: true },
   { id: "bunny", name: "Bunny", emoji: "🐰", rarity: "common", color: "#f0e0d0", damage: 6, range: 90, attackSpeed: 1.2, ability: "none" },
   { id: "squirrel", name: "Squirrel", emoji: "🐿️", rarity: "common", color: "#c48848", damage: 7, range: 88, attackSpeed: 1.3, ability: "none" },
   { id: "hedgehog", name: "Hedgehog", emoji: "🦔", rarity: "common", color: "#a08060", damage: 8, range: 80, attackSpeed: 0.95, ability: "none" },
@@ -38,7 +40,7 @@ export const FRIENDS: FriendDef[] = [
   { id: "mouse", name: "Forest Mouse", emoji: "🐭", rarity: "common", color: "#c0b0a0", damage: 5, range: 86, attackSpeed: 1.5, ability: "none" },
 
   // —— Tier two (rare) ——
-  { id: "owl", name: "Owl", emoji: "🦉", rarity: "rare", color: "#8a7050", damage: 14, range: 130, attackSpeed: 1.35, ability: "none" },
+  { id: "owl", name: "Owl", emoji: "🦉", rarity: "rare", color: "#8a7050", damage: 3, range: 110, attackSpeed: 1.0, ability: "none", flies: true },
   { id: "deer", name: "Deer", emoji: "🦌", rarity: "rare", color: "#c89858", damage: 16, range: 110, attackSpeed: 1.05, ability: "none" },
   { id: "beaver", name: "Beaver", emoji: "🦫", rarity: "rare", color: "#8a6040", damage: 18, range: 100, attackSpeed: 0.9, ability: "none" },
   { id: "wolf", name: "Wolf", emoji: "🐺", rarity: "rare", color: "#808898", damage: 20, range: 115, attackSpeed: 1.2, ability: "none" },
@@ -46,11 +48,11 @@ export const FRIENDS: FriendDef[] = [
   { id: "fish", name: "Fish", emoji: "🐟", rarity: "rare", color: "#5eb8e0", damage: 12, range: 100, attackSpeed: 1.25, ability: "floppyFin", canEvolve: true },
 
   // —— Legendary ——
-  { id: "otter", name: "Otter", emoji: "🦦", rarity: "legendary", color: "#b08050", damage: 38, range: 125, attackSpeed: 1.3, ability: "none" },
-  { id: "brownbear", name: "Brown Bear", emoji: "🐻", rarity: "legendary", color: "#8a5030", damage: 48, range: 115, attackSpeed: 0.85, ability: "none" },
-  { id: "polarbear", name: "Polar Bear", emoji: "🐻‍❄️", rarity: "legendary", color: "#e8f0f8", damage: 45, range: 120, attackSpeed: 0.9, ability: "none" },
-  { id: "eagle", name: "Bald Eagle", emoji: "🦅", rarity: "legendary", color: "#d0a040", damage: 42, range: 160, attackSpeed: 1.4, ability: "none" },
-  { id: "shark", name: "Shark", emoji: "🦈", rarity: "legendary", color: "#6080a0", damage: 55, range: 135, attackSpeed: 1.1, ability: "floppyFin", canEvolve: true },
+  { id: "otter", name: "Otter", emoji: "🦦", rarity: "legendary", color: "#b08050", damage: 50, range: 125, attackSpeed: 16, ability: "none" },
+  { id: "brownbear", name: "Brown Bear", emoji: "🐻", rarity: "legendary", color: "#8a5030", damage: 50, range: 115, attackSpeed: 16, ability: "none" },
+  { id: "polarbear", name: "Polar Bear", emoji: "🐻‍❄️", rarity: "legendary", color: "#e8f0f8", damage: 50, range: 120, attackSpeed: 16, ability: "none" },
+  { id: "eagle", name: "Bald Eagle", emoji: "🦅", rarity: "legendary", color: "#d0a040", damage: 3, range: 130, attackSpeed: 1.25, ability: "none", flies: true },
+  { id: "shark", name: "Shark", emoji: "🦈", rarity: "legendary", color: "#6080a0", damage: 50, range: 135, attackSpeed: 16, ability: "floppyFin", canEvolve: true },
 
   // —— GOD tier ——
   { id: "redpanda", name: "Red Panda", emoji: "🐼", rarity: "god", color: "#e05030", damage: 95, range: 180, attackSpeed: 1.5, ability: "godBeam" },
