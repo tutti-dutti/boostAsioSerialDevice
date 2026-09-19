@@ -595,10 +595,12 @@ export class Game {
     if (this.dragOrigin && Math.hypot(x - this.dragOrigin.x, y - this.dragOrigin.y) > 6) {
       this.dragMoved = true;
     }
+    // Only move onto grass — never onto the path
     if (this.isValidPlace(x, y, slot.id)) {
       slot.x = x;
       slot.y = y;
     }
+    this.deployGhost = { x, y, valid: this.isValidPlace(x, y, slot.id) };
     this.paint();
   }
 
@@ -611,17 +613,22 @@ export class Game {
 
     if (this.draggingSlot != null) {
       const slot = this.slots.find((s) => s.id === this.draggingSlot);
-      if (slot && this.dragOrigin && !this.isValidPlace(slot.x, slot.y, slot.id)) {
-        slot.x = this.dragOrigin.x;
-        slot.y = this.dragOrigin.y;
+      if (slot && (!this.isValidPlace(slot.x, slot.y, slot.id) || (this.dragOrigin && !this.dragMoved))) {
+        // Snap back if ended on path / invalid, or treat as a click-select
+        if (this.dragOrigin && !this.isValidPlace(slot.x, slot.y, slot.id)) {
+          slot.x = this.dragOrigin.x;
+          slot.y = this.dragOrigin.y;
+          this.toast("Can't place on the path", true);
+        }
       }
-      if (slot && this.dragMoved) {
+      if (slot && this.dragMoved && this.isValidPlace(slot.x, slot.y, slot.id)) {
         this.toast(`${slot.friend?.def.emoji ?? ""} Moved!`, true);
         this.save();
       }
       this.draggingSlot = null;
       this.dragMoved = false;
       this.dragOrigin = null;
+      if (this.selectedBag == null) this.deployGhost = null;
       this.onChange();
       return;
     }
@@ -638,7 +645,7 @@ export class Game {
       return;
     }
     if (!this.isValidPlace(x, y)) {
-      this.toast("Can't place there — avoid the path", true);
+      this.toast("Can't place on the path — tap the grass", true);
       this.onChange();
       return;
     }

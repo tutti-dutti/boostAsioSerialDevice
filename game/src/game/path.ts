@@ -466,7 +466,7 @@ export function pathPoint(t: number): Vec2 {
 export function nearestProgress(x: number, y: number): number {
   let best = 0;
   let bestD = Infinity;
-  const samples = Math.min(80, 40 + Math.floor(PATH.length / 2));
+  const samples = Math.min(120, 50 + Math.floor(PATH.length));
   for (let i = 0; i <= samples; i++) {
     const t = i / samples;
     const p = pathPoint(t);
@@ -479,15 +479,36 @@ export function nearestProgress(x: number, y: number): number {
   return best;
 }
 
-/** Distance from a point to the nearest spot on the active path */
-export function distanceToPath(x: number, y: number): number {
-  const t = nearestProgress(x, y);
-  const p = pathPoint(t);
-  return Math.hypot(p.x - x, p.y - y);
+/** Closest distance from a point to a line segment */
+function distToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const len2 = abx * abx + aby * aby;
+  if (len2 <= 1e-6) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * abx + (py - ay) * aby) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + abx * t;
+  const cy = ay + aby * t;
+  return Math.hypot(px - cx, py - cy);
 }
 
-/** Keep friends off the path (and away from cookie/gate) */
-export const PATH_CLEARANCE = 38;
+/**
+ * True distance from a point to the path polyline (not just sampled progress).
+ * Path stroke is ~44px wide, so half-width is ~22.
+ */
+export function distanceToPath(x: number, y: number): number {
+  const path = PATH;
+  if (!path.length) return Infinity;
+  let best = Infinity;
+  for (let i = 1; i < path.length; i++) {
+    const d = distToSegment(x, y, path[i - 1].x, path[i - 1].y, path[i].x, path[i].y);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/** Keep friends fully off the path band (+ friend footprint margin) */
+export const PATH_CLEARANCE = 50;
 
 export function canPlaceAt(
   x: number,
@@ -495,6 +516,7 @@ export function canPlaceAt(
   opts: { ignoreSlotId?: number; others?: { id: number; x: number; y: number }[] } = {},
 ): boolean {
   if (x < 30 || x > W - 30 || y < 30 || y > H - 30) return false;
+  // Hard block: never on or overlapping the path
   if (distanceToPath(x, y) < PATH_CLEARANCE) return false;
   if (Math.hypot(x - COOKIE.x, y - COOKIE.y) < 52) return false;
   if (Math.hypot(x - GATE.x, y - GATE.y) < 42) return false;
@@ -503,4 +525,8 @@ export function canPlaceAt(
     if (Math.hypot(o.x - x, o.y - y) < 40) return false;
   }
   return true;
+}
+
+export function isOnPath(x: number, y: number, clearance = PATH_CLEARANCE): boolean {
+  return distanceToPath(x, y) < clearance;
 }
