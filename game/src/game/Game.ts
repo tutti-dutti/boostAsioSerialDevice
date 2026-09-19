@@ -427,14 +427,14 @@ export class Game {
     const bites = Math.max(1, Math.min(4, Math.round(dmg)));
     for (let i = 0; i < bites; i++) {
       const idx = this.cookieBites.length;
-      // Spread around the rim; jitter so consecutive chomps don't stack
-      const angle = -Math.PI * 0.4 + idx * 0.55 + (Math.random() - 0.5) * 0.18;
-      const size = 1.05 + Math.min(0.45, dmg * 0.1) + (Math.random() - 0.5) * 0.12;
+      // Spread around the rim so each chomp is a distinct scoop
+      const angle = -Math.PI * 0.85 + idx * 0.72 + (Math.random() - 0.5) * 0.15;
+      const size = 1.15 + Math.min(0.5, dmg * 0.12) + (Math.random() - 0.5) * 0.1;
       this.cookieBites.push({ angle, size });
       this.cookieBitePulse = this.cookieBites.length - 1;
     }
-    if (this.cookieBites.length > 16) {
-      this.cookieBites = this.cookieBites.slice(-16);
+    if (this.cookieBites.length > 14) {
+      this.cookieBites = this.cookieBites.slice(-14);
       this.cookieBitePulse = this.cookieBites.length - 1;
     }
     this.cookieBiteFlash = 0.85;

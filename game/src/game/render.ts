@@ -60,11 +60,10 @@ function gate(ctx: CanvasRenderingContext2D) {
 
 function cookieBiteCenters(x: number, y: number, r: number, bites: CookieBite[]) {
   return bites.map((b) => {
-    // Deep scoop so a real chunk is missing from the cookie
-    const br = 15 + b.size * 9;
+    const br = 17 + b.size * 11;
     return {
-      bx: x + Math.cos(b.angle) * (r - br * 0.42),
-      by: y + Math.sin(b.angle) * (r - br * 0.42),
+      bx: x + Math.cos(b.angle) * (r - br * 0.5),
+      by: y + Math.sin(b.angle) * (r - br * 0.5),
       br,
       angle: b.angle,
       size: b.size,
@@ -83,12 +82,13 @@ function cookie(
   const x = COOKIE.x;
   const y = COOKIE.y;
   const r = 40;
+  const map = getActiveMap();
   const marks =
     biteMarks.length > 0
       ? biteMarks
       : Array.from({ length: Math.min(12, Math.max(0, max - hp)) }, (_, i) => ({
-          angle: -Math.PI * 0.35 + i * 0.5,
-          size: 1,
+          angle: -Math.PI * 0.9 + i * 0.7,
+          size: 1.15,
         }));
   const bites = cookieBiteCenters(x, y, r, marks);
   const body = biteFlash > 0.2 ? "#f6c06a" : "#e8a04a";
@@ -99,53 +99,79 @@ function cookie(
     ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
   }
 
-  // Soft plate under cookie
-  ctx.fillStyle = "rgba(255, 246, 232, 0.35)";
+  // Full cookie body
+  ctx.fillStyle = body;
   ctx.beginPath();
-  ctx.arc(x, y, r + 10, 0, Math.PI * 2);
+  ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
 
-  // Cookie body with bites cut out — grass shows through the scoops
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2, false);
-  for (const b of bites) {
-    ctx.moveTo(b.bx + b.br, b.by);
-    ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2, true);
+  // Chocolate chips (before scoops so bites cover them)
+  ctx.fillStyle = "#6a3a18";
+  const chips: [number, number][] = [
+    [-10, -8],
+    [8, -6],
+    [-4, 10],
+    [12, 8],
+    [0, 0],
+    [-14, 4],
+    [6, 12],
+    [-8, 14],
+    [14, -2],
+  ];
+  for (const [cx, cy] of chips) {
+    if (Math.hypot(cx, cy) > r - 9) continue;
+    ctx.beginPath();
+    ctx.arc(x + cx, y + cy, 4, 0, Math.PI * 2);
+    ctx.fill();
   }
-  ctx.fillStyle = body;
-  ctx.fill("evenodd");
 
-  // Chew-edge stroke only (do NOT fill the scoop — that would erase the bite)
+  // Scoop each bite: paint grass into the cookie so a chunk is clearly gone
   for (let i = 0; i < bites.length; i++) {
     const b = bites[i];
     const hot = biteFlash > 0 && i === pulseIndex;
-    const half = Math.asin(Math.min(0.98, (b.br * 0.9) / r));
-    // Arc along the cookie rim where it was bitten
+    ctx.save();
+    // Only paint scoop where it overlaps the cookie
     ctx.beginPath();
-    ctx.arc(x, y, r - 1, b.angle - half, b.angle + half);
-    ctx.strokeStyle = hot ? "#4a2008" : "#6a3418";
+    ctx.arc(x, y, r + 0.5, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = map.grassB;
+    ctx.fillRect(b.bx - b.br - 2, b.by - b.br - 2, b.br * 2 + 4, b.br * 2 + 4);
+    ctx.fillStyle = map.grassA;
+    for (let gy = Math.floor(b.by - b.br); gy < b.by + b.br; gy += 28) {
+      for (let gx = Math.floor(b.bx - b.br); gx < b.bx + b.br; gx += 28) {
+        if ((gx + gy) % 56 === 0) ctx.fillRect(gx, gy, 28, 28);
+      }
+    }
+    ctx.restore();
+
+    // Chew rim
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r + 0.5, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2);
+    ctx.strokeStyle = hot ? "#3a1808" : "#5a2810";
     ctx.lineWidth = hot ? 5 : 3.5;
     ctx.stroke();
-    // Inner crescent of the bite circle (the chew face)
-    ctx.beginPath();
-    ctx.arc(b.bx, b.by, b.br, b.angle - half * 1.4 + Math.PI, b.angle + half * 1.4 + Math.PI);
-    ctx.strokeStyle = hot ? "#5a2810" : "#7a4020";
-    ctx.lineWidth = hot ? 4 : 3;
-    ctx.stroke();
-    // Tooth scallops on the chew face
-    ctx.fillStyle = hot ? "#4a2008" : "#6a3418";
-    for (let t = 0; t < 5; t++) {
-      const ta = b.angle + Math.PI + (t - 2) * 0.32;
-      const tx = b.bx + Math.cos(ta) * (b.br - 1);
-      const ty = b.by + Math.sin(ta) * (b.br - 1);
+    // Tooth notches along chew face
+    ctx.fillStyle = hot ? "#3a1808" : "#5a2810";
+    for (let t = 0; t < 6; t++) {
+      const ta = b.angle + Math.PI + (t - 2.5) * 0.28;
+      const tx = b.bx + Math.cos(ta) * (b.br - 1.5);
+      const ty = b.by + Math.sin(ta) * (b.br - 1.5);
       if (Math.hypot(tx - x, ty - y) > r - 1) continue;
       ctx.beginPath();
-      ctx.arc(tx, ty, hot ? 2.8 : 2.2, 0, Math.PI * 2);
+      ctx.arc(tx, ty, hot ? 2.8 : 2.3, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();
   }
 
-  // Outer rim on unbitten arcs only
+  // Outer cookie rim (skip bitten arcs)
   ctx.strokeStyle = "#c4782a";
   ctx.lineWidth = 4;
   if (bites.length === 0) {
@@ -161,44 +187,21 @@ function cookie(
       .sort((a, b) => a.a0 - b.a0);
     let cursor = -Math.PI;
     for (const g of gaps) {
-      if (g.a0 > cursor + 0.04) {
+      if (g.a0 > cursor + 0.05) {
         ctx.beginPath();
         ctx.arc(x, y, r, cursor, g.a0);
         ctx.stroke();
       }
       cursor = Math.max(cursor, g.a1);
     }
-    if (cursor < Math.PI - 0.04) {
+    if (cursor < Math.PI - 0.05) {
       ctx.beginPath();
       ctx.arc(x, y, r, cursor, Math.PI);
       ctx.stroke();
     }
   }
 
-  // Chocolate chips (skip bitten areas)
-  ctx.fillStyle = "#6a3a18";
-  const chips: [number, number][] = [
-    [-10, -8],
-    [8, -6],
-    [-4, 10],
-    [12, 8],
-    [0, 0],
-    [-14, 4],
-    [6, 12],
-    [-8, 14],
-    [14, -2],
-  ];
-  for (const [cx, cy] of chips) {
-    const px = x + cx;
-    const py = y + cy;
-    if (Math.hypot(cx, cy) > r - 9) continue;
-    if (bites.some((b) => Math.hypot(px - b.bx, py - b.by) < b.br + 1)) continue;
-    ctx.beginPath();
-    ctx.arc(px, py, 4, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Crumbs outside each bite
+  // Crumbs flying out of bites
   if (bites.length > 0) {
     ctx.fillStyle = "#d4a060";
     for (let i = 0; i < bites.length; i++) {
