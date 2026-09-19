@@ -47,20 +47,24 @@ app.innerHTML = `
   </section>
 
   <section class="play-screen hidden" id="play-screen">
-    <header class="top-bar">
-      <div class="brand-small">Cookie Guard <span class="brand-by">by James Nguyen</span></div>
-      <div class="top-actions">
-        <button class="home-link" id="pause-btn" type="button">Pause</button>
-        <button class="home-link" id="mute-btn" type="button">Sound: On</button>
-        <button class="home-link" id="play-feedback-btn" type="button">Feedback</button>
-        <button class="home-link" id="back-home" type="button">Home</button>
+    <div class="status-banner" id="status-banner" aria-live="polite">
+      <div class="status-main" id="status-main"></div>
+      <div class="status-meta">
+        <span class="status-upgrade" id="status-upgrade">Select friend for upgrade cost</span>
+        <div class="status-links">
+          <button class="home-link" id="mute-btn" type="button">Sound</button>
+          <button class="home-link" id="play-feedback-btn" type="button">Feedback</button>
+          <button class="home-link" id="back-home" type="button">Home</button>
+        </div>
       </div>
-    </header>
+    </div>
 
-    <div class="stats" id="stats"></div>
-    <div class="gold-bar" id="gold-bar" aria-live="polite">
-      <span class="gold-balance" id="gold-balance">Gold: 0🪙</span>
-      <span class="gold-needed" id="gold-needed">Select a friend to see upgrade cost</span>
+    <div class="action-banner" id="action-banner">
+      <button class="wave-btn" id="start-wave" type="button">Start Wave</button>
+      <button class="pause-btn" id="pause-action" type="button">Pause</button>
+      <button class="spell" id="crumb" type="button">Crumb 5🪙</button>
+      <button class="spell" id="frost" type="button">Frost 4🪙</button>
+      <button class="spell" id="zap" type="button">Zap 6🪙</button>
     </div>
 
     <div class="stage-wrap">
@@ -84,66 +88,45 @@ app.innerHTML = `
       </div>
     </div>
 
-    <div class="hud">
-      <section class="panel">
-        <h2>Friends</h2>
-        <div class="row">
-          <button class="big" id="summon" type="button">Summon (1⭐)</button>
-          <button class="pink" id="lucky" type="button">Lucky (3⭐)</button>
-        </div>
-        <div class="inventory" id="bag"></div>
-        <div class="row">
-          <button class="danger" id="delete-unit" type="button">Delete unit</button>
-        </div>
-        <p class="hint">Equip from bag, tap grass to deploy (not the path). Drag friends to move them.</p>
-      </section>
+    <div class="friends-strip" id="friends-strip">
+      <button class="big" id="summon" type="button">Summon 1⭐</button>
+      <button class="pink" id="lucky" type="button">Lucky 3⭐</button>
+      <div class="inventory" id="bag"></div>
+    </div>
 
-      <section class="panel">
-        <h2>Actions</h2>
-        <div class="row wave-pause-row">
-          <button class="wave-btn" id="start-wave" type="button">Start Wave</button>
-          <button class="pause-btn" id="pause-action" type="button">Pause</button>
+    <div class="manage-panel" id="manage-panel">
+      <div class="manage-row">
+        <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
+        <button id="sell" type="button">To bag</button>
+        <button class="danger" id="delete-unit" type="button">Delete</button>
+        <button id="clear-board" type="button">Clear board</button>
+        <button id="clear-others" type="button">Clear others</button>
+      </div>
+      <div class="manage-row beaver-dam-row hidden" id="beaver-dam-row">
+        <button class="dam-btn" id="build-dam" type="button">Build Dam (5🪵)</button>
+      </div>
+      <div class="manage-row eagle-land-row hidden" id="eagle-land-row">
+        <button class="eagle-btn" id="eagle-land" type="button">Land &amp; Bomb (6⭐)</button>
+      </div>
+      <p class="hint select-hint" id="select-hint">Upgrade to try a 5% mythical evolve!</p>
+      <p class="gold-upgrade-line hint" id="gold-upgrade-line">Gold 0🪙 · Select a friend for upgrade cost</p>
+      <div class="evolve-lineage hidden" id="evolve-lineage" aria-live="polite">
+        <div class="evolve-row">
+          <span class="evolve-label">Evolved from</span>
+          <span class="evolve-value" id="evolve-from">—</span>
         </div>
-        <div class="course-panel">
-          <p class="hint">Course (between waves)</p>
-          <div class="course-chips" id="play-course-chips"></div>
-          <button class="course-random" id="play-random-course" type="button">🎲 Random course</button>
+        <div class="evolve-row">
+          <span class="evolve-label">Evolves into</span>
+          <span class="evolve-value" id="evolve-into">—</span>
         </div>
-        <div class="row">
-          <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
-          <button id="sell" type="button">To bag</button>
-        </div>
-        <p class="gold-upgrade-line hint" id="gold-upgrade-line">Gold 0🪙 · Select a friend for upgrade cost</p>
-        <div class="row beaver-dam-row hidden" id="beaver-dam-row">
-          <button class="dam-btn" id="build-dam" type="button">Build Dam (5🪵)</button>
-        </div>
-        <div class="row eagle-land-row hidden" id="eagle-land-row">
-          <button class="eagle-btn" id="eagle-land" type="button">Land &amp; Bomb (6⭐)</button>
-        </div>
-        <div class="row">
-          <button id="clear-board" type="button">Clear board</button>
-          <button id="clear-others" type="button">Clear others</button>
-        </div>
-        <div class="row">
-          <button class="spell" id="crumb" type="button">Crumb (5🪙)</button>
-          <button class="spell" id="frost" type="button">Frost (4🪙)</button>
-          <button class="spell" id="zap" type="button">Zap (6🪙)</button>
-        </div>
-        <p class="hint" id="select-hint">Upgrade to try a 5% mythical evolve!</p>
-        <div class="evolve-lineage hidden" id="evolve-lineage" aria-live="polite">
-          <div class="evolve-row">
-            <span class="evolve-label">Evolved from</span>
-            <span class="evolve-value" id="evolve-from">—</span>
-          </div>
-          <div class="evolve-row">
-            <span class="evolve-label">Evolves into</span>
-            <span class="evolve-value" id="evolve-into">—</span>
-          </div>
-        </div>
-        <div class="row">
-          <button id="new-game" type="button">New game</button>
-        </div>
-      </section>
+      </div>
+      <div class="course-panel">
+        <div class="course-chips" id="play-course-chips"></div>
+        <button class="course-random" id="play-random-course" type="button">🎲 Random</button>
+      </div>
+      <div class="manage-row">
+        <button id="new-game" type="button">New game</button>
+      </div>
     </div>
   </section>
 
@@ -178,7 +161,8 @@ const canvas = document.querySelector<HTMLCanvasElement>("#stage")!;
 const game = new Game(canvas);
 (window as unknown as { __cg: Game }).__cg = game;
 
-const stats = document.querySelector("#stats")!;
+const statusMain = document.querySelector("#status-main")!;
+const statusUpgrade = document.querySelector("#status-upgrade")!;
 const bag = document.querySelector("#bag")!;
 const toast = document.querySelector("#toast")!;
 const over = document.querySelector("#over")!;
@@ -186,8 +170,6 @@ const selectHint = document.querySelector("#select-hint")!;
 const evolveLineageEl = document.querySelector("#evolve-lineage")!;
 const evolveFromEl = document.querySelector("#evolve-from")!;
 const evolveIntoEl = document.querySelector("#evolve-into")!;
-const goldBalanceEl = document.querySelector("#gold-balance")!;
-const goldNeededEl = document.querySelector("#gold-needed")!;
 const goldUpgradeLine = document.querySelector("#gold-upgrade-line")!;
 const upgradeBtn = document.querySelector<HTMLButtonElement>("#upgrade")!;
 const homeCourseChips = document.querySelector("#home-course-chips")!;
@@ -315,16 +297,15 @@ function refreshCourses() {
 }
 
 function refresh() {
-  stats.innerHTML = `
-    <div class="stat stat-gold">🪙 Gold ${game.gold}</div>
-    <div class="stat">⭐ ${game.stars}</div>
-    <div class="stat">Wave ${game.wave}</div>
-    <div class="stat mode-stat mode-stat-${game.difficulty}">${game.difficultyLabel}</div>
-    <div class="stat">🗺️ ${getActiveMap().name}${game.courseRandom ? " 🎲" : ""}</div>
-    <div class="stat">🍪 ${game.cookieHp}/${game.cookieMax}</div>
+  const courseName = `${getActiveMap().name}${game.courseRandom ? " 🎲" : ""}`;
+  statusMain.innerHTML = `
+    <span class="status-chip status-gold">🪙 ${game.gold}</span>
+    <span class="status-chip">⭐ ${game.stars}</span>
+    <span class="status-chip">Wave ${game.wave}</span>
+    <span class="status-chip mode-stat mode-stat-${game.difficulty}">${game.difficultyLabel}</span>
+    <span class="status-chip">🗺️ ${courseName}</span>
+    <span class="status-chip">🍪 ${game.cookieHp}/${game.cookieMax}</span>
   `;
-
-  goldBalanceEl.textContent = `Gold: ${game.gold}🪙`;
 
   let upgradeCostAmt: number | null = null;
   const selected = game.selectedSlot != null ? game.slots.find((s) => s.id === game.selectedSlot) : null;
@@ -336,10 +317,10 @@ function refresh() {
     const need = upgradeCostAmt;
     const have = game.gold;
     const short = Math.max(0, need - have);
-    goldNeededEl.textContent =
-      short > 0 ? `Upgrade needs ${need}🪙 · need ${short} more` : `Upgrade needs ${need}🪙 · ready!`;
-    goldNeededEl.classList.toggle("can-afford", short === 0);
-    goldNeededEl.classList.toggle("cant-afford", short > 0);
+    statusUpgrade.textContent =
+      short > 0 ? `Upgrade ${need}🪙 · ${short} short` : `Upgrade ${need}🪙 · ready`;
+    statusUpgrade.classList.toggle("can-afford", short === 0);
+    statusUpgrade.classList.toggle("cant-afford", short > 0);
     goldUpgradeLine.textContent =
       short > 0
         ? `Gold ${have}🪙 · Upgrade costs ${need}🪙 (${short} short)`
@@ -349,8 +330,8 @@ function refresh() {
     upgradeBtn.textContent = `Upgrade ${need}🪙`;
     upgradeBtn.disabled = short > 0;
   } else {
-    goldNeededEl.textContent = "Select a friend to see upgrade cost";
-    goldNeededEl.classList.remove("can-afford", "cant-afford");
+    statusUpgrade.textContent = "Select friend for upgrade cost";
+    statusUpgrade.classList.remove("can-afford", "cant-afford");
     goldUpgradeLine.textContent = `Gold ${game.gold}🪙 · Select a friend for upgrade cost`;
     goldUpgradeLine.classList.remove("can-afford", "cant-afford");
     upgradeBtn.textContent = "Upgrade / Evolve";
@@ -458,7 +439,6 @@ function refresh() {
       : `Start Wave ${game.wave}`;
 
   const pauseLabel = game.paused ? "Resume" : "Pause";
-  (document.querySelector("#pause-btn") as HTMLButtonElement).textContent = pauseLabel;
   const pauseAction = document.querySelector("#pause-action") as HTMLButtonElement;
   pauseAction.textContent = pauseLabel;
   pauseAction.disabled = game.gameOver;
@@ -626,7 +606,6 @@ function onPauseClick() {
   unlockAudio();
   game.togglePause();
 }
-document.querySelector("#pause-btn")!.addEventListener("click", onPauseClick);
 document.querySelector("#pause-action")!.addEventListener("click", onPauseClick);
 
 document.querySelector("#home-random-course")!.addEventListener("click", () => {
