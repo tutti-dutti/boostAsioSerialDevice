@@ -13,6 +13,7 @@ app.innerHTML = `
     <p class="home-line">Protect your giant cookie with cute animal friends.</p>
     <button class="home-play" id="play-btn" type="button">Play</button>
     <p class="home-note">No ads. Just the game.</p>
+    <p class="home-credit">made by James Nguyen</p>
   </section>
 
   <section class="play-screen hidden" id="play-screen">
