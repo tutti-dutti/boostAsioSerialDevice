@@ -7,6 +7,31 @@ export const H = 560;
 /** Waves per map before rotating to the next layout */
 export const WAVES_PER_MAP = 30;
 
+export type DecorKind =
+  | "oak"
+  | "pine"
+  | "palm"
+  | "bamboo"
+  | "sakura"
+  | "cactus"
+  | "dead"
+  | "bush"
+  | "rock"
+  | "flower"
+  | "reed"
+  | "mushroom"
+  | "crystal"
+  | "snowpine"
+  | "lily"
+  | "stump";
+
+export interface MapDecor {
+  kind: DecorKind;
+  x: number;
+  y: number;
+  s: number;
+}
+
 export interface ArenaMap {
   id: string;
   name: string;
@@ -17,6 +42,10 @@ export interface ArenaMap {
   grassA: string;
   grassB: string;
   pathColor: string;
+  /** Off-path trees & landscaping */
+  decor: MapDecor[];
+  /** Theme palette used when (re)scattering decor */
+  landscape: DecorKind[];
 }
 
 /** Pack lots of pads along both sides of a path (plus any seed spots). */
@@ -65,6 +94,87 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Distance from point to polyline (path) */
+function distToPathPoly(x: number, y: number, path: Vec2[]): number {
+  let best = Infinity;
+  for (let i = 1; i < path.length; i++) {
+    const ax = path[i - 1].x;
+    const ay = path[i - 1].y;
+    const bx = path[i].x;
+    const by = path[i].y;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy || 1;
+    let t = ((x - ax) * dx + (y - ay) * dy) / len2;
+    t = clamp(t, 0, 1);
+    const px = ax + dx * t;
+    const py = ay + dy * t;
+    best = Math.min(best, Math.hypot(x - px, y - py));
+  }
+  return best;
+}
+
+/** Scatter theme landscaping off the path / cookie / gate */
+export function scatterDecor(path: Vec2[], themeId: string, kinds: DecorKind[], count = 48): MapDecor[] {
+  if (!kinds.length || path.length < 2) return [];
+  const rnd = mulberry32(hashStr(themeId + ":decor") ^ (count * 2654435761));
+  const gate = path[0];
+  const cookie = path[path.length - 1];
+  const out: MapDecor[] = [];
+  const minPath = 48;
+  const minPeer = 34;
+  let tries = 0;
+  while (out.length < count && tries < count * 40) {
+    tries++;
+    const x = 28 + rnd() * (W - 56);
+    const y = 28 + rnd() * (H - 56);
+    if (distToPathPoly(x, y, path) < minPath) continue;
+    if (Math.hypot(x - gate.x, y - gate.y) < 55) continue;
+    if (Math.hypot(x - cookie.x, y - cookie.y) < 70) continue;
+    if (out.some((d) => Math.hypot(d.x - x, d.y - y) < minPeer)) continue;
+    const kind = kinds[Math.floor(rnd() * kinds.length)]!;
+    const s = 0.7 + rnd() * 0.65;
+    out.push({ kind, x, y, s });
+  }
+  // Sort so taller kinds draw later (overlap nicely)
+  const rank: Record<string, number> = {
+    flower: 0,
+    lily: 0,
+    mushroom: 1,
+    reed: 1,
+    bush: 2,
+    stump: 2,
+    rock: 2,
+    crystal: 3,
+    cactus: 4,
+    bamboo: 5,
+    sakura: 6,
+    palm: 6,
+    oak: 7,
+    pine: 7,
+    snowpine: 7,
+    dead: 6,
+  };
+  out.sort((a, b) => a.y - b.y || (rank[a.kind] ?? 5) - (rank[b.kind] ?? 5));
+  return out;
+}
+
 /** Add switchbacks so higher tiers get twistier, longer paths */
 function complexifyPath(base: Vec2[], complexity: number): Vec2[] {
   if (complexity <= 0) return base.map((p) => ({ ...p }));
@@ -107,235 +217,270 @@ function complexifyPath(base: Vec2[], complexity: number): Vec2[] {
   return path;
 }
 
-function withDenseSlots(map: ArenaMap): ArenaMap {
-  return { ...map, slots: densifySlots(map.path, map.slots, 0) };
+type MapSeed = Omit<ArenaMap, "decor" | "slots"> & { slots?: Vec2[] };
+
+function finalizeMap(seed: MapSeed): ArenaMap {
+  const slots = densifySlots(seed.path, seed.slots ?? [], 0);
+  const decor = scatterDecor(seed.path, seed.id, seed.landscape);
+  return { ...seed, slots, decor };
 }
 
-/** Distinct base themes that rotate every 30 waves (then grow more complex) */
-const MAP_DEFS: ArenaMap[] = [
-  {
-    id: "forest",
-    name: "Forest Snarl",
-    grassA: "#8fd18a",
-    grassB: "#7ec07a",
-    pathColor: "#c9a66b",
-    gate: { x: 80, y: 40 },
-    cookie: { x: 920, y: 220 },
-    path: [
-      { x: 80, y: 40 },
-      { x: 80, y: 160 },
-      { x: 220, y: 160 },
-      { x: 220, y: 300 },
-      { x: 400, y: 300 },
-      { x: 400, y: 120 },
-      { x: 620, y: 120 },
-      { x: 620, y: 360 },
-      { x: 820, y: 360 },
-      { x: 820, y: 220 },
-      { x: 920, y: 220 },
-    ],
-    slots: [
-      { x: 140, y: 60 },
-      { x: 140, y: 140 },
-      { x: 40, y: 100 },
-      { x: 40, y: 220 },
-      { x: 150, y: 220 },
-      { x: 220, y: 100 },
-      { x: 290, y: 160 },
-      { x: 290, y: 240 },
-      { x: 160, y: 300 },
-      { x: 290, y: 360 },
-      { x: 350, y: 240 },
-      { x: 350, y: 360 },
-      { x: 470, y: 360 },
-      { x: 470, y: 280 },
-      { x: 470, y: 180 },
-      { x: 470, y: 60 },
-      { x: 540, y: 180 },
-      { x: 560, y: 60 },
-      { x: 690, y: 60 },
-      { x: 690, y: 180 },
-      { x: 560, y: 280 },
-      { x: 690, y: 300 },
-      { x: 690, y: 420 },
-      { x: 760, y: 280 },
-      { x: 760, y: 420 },
-      { x: 890, y: 420 },
-      { x: 890, y: 300 },
-      { x: 890, y: 160 },
-      { x: 820, y: 140 },
-      { x: 960, y: 300 },
-    ],
-  },
-  {
-    id: "river",
-    name: "River Bend",
-    grassA: "#7ec8b8",
-    grassB: "#6ab5a6",
-    pathColor: "#b8956a",
-    gate: { x: 60, y: 280 },
-    cookie: { x: 940, y: 280 },
-    path: [
-      { x: 60, y: 280 },
-      { x: 180, y: 280 },
-      { x: 180, y: 100 },
-      { x: 360, y: 100 },
-      { x: 360, y: 420 },
-      { x: 540, y: 420 },
-      { x: 540, y: 160 },
-      { x: 720, y: 160 },
-      { x: 720, y: 400 },
-      { x: 880, y: 400 },
-      { x: 880, y: 280 },
-      { x: 940, y: 280 },
-    ],
-    slots: [
-      { x: 120, y: 200 },
-      { x: 120, y: 360 },
-      { x: 60, y: 180 },
-      { x: 250, y: 180 },
-      { x: 250, y: 60 },
-      { x: 250, y: 280 },
-      { x: 360, y: 40 },
-      { x: 430, y: 100 },
-      { x: 290, y: 420 },
-      { x: 430, y: 360 },
-      { x: 430, y: 480 },
-      { x: 540, y: 340 },
-      { x: 620, y: 420 },
-      { x: 470, y: 220 },
-      { x: 620, y: 100 },
-      { x: 620, y: 220 },
-      { x: 720, y: 80 },
-      { x: 800, y: 160 },
-      { x: 800, y: 260 },
-      { x: 650, y: 340 },
-      { x: 800, y: 400 },
-      { x: 800, y: 480 },
-      { x: 940, y: 400 },
-      { x: 940, y: 200 },
-      { x: 880, y: 200 },
-      { x: 960, y: 340 },
-      { x: 180, y: 40 },
-      { x: 360, y: 200 },
-      { x: 540, y: 60 },
-      { x: 720, y: 480 },
-    ],
-  },
-  {
-    id: "meadow",
-    name: "Meadow Loop",
-    grassA: "#b8d86a",
-    grassB: "#a4c65a",
-    pathColor: "#d2b48c",
-    gate: { x: 500, y: 40 },
-    cookie: { x: 500, y: 500 },
-    path: [
-      { x: 500, y: 40 },
-      { x: 780, y: 80 },
-      { x: 900, y: 220 },
-      { x: 840, y: 400 },
-      { x: 620, y: 500 },
-      { x: 380, y: 500 },
-      { x: 160, y: 400 },
-      { x: 100, y: 220 },
-      { x: 220, y: 80 },
-      { x: 420, y: 120 },
-      { x: 500, y: 280 },
-      { x: 500, y: 500 },
-    ],
-    slots: [
-      { x: 500, y: 120 },
-      { x: 600, y: 60 },
-      { x: 400, y: 60 },
-      { x: 700, y: 140 },
-      { x: 820, y: 160 },
-      { x: 820, y: 280 },
-      { x: 920, y: 300 },
-      { x: 760, y: 360 },
-      { x: 700, y: 460 },
-      { x: 560, y: 440 },
-      { x: 440, y: 440 },
-      { x: 300, y: 460 },
-      { x: 200, y: 360 },
-      { x: 80, y: 300 },
-      { x: 160, y: 220 },
-      { x: 180, y: 120 },
-      { x: 300, y: 140 },
-      { x: 380, y: 200 },
-      { x: 580, y: 200 },
-      { x: 620, y: 300 },
-      { x: 420, y: 300 },
-      { x: 500, y: 360 },
-      { x: 740, y: 240 },
-      { x: 260, y: 280 },
-      { x: 900, y: 420 },
-      { x: 100, y: 420 },
-      { x: 860, y: 80 },
-      { x: 140, y: 80 },
-      { x: 640, y: 120 },
-      { x: 360, y: 380 },
-    ],
-  },
-  {
-    id: "canyon",
-    name: "Canyon Run",
-    grassA: "#d4b87a",
-    grassB: "#c4a66a",
-    pathColor: "#a87848",
-    gate: { x: 80, y: 500 },
-    cookie: { x: 920, y: 60 },
-    path: [
-      { x: 80, y: 500 },
-      { x: 80, y: 360 },
-      { x: 260, y: 360 },
-      { x: 260, y: 500 },
-      { x: 460, y: 500 },
-      { x: 460, y: 280 },
-      { x: 680, y: 280 },
-      { x: 680, y: 480 },
-      { x: 860, y: 480 },
-      { x: 860, y: 200 },
-      { x: 680, y: 200 },
-      { x: 680, y: 60 },
-      { x: 920, y: 60 },
-    ],
-    slots: [
-      { x: 40, y: 440 },
-      { x: 150, y: 440 },
-      { x: 150, y: 360 },
-      { x: 40, y: 320 },
-      { x: 200, y: 300 },
-      { x: 320, y: 360 },
-      { x: 320, y: 460 },
-      { x: 200, y: 500 },
-      { x: 400, y: 440 },
-      { x: 520, y: 500 },
-      { x: 400, y: 340 },
-      { x: 520, y: 280 },
-      { x: 400, y: 220 },
-      { x: 600, y: 340 },
-      { x: 760, y: 340 },
-      { x: 760, y: 440 },
-      { x: 600, y: 480 },
-      { x: 920, y: 480 },
-      { x: 920, y: 360 },
-      { x: 800, y: 280 },
-      { x: 920, y: 200 },
-      { x: 800, y: 140 },
-      { x: 600, y: 140 },
-      { x: 600, y: 60 },
-      { x: 760, y: 60 },
-      { x: 860, y: 100 },
-      { x: 960, y: 120 },
-      { x: 520, y: 60 },
-      { x: 320, y: 280 },
-      { x: 150, y: 500 },
-    ],
-  },
-];
+/** Distinct base themes — 10 courses with unique paths & landscaping */
+const MAP_DEFS: ArenaMap[] = (
+  [
+    {
+      id: "forest",
+      name: "Forest Snarl",
+      grassA: "#8fd18a",
+      grassB: "#7ec07a",
+      pathColor: "#c9a66b",
+      landscape: ["oak", "pine", "bush", "mushroom", "stump", "flower"],
+      gate: { x: 80, y: 40 },
+      cookie: { x: 920, y: 220 },
+      path: [
+        { x: 80, y: 40 },
+        { x: 80, y: 160 },
+        { x: 220, y: 160 },
+        { x: 220, y: 300 },
+        { x: 400, y: 300 },
+        { x: 400, y: 120 },
+        { x: 620, y: 120 },
+        { x: 620, y: 360 },
+        { x: 820, y: 360 },
+        { x: 820, y: 220 },
+        { x: 920, y: 220 },
+      ],
+    },
+    {
+      id: "river",
+      name: "River Bend",
+      grassA: "#7ec8b8",
+      grassB: "#6ab5a6",
+      pathColor: "#b8956a",
+      landscape: ["reed", "bush", "oak", "lily", "rock", "flower"],
+      gate: { x: 60, y: 280 },
+      cookie: { x: 940, y: 280 },
+      path: [
+        { x: 60, y: 280 },
+        { x: 180, y: 280 },
+        { x: 180, y: 100 },
+        { x: 360, y: 100 },
+        { x: 360, y: 420 },
+        { x: 540, y: 420 },
+        { x: 540, y: 160 },
+        { x: 720, y: 160 },
+        { x: 720, y: 400 },
+        { x: 880, y: 400 },
+        { x: 880, y: 280 },
+        { x: 940, y: 280 },
+      ],
+    },
+    {
+      id: "meadow",
+      name: "Meadow Loop",
+      grassA: "#b8d86a",
+      grassB: "#a4c65a",
+      pathColor: "#d2b48c",
+      landscape: ["flower", "bush", "oak", "mushroom", "stump"],
+      gate: { x: 500, y: 40 },
+      cookie: { x: 500, y: 500 },
+      path: [
+        { x: 500, y: 40 },
+        { x: 780, y: 80 },
+        { x: 900, y: 220 },
+        { x: 840, y: 400 },
+        { x: 620, y: 500 },
+        { x: 380, y: 500 },
+        { x: 160, y: 400 },
+        { x: 100, y: 220 },
+        { x: 220, y: 80 },
+        { x: 420, y: 120 },
+        { x: 500, y: 280 },
+        { x: 500, y: 500 },
+      ],
+    },
+    {
+      id: "canyon",
+      name: "Canyon Run",
+      grassA: "#d4b87a",
+      grassB: "#c4a66a",
+      pathColor: "#a87848",
+      landscape: ["rock", "cactus", "dead", "bush", "stump"],
+      gate: { x: 80, y: 500 },
+      cookie: { x: 920, y: 60 },
+      path: [
+        { x: 80, y: 500 },
+        { x: 80, y: 360 },
+        { x: 260, y: 360 },
+        { x: 260, y: 500 },
+        { x: 460, y: 500 },
+        { x: 460, y: 280 },
+        { x: 680, y: 280 },
+        { x: 680, y: 480 },
+        { x: 860, y: 480 },
+        { x: 860, y: 200 },
+        { x: 680, y: 200 },
+        { x: 680, y: 60 },
+        { x: 920, y: 60 },
+      ],
+    },
+    {
+      id: "snow",
+      name: "Frost Peak",
+      grassA: "#d8e8f4",
+      grassB: "#c0d4e8",
+      pathColor: "#a8b8c8",
+      landscape: ["snowpine", "rock", "crystal", "bush"],
+      gate: { x: 40, y: 80 },
+      cookie: { x: 960, y: 480 },
+      path: [
+        { x: 40, y: 80 },
+        { x: 200, y: 80 },
+        { x: 200, y: 240 },
+        { x: 380, y: 240 },
+        { x: 380, y: 80 },
+        { x: 600, y: 80 },
+        { x: 600, y: 320 },
+        { x: 780, y: 320 },
+        { x: 780, y: 140 },
+        { x: 920, y: 140 },
+        { x: 920, y: 360 },
+        { x: 760, y: 360 },
+        { x: 760, y: 500 },
+        { x: 960, y: 480 },
+      ],
+    },
+    {
+      id: "bamboo",
+      name: "Bamboo Grove",
+      grassA: "#9ed47a",
+      grassB: "#86c068",
+      pathColor: "#c4a878",
+      landscape: ["bamboo", "bush", "flower", "rock", "mushroom"],
+      gate: { x: 500, y: 520 },
+      cookie: { x: 500, y: 40 },
+      path: [
+        { x: 500, y: 520 },
+        { x: 200, y: 520 },
+        { x: 200, y: 360 },
+        { x: 420, y: 360 },
+        { x: 420, y: 220 },
+        { x: 160, y: 220 },
+        { x: 160, y: 80 },
+        { x: 500, y: 80 },
+        { x: 840, y: 80 },
+        { x: 840, y: 220 },
+        { x: 580, y: 220 },
+        { x: 580, y: 360 },
+        { x: 800, y: 360 },
+        { x: 800, y: 500 },
+        { x: 500, y: 40 },
+      ],
+    },
+    {
+      id: "desert",
+      name: "Sunbake Dunes",
+      grassA: "#e8d090",
+      grassB: "#d8c078",
+      pathColor: "#c4a060",
+      landscape: ["cactus", "rock", "dead", "bush"],
+      gate: { x: 40, y: 500 },
+      cookie: { x: 960, y: 60 },
+      path: [
+        { x: 40, y: 500 },
+        { x: 220, y: 500 },
+        { x: 220, y: 320 },
+        { x: 80, y: 320 },
+        { x: 80, y: 140 },
+        { x: 300, y: 140 },
+        { x: 300, y: 400 },
+        { x: 520, y: 400 },
+        { x: 520, y: 180 },
+        { x: 740, y: 180 },
+        { x: 740, y: 420 },
+        { x: 900, y: 420 },
+        { x: 900, y: 200 },
+        { x: 960, y: 60 },
+      ],
+    },
+    {
+      id: "swamp",
+      name: "Misty Mire",
+      grassA: "#6a9868",
+      grassB: "#588858",
+      pathColor: "#7a6848",
+      landscape: ["reed", "dead", "mushroom", "lily", "stump", "bush"],
+      gate: { x: 60, y: 100 },
+      cookie: { x: 940, y: 460 },
+      path: [
+        { x: 60, y: 100 },
+        { x: 280, y: 100 },
+        { x: 280, y: 280 },
+        { x: 120, y: 280 },
+        { x: 120, y: 440 },
+        { x: 360, y: 440 },
+        { x: 360, y: 200 },
+        { x: 560, y: 200 },
+        { x: 560, y: 420 },
+        { x: 760, y: 420 },
+        { x: 760, y: 160 },
+        { x: 920, y: 160 },
+        { x: 920, y: 340 },
+        { x: 940, y: 460 },
+      ],
+    },
+    {
+      id: "sakura",
+      name: "Petal Path",
+      grassA: "#d8e8a8",
+      grassB: "#c8d898",
+      pathColor: "#d2b090",
+      landscape: ["sakura", "flower", "bush", "rock", "stump"],
+      gate: { x: 40, y: 280 },
+      cookie: { x: 960, y: 280 },
+      path: [
+        { x: 40, y: 280 },
+        { x: 160, y: 160 },
+        { x: 320, y: 120 },
+        { x: 420, y: 260 },
+        { x: 300, y: 400 },
+        { x: 480, y: 480 },
+        { x: 660, y: 400 },
+        { x: 580, y: 240 },
+        { x: 720, y: 120 },
+        { x: 880, y: 160 },
+        { x: 900, y: 320 },
+        { x: 960, y: 280 },
+      ],
+    },
+    {
+      id: "volcano",
+      name: "Ember Rim",
+      grassA: "#8a6860",
+      grassB: "#785850",
+      pathColor: "#5a4038",
+      landscape: ["rock", "dead", "crystal", "cactus", "stump"],
+      gate: { x: 500, y: 40 },
+      cookie: { x: 500, y: 520 },
+      path: [
+        { x: 500, y: 40 },
+        { x: 220, y: 80 },
+        { x: 100, y: 220 },
+        { x: 180, y: 400 },
+        { x: 360, y: 480 },
+        { x: 500, y: 360 },
+        { x: 640, y: 480 },
+        { x: 820, y: 400 },
+        { x: 900, y: 220 },
+        { x: 780, y: 80 },
+        { x: 500, y: 160 },
+        { x: 500, y: 520 },
+      ],
+    },
+  ] satisfies MapSeed[]
+).map(finalizeMap);
 
-export const MAPS: ArenaMap[] = MAP_DEFS.map(withDenseSlots);
+export const MAPS: ArenaMap[] = MAP_DEFS;
 
 export const COURSE_COUNT = MAP_DEFS.length;
 
@@ -349,7 +494,7 @@ export function mapTierForWave(wave: number): number {
   return Math.floor(Math.max(0, wave - 1) / WAVES_PER_MAP);
 }
 
-/** Theme cycle index (Forest → River → Meadow → Canyon → …) — legacy fallback */
+/** Theme cycle index (Forest → River → …) — legacy fallback */
 export function mapIndexForWave(wave: number): number {
   return mapTierForWave(wave) % MAP_DEFS.length;
 }
@@ -384,6 +529,7 @@ export function buildMap(courseIndex: number, complexity: number): ArenaMap {
     slots: densifySlots(path, theme.slots, tier),
     gate: { ...path[0] },
     cookie: { ...path[path.length - 1] },
+    decor: scatterDecor(path, `${theme.id}_t${tier}`, theme.landscape, 48 + tier * 4),
   };
 }
 

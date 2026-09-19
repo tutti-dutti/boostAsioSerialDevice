@@ -1,4 +1,4 @@
-import { COOKIE, GATE, PATH, W, H, getActiveMap } from "./path";
+import { COOKIE, GATE, PATH, W, H, getActiveMap, type MapDecor } from "./path";
 import { evolveLineage, friendDisplayScale, friendFootprintRadius } from "./data";
 import type { Boom, CookieBite, Dam, FloatText, PlacedFriend, PoisonCloud, Shot, Slot, Thief, Wall } from "./types";
 import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
@@ -18,6 +18,214 @@ function grass(ctx: CanvasRenderingContext2D) {
   g.addColorStop(1, "rgba(20,40,20,0.18)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
+}
+
+function drawDecorItem(ctx: CanvasRenderingContext2D, d: MapDecor) {
+  const s = d.s;
+  ctx.save();
+  ctx.translate(d.x, d.y);
+  ctx.scale(s, s);
+
+  const trunk = (h: number, w = 5) => {
+    ctx.fillStyle = "#6a4828";
+    ctx.fillRect(-w / 2, -h * 0.15, w, h * 0.55);
+  };
+  const canopy = (r: number, color: string, y = -r * 0.55) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(0, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  };
+
+  switch (d.kind) {
+    case "oak":
+      trunk(28, 6);
+      canopy(16, "#3d8a45");
+      canopy(11, "#4ea055", -22);
+      break;
+    case "pine":
+    case "snowpine": {
+      trunk(22, 5);
+      ctx.fillStyle = d.kind === "snowpine" ? "#6a9a78" : "#2f6b3a";
+      for (let i = 0; i < 3; i++) {
+        const top = -8 - i * 12;
+        const half = 14 - i * 2;
+        ctx.beginPath();
+        ctx.moveTo(0, top - 10);
+        ctx.lineTo(half, top + 10);
+        ctx.lineTo(-half, top + 10);
+        ctx.closePath();
+        ctx.fill();
+      }
+      if (d.kind === "snowpine") {
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.beginPath();
+        ctx.moveTo(0, -42);
+        ctx.lineTo(8, -28);
+        ctx.lineTo(-8, -28);
+        ctx.closePath();
+        ctx.fill();
+      }
+      break;
+    }
+    case "palm":
+      trunk(32, 4);
+      ctx.fillStyle = "#3d9a4a";
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + (i - 2) * 0.45;
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(a) * 14, -28 + Math.sin(a) * 6, 14, 5, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case "bamboo":
+      ctx.strokeStyle = "#5a9a40";
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+      for (const ox of [-5, 0, 5]) {
+        ctx.beginPath();
+        ctx.moveTo(ox, 8);
+        ctx.lineTo(ox, -28);
+        ctx.stroke();
+        ctx.fillStyle = "#6aaa50";
+        ctx.fillRect(ox - 2, -12, 4, 2);
+        ctx.fillRect(ox - 2, -22, 4, 2);
+      }
+      break;
+    case "sakura":
+      trunk(26, 5);
+      canopy(15, "#f2a0c0");
+      canopy(10, "#ffc0d8", -20);
+      ctx.fillStyle = "#fff0f6";
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * 10, -14 + Math.sin(a) * 8, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case "cactus":
+      ctx.fillStyle = "#3d8a58";
+      ctx.fillRect(-5, -22, 10, 30);
+      ctx.fillRect(-14, -14, 9, 5);
+      ctx.fillRect(-14, -14, 5, 12);
+      ctx.fillRect(5, -8, 9, 5);
+      ctx.fillRect(9, -8, 5, 10);
+      break;
+    case "dead":
+      trunk(24, 5);
+      ctx.strokeStyle = "#6a4828";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, -8);
+      ctx.lineTo(-12, -22);
+      ctx.moveTo(0, -6);
+      ctx.lineTo(11, -18);
+      ctx.stroke();
+      break;
+    case "bush":
+      canopy(12, "#4a9a52", -4);
+      canopy(9, "#5aaa60", -10);
+      break;
+    case "rock":
+      ctx.fillStyle = "#8a8490";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 12, 8, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#9a96a0";
+      ctx.beginPath();
+      ctx.ellipse(-4, -3, 6, 4, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case "flower": {
+      const petals = ["#f070a0", "#f0c040", "#70b0f0", "#e070f0"];
+      ctx.fillStyle = petals[Math.abs(Math.floor(d.x + d.y)) % petals.length]!;
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * 5, Math.sin(a) * 5 - 2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#f8e060";
+      ctx.beginPath();
+      ctx.arc(0, -2, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case "reed":
+      ctx.strokeStyle = "#6a8a48";
+      ctx.lineWidth = 2;
+      for (const ox of [-4, 0, 4]) {
+        ctx.beginPath();
+        ctx.moveTo(ox, 6);
+        ctx.quadraticCurveTo(ox + 4, -8, ox - 2, -22);
+        ctx.stroke();
+      }
+      break;
+    case "mushroom":
+      ctx.fillStyle = "#e8e0d0";
+      ctx.fillRect(-3, -2, 6, 10);
+      ctx.fillStyle = "#d05050";
+      ctx.beginPath();
+      ctx.ellipse(0, -4, 10, 7, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = "#fff8f0";
+      ctx.beginPath();
+      ctx.arc(-3, -6, 1.8, 0, Math.PI * 2);
+      ctx.arc(3, -5, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case "crystal":
+      ctx.fillStyle = "#70c8f0";
+      ctx.beginPath();
+      ctx.moveTo(0, -18);
+      ctx.lineTo(8, 4);
+      ctx.lineTo(0, 8);
+      ctx.lineTo(-8, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.45)";
+      ctx.beginPath();
+      ctx.moveTo(0, -18);
+      ctx.lineTo(3, -2);
+      ctx.lineTo(0, 2);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case "lily":
+      ctx.fillStyle = "#68a868";
+      ctx.beginPath();
+      ctx.ellipse(0, 2, 10, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#f0e8ff";
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#f0c040";
+      ctx.beginPath();
+      ctx.arc(0, 0, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case "stump":
+      ctx.fillStyle = "#7a5838";
+      ctx.fillRect(-8, -4, 16, 12);
+      ctx.fillStyle = "#c4a078";
+      ctx.beginPath();
+      ctx.ellipse(0, -4, 8, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#a88860";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(0, -4, 5, 2.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+  }
+  ctx.restore();
+}
+
+function landscaping(ctx: CanvasRenderingContext2D) {
+  const map = getActiveMap();
+  for (const d of map.decor || []) drawDecorItem(ctx, d);
 }
 
 function path(ctx: CanvasRenderingContext2D) {
@@ -726,6 +934,7 @@ export interface DrawState {
 export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   grass(ctx);
   path(ctx);
+  landscaping(ctx);
   gate(ctx);
   walls(ctx, s.walls);
   dams(ctx, s.dams || []);
