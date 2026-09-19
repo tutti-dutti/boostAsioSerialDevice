@@ -9,7 +9,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 
 app.innerHTML = `
   <section class="home" id="home">
-    <h1 class="home-brand">Cookie Guard</h1>
+    <h1 class="home-brand">Cookie Guard <span class="home-by">by James Nguyen</span></h1>
     <p class="home-line">Protect your giant cookie with cute animal friends.</p>
     <div class="course-picker" id="home-courses">
       <p class="course-label">Choose a course</p>
@@ -18,12 +18,11 @@ app.innerHTML = `
     </div>
     <button class="home-play" id="play-btn" type="button">Play</button>
     <p class="home-note">No ads. Just the game.</p>
-    <p class="home-credit">made by James Nguyen</p>
   </section>
 
   <section class="play-screen hidden" id="play-screen">
     <header class="top-bar">
-      <div class="brand-small">Cookie Guard</div>
+      <div class="brand-small">Cookie Guard <span class="brand-by">by James Nguyen</span></div>
       <div class="top-actions">
         <button class="home-link" id="pause-btn" type="button">Pause</button>
         <button class="home-link" id="mute-btn" type="button">Sound: On</button>
