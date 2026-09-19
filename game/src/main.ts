@@ -178,7 +178,7 @@ const game = new Game(canvas);
 
 const statusMain = document.querySelector("#status-main")!;
 const statusUpgrade = document.querySelector("#status-upgrade")!;
-const bag = document.querySelector("#bag")!;
+const bag = document.querySelector<HTMLElement>("#bag")!;
 const toast = document.querySelector("#toast")!;
 const over = document.querySelector("#over")!;
 const selectHint = document.querySelector("#select-hint")!;
@@ -395,23 +395,30 @@ function refresh() {
   }
 
   if (!game.bag.length) {
-    bag.innerHTML = `<span class="empty-inv">Press Summon to get friends</span>`;
+    if (bag.dataset.sig !== "empty") {
+      bag.dataset.sig = "empty";
+      bag.innerHTML = `<span class="empty-inv">Press Summon to get friends</span>`;
+    }
   } else {
-    bag.innerHTML = game.bag
-      .map(
-        (f, i) => `
+    const bagSig = `${game.selectedBag ?? "x"}:${game.bag.map((f) => f.id).join(",")}`;
+    if (bag.dataset.sig !== bagSig) {
+      bag.dataset.sig = bagSig;
+      bag.innerHTML = game.bag
+        .map(
+          (f, i) => `
       <button class="inv-item ${game.selectedBag === i ? "selected" : ""} rarity-${f.rarity}" data-i="${i}" type="button">
         <span class="emoji">${f.emoji}</span>
         <span>${f.name}</span>
         <span class="rarity-${f.rarity}">${rarityLabel(f.rarity)}</span>
       </button>`,
-      )
-      .join("");
-    bag.querySelectorAll<HTMLButtonElement>(".inv-item").forEach((btn) => {
-      btn.onclick = () => {
-        game.equipFromBag(Number(btn.dataset.i));
-      };
-    });
+        )
+        .join("");
+      bag.querySelectorAll<HTMLButtonElement>(".inv-item").forEach((btn) => {
+        btn.onclick = () => {
+          game.equipFromBag(Number(btn.dataset.i));
+        };
+      });
+    }
   }
 
   function showEvolveLineage(def: FriendDef | null) {
@@ -759,7 +766,9 @@ function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   game.update(dt);
-  if (game.toastTimer > 0 || game.gameOver || game.waveWaiting || game.paused || game.autoWaveTimer > 0) refresh();
+  // Avoid per-frame full UI refresh while waiting on a wave — rebuilding the bag
+  // DOM every frame ate clicks and blocked equip/place before wave 1.
+  if (game.toastTimer > 0 || game.gameOver || game.paused || game.autoWaveTimer > 0) refresh();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
