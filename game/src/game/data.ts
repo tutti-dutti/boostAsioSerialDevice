@@ -95,17 +95,17 @@ export const FRIENDS: FriendDef[] = [
   { id: "redpanda", name: "Red Panda", emoji: "🐼", rarity: "god", color: "#e05030", damage: 95, range: 180, attackSpeed: 1.5, ability: "godBeam", canEvolve: true, evolvesTo: "crimsonoracle" },
 ];
 
-/** Speed thieves — low HP, high speed. Strength thieves — high HP, low speed. */
+/** Speed thieves — fragile & fast. Strength thieves — tanky & slow. */
 export const SPEED_THIEVES: ThiefDef[] = [
-  { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 38, speed: 64, gold: 2, size: 13, kind: "speed" },
-  { id: "skunk", name: "Skunk", emoji: "🦨", hp: 62, speed: 74, gold: 3, size: 14, kind: "speed" },
-  { id: "swiftrat", name: "Swift Rat", emoji: "🐀", hp: 88, speed: 88, gold: 4, size: 14, kind: "speed" },
+  { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 28, speed: 72, gold: 2, size: 12, kind: "speed" },
+  { id: "skunk", name: "Skunk", emoji: "🦨", hp: 44, speed: 84, gold: 3, size: 13, kind: "speed" },
+  { id: "swiftrat", name: "Swift Rat", emoji: "🐀", hp: 60, speed: 98, gold: 4, size: 13, kind: "speed" },
 ];
 
 export const STRENGTH_THIEVES: ThiefDef[] = [
-  { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 150, speed: 32, gold: 3, size: 16, kind: "strength" },
-  { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 240, speed: 26, gold: 5, size: 18, kind: "strength" },
-  { id: "boar", name: "Cookie Boar", emoji: "🐗", hp: 360, speed: 22, gold: 8, size: 21, kind: "strength" },
+  { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 175, speed: 24, gold: 3, size: 17, kind: "strength" },
+  { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 280, speed: 18, gold: 5, size: 19, kind: "strength" },
+  { id: "boar", name: "Cookie Boar", emoji: "🐗", hp: 420, speed: 14, gold: 8, size: 22, kind: "strength" },
 ];
 
 export const THIEVES: ThiefDef[] = [

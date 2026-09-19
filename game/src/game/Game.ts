@@ -590,8 +590,11 @@ export class Game {
     const base = thiefForWave(this.wave);
     const scale = waveHpScale(this.wave);
     const spd = waveSpeedScale(this.wave);
-    const def = { ...base, speed: Math.round(base.speed * spd) };
-    const hp = Math.round(def.hp * scale);
+    // Keep archetypes sharp after wave scaling: speed stays fragile, strength stays slow
+    const hpMult = base.kind === "speed" ? 0.85 : base.kind === "strength" ? 1.12 : 1;
+    const spdMult = base.kind === "speed" ? 1.08 : base.kind === "strength" ? 0.82 : 1;
+    const def = { ...base, speed: Math.max(10, Math.round(base.speed * spd * spdMult)) };
+    const hp = Math.max(1, Math.round(def.hp * scale * hpMult));
     this.thieves.push({
       uid: uid("t"),
       def,
