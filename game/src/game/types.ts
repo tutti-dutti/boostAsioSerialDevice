@@ -167,6 +167,14 @@ export interface Boom {
   radius: number;
 }
 
+/** A nibble taken out of the cookie when a thief reaches it */
+export interface CookieBite {
+  /** Angle around the cookie (radians) */
+  angle: number;
+  /** How deep the bite is (0.7–1.35) */
+  size: number;
+}
+
 /** Temporary fox defense on the path */
 export interface Wall {
   x: number;

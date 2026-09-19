@@ -1,6 +1,6 @@
 import { COOKIE, GATE, PATH, W, H, getActiveMap } from "./path";
 import { evolveLineage, friendDisplayScale, friendFootprintRadius } from "./data";
-import type { Boom, Dam, FloatText, PlacedFriend, PoisonCloud, Shot, Slot, Thief, Wall } from "./types";
+import type { Boom, CookieBite, Dam, FloatText, PlacedFriend, PoisonCloud, Shot, Slot, Thief, Wall } from "./types";
 import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
 function grass(ctx: CanvasRenderingContext2D) {
@@ -58,31 +58,44 @@ function gate(ctx: CanvasRenderingContext2D) {
   ctx.fillText("IN", GATE.x, GATE.y + 3);
 }
 
-function cookieBiteCenters(x: number, y: number, r: number, count: number) {
-  const bites: { bx: number; by: number; br: number }[] = [];
-  for (let i = 0; i < count; i++) {
-    const ang = -Math.PI * 0.15 + (i / Math.max(1, count)) * Math.PI * 1.7 + (i % 2) * 0.12;
-    const br = 13 + (i % 3) * 3;
-    bites.push({
-      bx: x + Math.cos(ang) * (r + br * 0.15),
-      by: y + Math.sin(ang) * (r + br * 0.15),
+function cookieBiteCenters(x: number, y: number, r: number, bites: CookieBite[]) {
+  return bites.map((b) => {
+    const br = 11 + b.size * 7;
+    // Center sits on the rim so the circle scoops a classic cookie bite
+    return {
+      bx: x + Math.cos(b.angle) * (r - br * 0.2),
+      by: y + Math.sin(b.angle) * (r - br * 0.2),
       br,
-    });
-  }
-  return bites;
+      angle: b.angle,
+      size: b.size,
+    };
+  });
 }
 
-function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number, biteFlash = 0) {
+function cookie(
+  ctx: CanvasRenderingContext2D,
+  hp: number,
+  max: number,
+  biteFlash = 0,
+  biteMarks: CookieBite[] = [],
+  pulseIndex = -1,
+) {
   const x = COOKIE.x;
   const y = COOKIE.y;
   const r = 38;
-  const missing = Math.max(0, max - hp);
-  const biteCount = Math.min(12, missing);
-  const bites = cookieBiteCenters(x, y, r, biteCount);
+  // Prefer stored marks; fall back to HP missing for safety
+  const marks =
+    biteMarks.length > 0
+      ? biteMarks
+      : Array.from({ length: Math.min(12, Math.max(0, max - hp)) }, (_, i) => ({
+          angle: -Math.PI * 0.35 + i * 0.48,
+          size: 0.9 + (i % 3) * 0.1,
+        }));
+  const bites = cookieBiteCenters(x, y, r, marks);
 
   ctx.save();
   if (biteFlash > 0) {
-    const shake = biteFlash * 6;
+    const shake = biteFlash * 8;
     ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
   }
 
@@ -92,42 +105,62 @@ function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number, biteFlas
   ctx.arc(x, y, r + 8, 0, Math.PI * 2);
   ctx.fill();
 
-  // Cookie body with bites cut out
+  // Cookie body with bites cut out (evenodd)
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   for (const b of bites) {
     ctx.moveTo(b.bx + b.br, b.by);
     ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2, true);
   }
-  ctx.fillStyle = biteFlash > 0.2 ? "#f2b45a" : "#e8a04a";
+  ctx.fillStyle = biteFlash > 0.25 ? "#f6c06a" : "#e8a04a";
   ctx.fill("evenodd");
 
-  // Dark chew marks along each bite
-  ctx.fillStyle = "#c4782a";
-  for (const b of bites) {
+  // Chew edge + crumb crust inside each bite (no full-circle stroke covering them)
+  for (let i = 0; i < bites.length; i++) {
+    const b = bites[i];
+    const hot = biteFlash > 0 && i === pulseIndex;
     ctx.beginPath();
     ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2);
-    ctx.strokeStyle = "#8a5020";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = hot ? "#6a3010" : "#8a5020";
+    ctx.lineWidth = hot ? 4.5 : 3;
     ctx.stroke();
-    // tooth notch dots
-    for (let t = 0; t < 5; t++) {
-      const ta = (t / 5) * Math.PI * 2;
-      const tx = b.bx + Math.cos(ta) * (b.br - 3);
-      const ty = b.by + Math.sin(ta) * (b.br - 3);
-      if (Math.hypot(tx - x, ty - y) > r - 2) continue;
+
+    // Inner biscuit tone in the bite hollow
+    ctx.fillStyle = hot ? "rgba(106, 48, 16, 0.35)" : "rgba(138, 80, 32, 0.22)";
+    ctx.beginPath();
+    ctx.arc(b.bx, b.by, b.br - 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tooth scallops along the bite rim
+    ctx.fillStyle = hot ? "#5a2810" : "#6a3a18";
+    for (let t = 0; t < 6; t++) {
+      const ta = b.angle + Math.PI + (t - 2.5) * 0.28;
+      const tx = b.bx + Math.cos(ta) * (b.br - 2);
+      const ty = b.by + Math.sin(ta) * (b.br - 2);
+      if (Math.hypot(tx - x, ty - y) > r + 1) continue;
       ctx.beginPath();
-      ctx.arc(tx, ty, 1.8, 0, Math.PI * 2);
+      ctx.arc(tx, ty, hot ? 2.4 : 1.9, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
+  // Outer rim only where not bitten — sample arcs between bites
   ctx.strokeStyle = "#c4782a";
   ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.stroke();
+  // Cover bitten rim segments with cream so the full ring doesn't seal the bites
+  for (const b of bites) {
+    const half = Math.asin(Math.min(0.95, b.br / r)) * 1.15;
+    ctx.beginPath();
+    ctx.arc(x, y, r, b.angle - half, b.angle + half);
+    ctx.strokeStyle = biteFlash > 0.25 ? "#f6c06a" : "#e8a04a";
+    ctx.lineWidth = 5;
+    ctx.stroke();
+  }
 
+  // Chocolate chips (skip if inside a bite)
   ctx.fillStyle = "#6a3a18";
   const chips: [number, number][] = [
     [-10, -8],
@@ -137,6 +170,8 @@ function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number, biteFlas
     [0, 0],
     [-14, 4],
     [6, 12],
+    [-8, 14],
+    [14, -2],
   ];
   for (const [cx, cy] of chips) {
     const px = x + cx;
@@ -149,18 +184,19 @@ function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number, biteFlas
     ctx.fill();
   }
 
-  // Crumbs outside bites
-  if (biteCount > 0) {
+  // Flying crumbs on impact + lingering crumbs near bites
+  if (bites.length > 0) {
     ctx.fillStyle = "#d4a060";
-    for (let i = 0; i < biteCount; i++) {
+    for (let i = 0; i < bites.length; i++) {
       const b = bites[i];
-      const ang = Math.atan2(b.by - y, b.bx - x);
-      for (let c = 0; c < 3; c++) {
+      const burst = biteFlash > 0 && i === pulseIndex ? 1 + biteFlash * 1.8 : 1;
+      for (let c = 0; c < 4; c++) {
+        const spread = 10 + c * 5 * burst;
         ctx.beginPath();
         ctx.arc(
-          x + Math.cos(ang + (c - 1) * 0.2) * (r + 12 + c * 4),
-          y + Math.sin(ang + (c - 1) * 0.2) * (r + 12 + c * 4),
-          2 + (c % 2),
+          x + Math.cos(b.angle + (c - 1.5) * 0.22) * (r + spread),
+          y + Math.sin(b.angle + (c - 1.5) * 0.22) * (r + spread),
+          (2 + (c % 2)) * (burst > 1 ? 1.3 : 1),
           0,
           Math.PI * 2,
         );
@@ -169,10 +205,20 @@ function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number, biteFlas
     }
   }
 
+  // Fresh bite highlight ring
+  if (biteFlash > 0 && pulseIndex >= 0 && bites[pulseIndex]) {
+    const b = bites[pulseIndex];
+    ctx.strokeStyle = `rgba(255, 230, 160, ${Math.min(1, biteFlash * 1.4)})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(b.bx, b.by, b.br + 4 + (1 - biteFlash) * 10, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   ctx.fillStyle = "#fff6e8";
   ctx.font = "800 11px Nunito, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(biteCount > 0 ? "BITTEN!" : "COOKIE", x, y + 54);
+  ctx.fillText(bites.length > 0 ? "BITTEN!" : "COOKIE", x, y + 54);
 
   const pct = Math.max(0, hp / max);
   ctx.fillStyle = "rgba(0,0,0,0.3)";
@@ -633,6 +679,8 @@ export interface DrawState {
   cookieHp: number;
   cookieMax: number;
   cookieBiteFlash?: number;
+  cookieBites?: CookieBite[];
+  cookieBitePulse?: number;
   selectedSlot: number | null;
   time: number;
   wave: number;
@@ -657,7 +705,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   thieves(ctx, s.thieves, s.thiefPos);
   shots(ctx, s.shots);
   booms(ctx, s.booms);
-  cookie(ctx, s.cookieHp, s.cookieMax, s.cookieBiteFlash ?? 0);
+  cookie(ctx, s.cookieHp, s.cookieMax, s.cookieBiteFlash ?? 0, s.cookieBites ?? [], s.cookieBitePulse ?? -1);
   floats(ctx, s.floats);
 
   ctx.fillStyle = "rgba(42,48,64,0.65)";

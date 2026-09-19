@@ -44,6 +44,7 @@ import {
   EAGLE_LAND_COST,
   EAGLE_LAND_DURATION,
   type Boom,
+  type CookieBite,
   type Dam,
   type FloatText,
   type PoisonCloud,
@@ -91,6 +92,10 @@ export class Game {
   cookieHp = 55;
   cookieMax = 55;
   cookieBiteFlash = 0;
+  /** Permanent bite marks left when thieves chomp the cookie */
+  cookieBites: CookieBite[] = [];
+  /** Index of the newest bite (for impact highlight) */
+  cookieBitePulse = -1;
   spawnLeft = 0;
   spawnTimer = 0;
   /** Player must press Start Wave (or wait for auto-start) */
@@ -139,6 +144,11 @@ export class Game {
       this.stars = t.startStars;
       this.cookieHp = t.cookieHp;
       this.cookieMax = t.cookieHp;
+      if (overwriteProgress) {
+        this.cookieBites = [];
+        this.cookieBitePulse = -1;
+        this.cookieBiteFlash = 0;
+      }
     }
   }
 
@@ -399,6 +409,37 @@ export class Game {
     this.toastCooldown = 2.4;
   }
 
+  /** Stable bite layout reconstructed from missing HP (legacy saves) */
+  bitesFromMissingHp(missing: number): CookieBite[] {
+    const n = Math.min(14, Math.max(0, Math.round(missing)));
+    const bites: CookieBite[] = [];
+    for (let i = 0; i < n; i++) {
+      bites.push({
+        angle: -Math.PI * 0.35 + i * 0.48 + (i % 3) * 0.07,
+        size: 0.85 + (i % 4) * 0.12,
+      });
+    }
+    return bites;
+  }
+
+  /** Leave one or more permanent bite marks when the cookie is hit */
+  chompCookie(dmg: number) {
+    const bites = Math.max(1, Math.min(4, Math.round(dmg)));
+    for (let i = 0; i < bites; i++) {
+      const idx = this.cookieBites.length;
+      // Spread around the rim; jitter so consecutive chomps don't stack
+      const angle = -Math.PI * 0.4 + idx * 0.52 + (Math.random() - 0.5) * 0.22;
+      const size = 0.95 + Math.min(0.4, dmg * 0.08) + (Math.random() - 0.5) * 0.15;
+      this.cookieBites.push({ angle, size });
+      this.cookieBitePulse = this.cookieBites.length - 1;
+    }
+    if (this.cookieBites.length > 16) {
+      this.cookieBites = this.cookieBites.slice(-16);
+      this.cookieBitePulse = this.cookieBites.length - 1;
+    }
+    this.cookieBiteFlash = 0.7;
+  }
+
   grantIdleGold() {
     const last = Number(localStorage.getItem("cookie-guard-last") || Date.now());
     const now = Date.now();
@@ -415,6 +456,7 @@ export class Game {
       wave: this.wave,
       cookieHp: this.cookieHp,
       cookieMax: this.cookieMax,
+      cookieBites: this.cookieBites,
       courseIndex: this.courseIndex,
       courseRandom: this.courseRandom,
       difficulty: this.difficulty,
@@ -452,6 +494,14 @@ export class Game {
       this.wave = data.wave ?? 1;
       this.cookieHp = data.cookieHp ?? 55;
       this.cookieMax = data.cookieMax ?? 55;
+      this.cookieBites = Array.isArray(data.cookieBites)
+        ? data.cookieBites
+            .filter(
+              (b: CookieBite) =>
+                b && typeof b.angle === "number" && typeof b.size === "number",
+            )
+            .slice(0, 16)
+        : this.bitesFromMissingHp(this.cookieMax - this.cookieHp);
       if (typeof data.courseIndex === "number") this.courseIndex = data.courseIndex;
       if (typeof data.courseRandom === "boolean") this.courseRandom = data.courseRandom;
       if (isDifficulty(data.difficulty)) {
@@ -539,6 +589,8 @@ export class Game {
     this.wave = 1;
     this.applyStartingResources(true);
     this.cookieBiteFlash = 0;
+    this.cookieBites = [];
+    this.cookieBitePulse = -1;
     this.spawnLeft = 0;
     this.spawnTimer = 0;
     this.waveWaiting = true;
@@ -1447,21 +1499,35 @@ export class Game {
         t.alive = false;
         const dmg = t.def.boss ? (isLevelBossWave(this.wave) ? 8 : 4) : 1;
         this.cookieHp -= dmg;
-        this.cookieBiteFlash = 0.55;
+        this.chompCookie(dmg);
         playCookieMunch(dmg > 1);
+        const bite = this.cookieBites[this.cookieBitePulse];
+        const biteX = bite
+          ? COOKIE.x + Math.cos(bite.angle) * 38
+          : COOKIE.x;
+        const biteY = bite
+          ? COOKIE.y + Math.sin(bite.angle) * 38
+          : COOKIE.y;
+        this.booms.push({
+          kind: "crumb",
+          x: biteX,
+          y: biteY,
+          life: 0.85,
+          radius: 36 + dmg * 6,
+        });
         this.booms.push({
           kind: "crumb",
           x: COOKIE.x,
           y: COOKIE.y,
-          life: 0.7,
-          radius: 40 + dmg * 4,
+          life: 0.55,
+          radius: 28 + dmg * 3,
         });
         this.floats.push({
-          x: COOKIE.x,
-          y: COOKIE.y - 40,
+          x: biteX,
+          y: biteY - 28,
           text: dmg > 1 ? "CHOMP!!" : "NOM!",
           color: "#c4782a",
-          life: 1,
+          life: 1.1,
         });
         this.onChange();
         if (this.cookieHp <= 0) {
@@ -1712,6 +1778,8 @@ export class Game {
       cookieHp: this.cookieHp,
       cookieMax: this.cookieMax,
       cookieBiteFlash: Math.max(0, this.cookieBiteFlash),
+      cookieBites: this.cookieBites,
+      cookieBitePulse: this.cookieBitePulse,
       selectedSlot: this.selectedSlot,
       time: this.time,
       wave: this.wave,
