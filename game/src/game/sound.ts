@@ -154,6 +154,41 @@ export function playHit() {
   noiseBurst(0.035, 0.06, 1600);
 }
 
+/** Crunchy cookie munch when the cookie takes a bite of damage */
+export function playCookieMunch(big = false) {
+  if (muted) return;
+  const c = ensure();
+  if (!c || !master) return;
+  const t0 = c.currentTime;
+
+  // crisp crunch (noise) + chewy bite (pitch drop)
+  noiseBurst(big ? 0.14 : 0.09, big ? 0.28 : 0.2, big ? 900 : 1200);
+  noiseBurst(big ? 0.1 : 0.06, big ? 0.16 : 0.12, 2800);
+
+  const bite = 220 + Math.random() * 60;
+  tone(bite, big ? 0.18 : 0.12, "sawtooth", big ? 0.2 : 0.15, 70);
+  tone(bite * 1.6, big ? 0.12 : 0.08, "square", 0.08, 90);
+  tone(140, big ? 0.16 : 0.1, "triangle", 0.1, 55);
+
+  // second chew for bigger bites (scheduled on the audio clock)
+  if (big) {
+    const delay = 0.1;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(190, t0 + delay);
+    osc.frequency.exponentialRampToValueAtTime(55, t0 + delay + 0.1);
+    g.gain.setValueAtTime(0.0001, t0 + delay);
+    g.gain.exponentialRampToValueAtTime(0.14, t0 + delay + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.1);
+    osc.connect(g);
+    g.connect(master);
+    osc.start(t0 + delay);
+    osc.stop(t0 + delay + 0.12);
+    noiseBurst(0.07, 0.14, 1100);
+  }
+}
+
 /** Spell boom */
 export function playSpell(kind: "crumb" | "frost" | "zap") {
   if (muted) return;

@@ -12,7 +12,7 @@ import {
 } from "./data";
 import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveMapForWave } from "./path";
 import { draw, drawRangeHint } from "./render";
-import { playHit, playShoot, playSpell } from "./sound";
+import { playHit, playShoot, playSpell, playCookieMunch } from "./sound";
 import {
   friendDamage,
   friendRange,
@@ -585,6 +585,7 @@ export class Game {
         const dmg = t.def.boss ? (isLevelBossWave(this.wave) ? 8 : 4) : 1;
         this.cookieHp -= dmg;
         this.cookieBiteFlash = 0.55;
+        playCookieMunch(dmg > 1);
         this.booms.push({
           kind: "crumb",
           x: COOKIE.x,
