@@ -449,18 +449,18 @@ function refresh() {
       showEvolveLineage(f.def);
     } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
       const f = game.bag[game.selectedBag];
-      selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass (not the path) to deploy`;
+      selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass to deploy, or tap a board friend to move`;
       showEvolveLineage(f);
     } else {
-      selectHint.textContent = "Drag friends to move. Equip from bag, then tap grass to deploy.";
+      selectHint.textContent = "Drag friends to move anytime (even mid-wave). Equip from bag to deploy.";
       showEvolveLineage(null);
     }
   } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
     const f = game.bag[game.selectedBag];
-    selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass (not the path) to deploy`;
+    selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass to deploy, or tap a board friend to move`;
     showEvolveLineage(f);
   } else {
-    selectHint.textContent = "Drag friends to move. Equip from bag, then tap grass to deploy.";
+    selectHint.textContent = "Drag friends to move anytime (even mid-wave). Equip from bag to deploy.";
     showEvolveLineage(null);
   }
 

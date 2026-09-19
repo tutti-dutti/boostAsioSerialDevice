@@ -252,7 +252,13 @@ export class Game {
     let bestD = radius;
     for (const slot of this.slots) {
       if (!slot.friend) continue;
-      const d = Math.hypot(slot.x - x, slot.y - y);
+      // Nest / pad position
+      let d = Math.hypot(slot.x - x, slot.y - y);
+      // Flyers orbit away from the nest during waves — also hit the bird itself
+      if (slot.friend.def.flies && !slot.friend.landed) {
+        const bird = flyerWorldPos(slot.x, slot.y, slot.friend);
+        d = Math.min(d, Math.hypot(bird.x - x, bird.y - y));
+      }
       if (d <= bestD) {
         best = slot;
         bestD = d;
@@ -832,7 +838,11 @@ export class Game {
     this.canvas.setPointerCapture(e.pointerId);
 
     const hit = this.hitFriendSlot(x, y, this.friendHitRadius(e));
-    if (hit && this.selectedBag == null) {
+    // Always allow selecting/moving board friends — even mid-wave, and even if a
+    // bag friend is equipped (deploy mode). Tap a placed friend to drag it.
+    if (hit) {
+      this.selectedBag = null;
+      this.deployGhost = null;
       this.draggingSlot = hit.id;
       this.dragMoved = false;
       this.dragOrigin = { x: hit.x, y: hit.y };
@@ -958,9 +968,16 @@ export class Game {
     this.onChange();
   }
 
-  /** One tap in the bag equips a friend for free placement */
+  /** One tap in the bag equips a friend for free placement; tap again to unequip */
   equipFromBag(index: number) {
     if (index < 0 || index >= this.bag.length) return;
+    if (this.selectedBag === index) {
+      this.selectedBag = null;
+      this.deployGhost = null;
+      this.toast("Unequipped — drag board friends to move anytime", true);
+      this.onChange();
+      return;
+    }
     this.selectedBag = index;
     this.selectedSlot = null;
     const f = this.bag[index];
