@@ -1,18 +1,18 @@
-import { COOKIE, GATE, PATH, W, H } from "./path";
+import { COOKIE, GATE, PATH, W, H, getActiveMap } from "./path";
+import { evolveLineage } from "./data";
 import type { Boom, FloatText, PlacedFriend, Shot, Slot, Thief, Wall } from "./types";
-import { friendRange } from "./types";
+import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
 function grass(ctx: CanvasRenderingContext2D) {
-  // Top-down grass field
-  ctx.fillStyle = "#5cb85a";
+  const map = getActiveMap();
+  ctx.fillStyle = map.grassB;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "#6ecf6a";
+  ctx.fillStyle = map.grassA;
   for (let y = 0; y < H; y += 28) {
     for (let x = 0; x < W; x += 28) {
       if ((x + y) % 56 === 0) ctx.fillRect(x, y, 28, 28);
     }
   }
-  // soft vignette
   const g = ctx.createRadialGradient(W / 2, H / 2, 120, W / 2, H / 2, 520);
   g.addColorStop(0, "rgba(0,0,0,0)");
   g.addColorStop(1, "rgba(20,40,20,0.18)");
@@ -21,8 +21,8 @@ function grass(ctx: CanvasRenderingContext2D) {
 }
 
 function path(ctx: CanvasRenderingContext2D) {
-  // dirt path — top-down
-  ctx.strokeStyle = "#c4a060";
+  const map = getActiveMap();
+  ctx.strokeStyle = map.pathColor;
   ctx.lineWidth = 44;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -31,10 +31,11 @@ function path(ctx: CanvasRenderingContext2D) {
   for (let i = 1; i < PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
   ctx.stroke();
   ctx.strokeStyle = "#d8b878";
+  ctx.globalAlpha = 0.55;
   ctx.lineWidth = 30;
   ctx.stroke();
+  ctx.globalAlpha = 1;
 
-  // path edge dots
   ctx.fillStyle = "rgba(90,60,20,0.25)";
   for (let i = 0; i < PATH.length; i++) {
     ctx.beginPath();
@@ -57,33 +58,135 @@ function gate(ctx: CanvasRenderingContext2D) {
   ctx.fillText("IN", GATE.x, GATE.y + 3);
 }
 
-function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number) {
+function cookieBiteCenters(x: number, y: number, r: number, count: number) {
+  const bites: { bx: number; by: number; br: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const ang = -Math.PI * 0.15 + (i / Math.max(1, count)) * Math.PI * 1.7 + (i % 2) * 0.12;
+    const br = 13 + (i % 3) * 3;
+    bites.push({
+      bx: x + Math.cos(ang) * (r + br * 0.15),
+      by: y + Math.sin(ang) * (r + br * 0.15),
+      br,
+    });
+  }
+  return bites;
+}
+
+function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number, biteFlash = 0) {
   const x = COOKIE.x;
   const y = COOKIE.y;
-  // vault pad
-  ctx.fillStyle = "#e8a04a";
+  const r = 38;
+  const missing = Math.max(0, max - hp);
+  const biteCount = Math.min(12, missing);
+  const bites = cookieBiteCenters(x, y, r, biteCount);
+
+  ctx.save();
+  if (biteFlash > 0) {
+    const shake = biteFlash * 6;
+    ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  }
+
+  // Soft plate under cookie
+  ctx.fillStyle = "rgba(255, 246, 232, 0.35)";
   ctx.beginPath();
-  ctx.arc(x, y, 36, 0, Math.PI * 2);
+  ctx.arc(x, y, r + 8, 0, Math.PI * 2);
   ctx.fill();
+
+  // Cookie body with bites cut out
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  for (const b of bites) {
+    ctx.moveTo(b.bx + b.br, b.by);
+    ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2, true);
+  }
+  ctx.fillStyle = biteFlash > 0.2 ? "#f2b45a" : "#e8a04a";
+  ctx.fill("evenodd");
+
+  // Dark chew marks along each bite
+  ctx.fillStyle = "#c4782a";
+  for (const b of bites) {
+    ctx.beginPath();
+    ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2);
+    ctx.strokeStyle = "#8a5020";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // tooth notch dots
+    for (let t = 0; t < 5; t++) {
+      const ta = (t / 5) * Math.PI * 2;
+      const tx = b.bx + Math.cos(ta) * (b.br - 3);
+      const ty = b.by + Math.sin(ta) * (b.br - 3);
+      if (Math.hypot(tx - x, ty - y) > r - 2) continue;
+      ctx.beginPath();
+      ctx.arc(tx, ty, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   ctx.strokeStyle = "#c4782a";
   ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.stroke();
+
   ctx.fillStyle = "#6a3a18";
-  [[-10, -8], [8, -6], [-4, 10], [12, 8], [0, 0]].forEach(([cx, cy]) => {
+  const chips: [number, number][] = [
+    [-10, -8],
+    [8, -6],
+    [-4, 10],
+    [12, 8],
+    [0, 0],
+    [-14, 4],
+    [6, 12],
+  ];
+  for (const [cx, cy] of chips) {
+    const px = x + cx;
+    const py = y + cy;
+    const eaten = bites.some((b) => Math.hypot(px - b.bx, py - b.by) < b.br + 1);
+    if (eaten) continue;
+    if (Math.hypot(cx, cy) > r - 8) continue;
     ctx.beginPath();
-    ctx.arc(x + cx, y + cy, 4, 0, Math.PI * 2);
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
     ctx.fill();
-  });
+  }
+
+  // Crumbs outside bites
+  if (biteCount > 0) {
+    ctx.fillStyle = "#d4a060";
+    for (let i = 0; i < biteCount; i++) {
+      const b = bites[i];
+      const ang = Math.atan2(b.by - y, b.bx - x);
+      for (let c = 0; c < 3; c++) {
+        ctx.beginPath();
+        ctx.arc(
+          x + Math.cos(ang + (c - 1) * 0.2) * (r + 12 + c * 4),
+          y + Math.sin(ang + (c - 1) * 0.2) * (r + 12 + c * 4),
+          2 + (c % 2),
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+    }
+  }
+
   ctx.fillStyle = "#fff6e8";
   ctx.font = "800 11px Nunito, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("COOKIE", x, y + 50);
+  ctx.fillText(biteCount > 0 ? "BITTEN!" : "COOKIE", x, y + 54);
 
   const pct = Math.max(0, hp / max);
   ctx.fillStyle = "rgba(0,0,0,0.3)";
-  ctx.fillRect(x - 34, y + 56, 68, 8);
+  ctx.fillRect(x - 34, y + 60, 68, 8);
   ctx.fillStyle = pct > 0.3 ? "#6ecf7a" : "#ff6b6b";
-  ctx.fillRect(x - 34, y + 56, 68 * pct, 8);
+  ctx.fillRect(x - 34, y + 60, 68 * pct, 8);
+  ctx.restore();
+}
+
+function friendTokenRadius(f: PlacedFriend): number {
+  const scale = f.def.scale ?? 1;
+  if (f.def.rarity === "god") return Math.round(32 * scale);
+  if (f.def.rarity === "mythical") return Math.round(30 * scale);
+  return Math.round(24 * scale);
 }
 
 function drawFriendPad(
@@ -93,69 +196,175 @@ function drawFriendPad(
   y: number,
   selected: boolean,
 ) {
-  // round top-down token
+  const r = friendTokenRadius(f);
+  const scale = f.def.scale ?? 1;
+  // round top-down token (mythical / god / mega forms are bigger)
   ctx.fillStyle = f.def.color;
   ctx.beginPath();
-  ctx.arc(x, y, 24, 0, Math.PI * 2);
+  ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = selected ? "#ffd24a" : "rgba(0,0,0,0.35)";
   ctx.lineWidth = selected ? 4 : 2;
   ctx.stroke();
 
-  // god / legendary ring
+  // god / mythical / legendary ring
   if (f.def.rarity === "god") {
     ctx.strokeStyle = "#ff5040";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(x, y, 29, 0, Math.PI * 2);
+    ctx.arc(x, y, r + 5, 0, Math.PI * 2);
     ctx.stroke();
+  } else if (f.def.rarity === "mythical") {
+    ctx.strokeStyle = scale >= 1.8 ? "#ffd24a" : "#c060ff";
+    ctx.lineWidth = scale >= 1.8 ? 4 : 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 5, 0, Math.PI * 2);
+    ctx.stroke();
+    if (scale >= 1.8) {
+      ctx.strokeStyle = "rgba(255,210,74,0.45)";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 12, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   } else if (f.def.rarity === "legendary") {
     ctx.strokeStyle = "#e8c15a";
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(x, y, 28, 0, Math.PI * 2);
+    ctx.arc(x, y, r + 4, 0, Math.PI * 2);
     ctx.stroke();
   }
 
-  ctx.font = "26px serif";
+  const emojiSize = Math.round((f.def.rarity === "mythical" || f.def.rarity === "god" ? 34 : 26) * scale);
+  ctx.font = `${emojiSize}px serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(f.def.emoji, x, y);
 
+  const badgeX = x + r - 8;
+  const badgeY = y - r + 8;
   ctx.fillStyle = "#fff6e8";
   ctx.strokeStyle = "#c4782a";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(x + 16, y - 16, 10, 0, Math.PI * 2);
+  ctx.arc(badgeX, badgeY, 10, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = "#2a3040";
   ctx.font = "800 10px Nunito, sans-serif";
-  ctx.fillText(String(f.level), x + 16, y - 15);
+  ctx.fillText(String(f.level), badgeX, badgeY + 1);
+
+  if (selected) {
+    drawEvolveInfo(ctx, f, x, y, r);
+  }
 }
 
-function slots(ctx: CanvasRenderingContext2D, list: Slot[], selected: number | null) {
+function drawEvolveInfo(
+  ctx: CanvasRenderingContext2D,
+  f: PlacedFriend,
+  x: number,
+  y: number,
+  r: number,
+) {
+  const line = evolveLineage(f.def);
+  const lines = [`From: ${line.fromLabel}`, `Into: ${line.intoLabel}`];
+  ctx.font = "800 12px Nunito, sans-serif";
+  const padX = 10;
+  const padY = 7;
+  const lineH = 15;
+  let maxW = 0;
+  for (const t of lines) maxW = Math.max(maxW, ctx.measureText(t).width);
+  const boxW = maxW + padX * 2;
+  const boxH = padY * 2 + lineH * lines.length;
+  let boxX = x - boxW / 2;
+  let boxY = y - r - boxH - 10;
+  if (boxY < 8) boxY = y + r + 12;
+  if (boxX < 8) boxX = 8;
+  if (boxX + boxW > W - 8) boxX = W - 8 - boxW;
+
+  ctx.fillStyle = "rgba(255, 248, 238, 0.94)";
+  ctx.strokeStyle = "#c4782a";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.roundRect(boxX, boxY, boxW, boxH, 10);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#2a3040";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  lines.forEach((t, i) => {
+    ctx.fillText(t, boxX + padX, boxY + padY + i * lineH);
+  });
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+}
+
+function slots(
+  ctx: CanvasRenderingContext2D,
+  list: Slot[],
+  selected: number | null,
+) {
   for (const s of list) {
+    if (!s.friend) continue; // never draw empty deploy pads — too crowded
     const on = selected === s.id;
-    if (!s.friend) {
-      ctx.fillStyle = on ? "rgba(255,210,74,0.35)" : "rgba(255,255,255,0.22)";
-      ctx.strokeStyle = on ? "#e8a04a" : "rgba(42,48,64,0.3)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 4]);
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 24, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(42,48,64,0.4)";
-      ctx.font = "800 16px Nunito, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("+", s.x, s.y);
+    if (s.friend.def.flies) {
+      const f = s.friend;
+      const pos = flyerWorldPos(s.x, s.y, f);
+      // Nest / orbit rings only when this flyer is selected — keeps the board clear
+      if (on) {
+        const orbitR = flyerOrbitRadius(f);
+        ctx.fillStyle = "rgba(255,210,74,0.25)";
+        ctx.strokeStyle = "#e8a04a";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(126,200,255,0.55)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, orbitR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.strokeStyle = "rgba(255,255,255,0.25)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, orbitR * 0.72, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      drawFriendPad(ctx, f, pos.x, pos.y, on);
     } else {
       drawFriendPad(ctx, s.friend, s.x, s.y, on);
     }
   }
+}
+
+function deployGhost(
+  ctx: CanvasRenderingContext2D,
+  ghost: { x: number; y: number; valid: boolean } | null | undefined,
+  deployMode: boolean,
+) {
+  // Placement ghost only while a bag friend is equipped
+  if (!deployMode || !ghost) return;
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = ghost.valid ? "rgba(126, 220, 120, 0.45)" : "rgba(220, 80, 80, 0.4)";
+  ctx.strokeStyle = ghost.valid ? "#3a9a40" : "#c04030";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(ghost.x, ghost.y, 28, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = ghost.valid ? "#2a6030" : "#6a2020";
+  ctx.font = "800 18px Nunito, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(ghost.valid ? "+" : "✕", ghost.x, ghost.y);
+  ctx.restore();
 }
 
 function thieves(
@@ -168,12 +377,16 @@ function thieves(
     const p = pos.get(t.uid);
     if (!p) continue;
     const r = t.def.boss ? 18 : 13;
-    ctx.fillStyle = t.def.boss ? "#e8c15a" : "#fff6e8";
+    const kind = t.def.kind ?? "strength";
+    const fill =
+      t.def.boss ? "#e8c15a" : kind === "speed" ? "#dff6ff" : "#ffe8d4";
+    ctx.fillStyle = fill;
     ctx.beginPath();
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(42,48,64,0.4)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle =
+      t.def.boss ? "rgba(42,48,64,0.4)" : kind === "speed" ? "#3aa0c8" : "#c87838";
+    ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.font = `${t.def.boss ? 22 : 18}px serif`;
     ctx.textAlign = "center";
@@ -183,12 +396,12 @@ function thieves(
     const pct = t.hp / t.maxHp;
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(p.x - 12, p.y - r - 10, 24, 5);
-    ctx.fillStyle = "#ff6b6b";
+    ctx.fillStyle = kind === "speed" ? "#4ec4f0" : "#ff6b6b";
     ctx.fillRect(p.x - 12, p.y - r - 10, 24 * pct, 5);
 
-    if (t.slowTimer > 0 || t.blockedTimer > 0) {
-      ctx.strokeStyle = t.blockedTimer > 0 ? "#c4782a" : "#5b8cff";
-      ctx.lineWidth = 2;
+    if (t.slowTimer > 0 || t.blockedTimer > 0 || t.freezeTimer > 0) {
+      ctx.strokeStyle = t.freezeTimer > 0 ? "#9ad4ff" : t.blockedTimer > 0 ? "#c4782a" : "#5b8cff";
+      ctx.lineWidth = t.freezeTimer > 0 ? 3 : 2;
       ctx.beginPath();
       ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
       ctx.stroke();
@@ -218,13 +431,23 @@ function walls(ctx: CanvasRenderingContext2D, list: Wall[]) {
 function shots(ctx: CanvasRenderingContext2D, list: Shot[]) {
   for (const s of list) {
     ctx.fillStyle = s.color;
-    const r = s.godBeam ? 7 : s.floppy ? 6 : 4;
+    const r = s.godBeam ? 7 : s.heavyHit ? 7 : s.freeze || s.floppy ? 6 : 4;
     ctx.beginPath();
     ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
     ctx.fill();
     if (s.floppy) {
       ctx.strokeStyle = "#7ec8f0";
       ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    if (s.freeze) {
+      ctx.strokeStyle = "#9ad4ff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    if (s.heavyHit) {
+      ctx.strokeStyle = "#c87838";
+      ctx.lineWidth = 2.5;
       ctx.stroke();
     }
     if (s.godBeam) {
@@ -246,6 +469,8 @@ function booms(ctx: CanvasRenderingContext2D, list: Boom[]) {
       floppy: "#5eb8e0",
       wall: "#c4782a",
       beam: "#ff5040",
+      freeze: "#9ad4ff",
+      heavy: "#c87838",
     };
     ctx.strokeStyle = colors[b.kind] || "#fff";
     ctx.fillStyle = ctx.strokeStyle;
@@ -281,9 +506,16 @@ export interface DrawState {
   walls: Wall[];
   cookieHp: number;
   cookieMax: number;
+  cookieBiteFlash?: number;
   selectedSlot: number | null;
   time: number;
   wave: number;
+  bossFight?: boolean;
+  deployMode?: boolean;
+  waveWaiting?: boolean;
+  paused?: boolean;
+  autoWaveTimer?: number;
+  deployGhost?: { x: number; y: number; valid: boolean } | null;
 }
 
 export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
@@ -292,16 +524,60 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   gate(ctx);
   walls(ctx, s.walls);
   slots(ctx, s.slots, s.selectedSlot);
+  deployGhost(ctx, s.deployGhost, !!s.deployMode);
   thieves(ctx, s.thieves, s.thiefPos);
   shots(ctx, s.shots);
   booms(ctx, s.booms);
-  cookie(ctx, s.cookieHp, s.cookieMax);
+  cookie(ctx, s.cookieHp, s.cookieMax, s.cookieBiteFlash ?? 0);
   floats(ctx, s.floats);
 
   ctx.fillStyle = "rgba(42,48,64,0.65)";
   ctx.font = "800 15px Nunito, sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText(`Wave ${s.wave} · Top-down`, 14, 24);
+  const map = getActiveMap();
+  ctx.fillText(`Wave ${s.wave} · ${map.name}`, 14, 24);
+
+  if (s.waveWaiting && !s.deployMode) {
+    ctx.fillStyle = "rgba(42, 48, 64, 0.8)";
+    ctx.font = "800 18px Nunito, sans-serif";
+    ctx.textAlign = "center";
+    if (s.autoWaveTimer && s.autoWaveTimer > 0) {
+      const secs = Math.max(1, Math.ceil(s.autoWaveTimer));
+      ctx.fillText(`Wave ${s.wave} auto-starts in ${secs}… (Pause to prepare)`, W / 2, H - 16);
+    } else {
+      ctx.fillText(`Ready — press Start Wave ${s.wave}`, W / 2, H - 16);
+    }
+  }
+
+  if (s.deployMode) {
+    ctx.fillStyle = "rgba(232, 160, 74, 0.92)";
+    ctx.font = "800 16px Nunito, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Tap grass to deploy — not on the path. Drag friends to move.", W / 2, H - 16);
+  }
+
+  if (s.bossFight) {
+    const pulse = 0.75 + Math.sin(s.time * 5) * 0.25;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = "#c04030";
+    ctx.font = "900 28px Fredoka, Nunito, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("⚔️ BOSS FIGHT ⚔️", W / 2, 48);
+    ctx.restore();
+  }
+
+  if (s.paused) {
+    ctx.fillStyle = "rgba(20, 24, 36, 0.45)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#fff8ee";
+    ctx.font = "900 36px Fredoka, Nunito, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Paused", W / 2, H / 2 - 8);
+    ctx.font = "700 16px Nunito, sans-serif";
+    ctx.fillStyle = "rgba(255, 248, 238, 0.9)";
+    ctx.fillText("Press Resume to continue", W / 2, H / 2 + 24);
+  }
 }
 
 export function drawRangeHint(ctx: CanvasRenderingContext2D, slot: Slot) {

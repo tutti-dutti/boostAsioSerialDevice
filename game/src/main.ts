@@ -1,22 +1,46 @@
 import "./style.css";
 import { Game } from "./game/Game";
-import { rarityLabel } from "./game/data";
+import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, type FriendDef } from "./game/data";
+import { unlockAudio, setMuted, isMuted } from "./game/sound";
+import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost } from "./game/types";
+import {
+  formatScoreDate,
+  getSavedPlayerName,
+  isHighScoreWorthy,
+  loadHighScores,
+  submitHighScore,
+  type HighScore,
+} from "./game/highscores";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 app.innerHTML = `
   <section class="home" id="home">
-    <h1 class="home-brand">Cookie Guard</h1>
+    <h1 class="home-brand">Cookie Guard <span class="home-by">by James Nguyen</span></h1>
     <p class="home-line">Protect your giant cookie with cute animal friends.</p>
+    <div class="course-picker" id="home-courses">
+      <p class="course-label">Choose a course</p>
+      <div class="course-chips" id="home-course-chips"></div>
+      <button class="course-random" id="home-random-course" type="button">🎲 Random course</button>
+    </div>
     <button class="home-play" id="play-btn" type="button">Play</button>
     <p class="home-note">No ads. Just the game.</p>
+    <div class="home-scores" id="home-scores">
+      <h2 class="scores-title">High Scores</h2>
+      <ol class="scores-list" id="home-scores-list"></ol>
+      <p class="scores-empty hidden" id="home-scores-empty">No scores yet — clear waves to earn a spot!</p>
+    </div>
   </section>
 
   <section class="play-screen hidden" id="play-screen">
     <header class="top-bar">
-      <div class="brand-small">Cookie Guard</div>
-      <button class="home-link" id="back-home" type="button">Home</button>
+      <div class="brand-small">Cookie Guard <span class="brand-by">by James Nguyen</span></div>
+      <div class="top-actions">
+        <button class="home-link" id="pause-btn" type="button">Pause</button>
+        <button class="home-link" id="mute-btn" type="button">Sound: On</button>
+        <button class="home-link" id="back-home" type="button">Home</button>
+      </div>
     </header>
 
     <div class="stats" id="stats"></div>
@@ -27,7 +51,16 @@ app.innerHTML = `
       <div class="overlay hidden" id="over">
         <div class="overlay-card">
           <h2>Cookie gone!</h2>
-          <p>The thieves ate it. Try again?</p>
+          <p id="over-score-line">The thieves ate it. Try again?</p>
+          <div class="score-save hidden" id="score-save">
+            <p class="score-save-label">New high score! Enter your name:</p>
+            <div class="score-save-row">
+              <input id="score-name" type="text" maxlength="16" placeholder="Your name" autocomplete="nickname" />
+              <button class="green" id="save-score-btn" type="button">Save</button>
+            </div>
+            <p class="hint" id="score-save-status"></p>
+          </div>
+          <ol class="scores-list scores-list-compact" id="over-scores-list"></ol>
           <button class="big" id="retry-btn" type="button">Play again</button>
         </div>
       </div>
@@ -41,21 +74,48 @@ app.innerHTML = `
           <button class="pink" id="lucky" type="button">Lucky (3⭐)</button>
         </div>
         <div class="inventory" id="bag"></div>
-        <p class="hint">Tap a friend, then tap a circle. Top-down view!</p>
+        <div class="row">
+          <button class="danger" id="delete-unit" type="button">Delete unit</button>
+        </div>
+        <p class="hint">Equip from bag, tap grass to deploy (not the path). Drag friends to move them.</p>
       </section>
 
       <section class="panel">
         <h2>Actions</h2>
         <div class="row">
+          <button class="wave-btn" id="start-wave" type="button">Start Wave</button>
+        </div>
+        <div class="row">
+          <button class="pause-btn" id="pause-action" type="button">Pause</button>
+        </div>
+        <div class="course-panel">
+          <p class="hint">Course (between waves)</p>
+          <div class="course-chips" id="play-course-chips"></div>
+          <button class="course-random" id="play-random-course" type="button">🎲 Random course</button>
+        </div>
+        <div class="row">
           <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
           <button id="sell" type="button">To bag</button>
+        </div>
+        <div class="row">
+          <button id="clear-board" type="button">Clear board</button>
         </div>
         <div class="row">
           <button class="spell" id="crumb" type="button">Crumb (5🪙)</button>
           <button class="spell" id="frost" type="button">Frost (4🪙)</button>
           <button class="spell" id="zap" type="button">Zap (6🪙)</button>
         </div>
-        <p class="hint" id="select-hint">Fish can evolve when you upgrade!</p>
+        <p class="hint" id="select-hint">Upgrade to try a 5% mythical evolve!</p>
+        <div class="evolve-lineage hidden" id="evolve-lineage" aria-live="polite">
+          <div class="evolve-row">
+            <span class="evolve-label">Evolved from</span>
+            <span class="evolve-value" id="evolve-from">—</span>
+          </div>
+          <div class="evolve-row">
+            <span class="evolve-label">Evolves into</span>
+            <span class="evolve-value" id="evolve-into">—</span>
+          </div>
+        </div>
         <div class="row">
           <button id="new-game" type="button">New game</button>
         </div>
@@ -74,12 +134,110 @@ const bag = document.querySelector("#bag")!;
 const toast = document.querySelector("#toast")!;
 const over = document.querySelector("#over")!;
 const selectHint = document.querySelector("#select-hint")!;
+const evolveLineageEl = document.querySelector("#evolve-lineage")!;
+const evolveFromEl = document.querySelector("#evolve-from")!;
+const evolveIntoEl = document.querySelector("#evolve-into")!;
+const homeCourseChips = document.querySelector("#home-course-chips")!;
+const playCourseChips = document.querySelector("#play-course-chips")!;
+const homeScoresList = document.querySelector("#home-scores-list")!;
+const homeScoresEmpty = document.querySelector("#home-scores-empty")!;
+const overScoreLine = document.querySelector("#over-score-line")!;
+const scoreSave = document.querySelector("#score-save")!;
+const scoreNameInput = document.querySelector<HTMLInputElement>("#score-name")!;
+const scoreSaveStatus = document.querySelector("#score-save-status")!;
+const overScoresList = document.querySelector("#over-scores-list")!;
+
+let scorePromptShown = false;
+let scoreSavedThisRun = false;
+
+function renderScoresList(container: Element, scores: HighScore[], compact = false) {
+  container.innerHTML = scores
+    .map(
+      (s, i) => `
+    <li class="score-row">
+      <span class="score-rank">${i + 1}.</span>
+      <span class="score-name">${escapeHtml(s.name)}</span>
+      <span class="score-wave">Wave ${s.wave}</span>
+      ${compact ? "" : `<span class="score-meta">${s.gold}🪙 · ${formatScoreDate(s.at)}</span>`}
+    </li>`,
+    )
+    .join("");
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function refreshHomeScores() {
+  const scores = loadHighScores();
+  renderScoresList(homeScoresList, scores);
+  homeScoresEmpty.classList.toggle("hidden", scores.length > 0);
+  homeScoresList.classList.toggle("hidden", scores.length === 0);
+}
+
+function setupGameOverScoreUi() {
+  overScoreLine.textContent = `Reached wave ${game.wave} with ${game.gold}🪙. The thieves ate it!`;
+  const scores = loadHighScores();
+  renderScoresList(overScoresList, scores, true);
+
+  const worthy = !scoreSavedThisRun && isHighScoreWorthy(game.wave, game.gold);
+  scoreSave.classList.toggle("hidden", !worthy);
+  if (worthy && !scorePromptShown) {
+    scorePromptShown = true;
+    scoreNameInput.value = getSavedPlayerName();
+    scoreSaveStatus.textContent = "";
+    setTimeout(() => scoreNameInput.focus(), 50);
+  }
+}
+
+function saveCurrentScore() {
+  if (scoreSavedThisRun) return;
+  const name = scoreNameInput.value.trim() || getSavedPlayerName() || "Player";
+  const list = submitHighScore(name, game.wave, game.gold);
+  scoreSavedThisRun = true;
+  scoreSave.classList.add("hidden");
+  scoreSaveStatus.textContent = `Saved — nice run, ${name}!`;
+  renderScoresList(overScoresList, list, true);
+  refreshHomeScores();
+}
+
+function renderCourseChips(container: Element, opts: { requireIdle: boolean }) {
+  const courses = listCourses();
+  const locked = opts.requireIdle && !game.canChangeCourse();
+  container.innerHTML = courses
+    .map(
+      (c) => `
+    <button class="course-chip ${!game.courseRandom && game.courseIndex === c.index ? "selected" : ""}"
+      data-course="${c.index}" type="button" ${locked ? "disabled" : ""}>
+      ${c.name}
+    </button>`,
+    )
+    .join("");
+  container.querySelectorAll<HTMLButtonElement>(".course-chip").forEach((btn) => {
+    btn.onclick = () => {
+      unlockAudio();
+      game.selectCourse(Number(btn.dataset.course), { random: false });
+      refreshCourses();
+    };
+  });
+}
+
+function refreshCourses() {
+  renderCourseChips(homeCourseChips, { requireIdle: false });
+  renderCourseChips(playCourseChips, { requireIdle: true });
+  const homeRandom = document.querySelector("#home-random-course") as HTMLButtonElement;
+  const playRandom = document.querySelector("#play-random-course") as HTMLButtonElement;
+  homeRandom.classList.toggle("selected", game.courseRandom);
+  playRandom.classList.toggle("selected", game.courseRandom);
+  playRandom.disabled = !game.canChangeCourse();
+}
 
 function refresh() {
   stats.innerHTML = `
     <div class="stat">🪙 ${game.gold}</div>
     <div class="stat">⭐ ${game.stars}</div>
     <div class="stat">Wave ${game.wave}</div>
+    <div class="stat">🗺️ ${getActiveMap().name}${game.courseRandom ? " 🎲" : ""}</div>
     <div class="stat">🍪 ${game.cookieHp}/${game.cookieMax}</div>
   `;
 
@@ -98,46 +256,107 @@ function refresh() {
       .join("");
     bag.querySelectorAll<HTMLButtonElement>(".inv-item").forEach((btn) => {
       btn.onclick = () => {
-        game.selectedBag = Number(btn.dataset.i);
-        game.selectedSlot = null;
-        refresh();
+        game.equipFromBag(Number(btn.dataset.i));
       };
     });
   }
 
-  if (game.selectedSlot != null && game.slots[game.selectedSlot]?.friend) {
-    const f = game.slots[game.selectedSlot].friend!;
-    let extra = "";
-    if (f.def.id === "fish") extra = " · Floppy Fin · tiny evolve chance!";
-    if (f.def.id === "fox") extra = " · builds walls every 30s";
-    if (f.def.id === "shark") extra = " · can become Megalodon!";
-    if (f.def.rarity === "god") extra = " · GOD TIER!";
-    selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
+  function showEvolveLineage(def: FriendDef | null) {
+    if (!def) {
+      evolveLineageEl.classList.add("hidden");
+      return;
+    }
+    const line = evolveLineage(def);
+    evolveFromEl.textContent = line.fromLabel;
+    evolveIntoEl.textContent = line.intoLabel;
+    evolveLineageEl.classList.remove("hidden");
+  }
+
+  if (game.selectedSlot != null) {
+    const slot = game.slots.find((s) => s.id === game.selectedSlot);
+    if (slot?.friend) {
+      const f = slot.friend;
+      let extra = "";
+      if (f.def.ability === "floppyFin") extra += " · Floppy Fin";
+      if (f.def.ability === "foxWall") extra += " · builds walls";
+      if (f.def.ability === "godBeam") extra += " · God Beam";
+      if (f.def.ability === "freeze") extra += " · FREEZE";
+      if (f.def.ability === "heavyHit") extra += " · HEAVY HIT";
+      extra += ` · ${weaponRoleLabel(weaponRoleFor(f.def))}`;
+      if (f.def.id === "giantpanda") extra += " · MEGA Giant Panda!";
+      else if (f.def.rarity === "mythical") extra += " · MYTHICAL form!";
+      else if (f.def.rarity === "god") extra += " · GOD TIER!";
+      selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
+      showEvolveLineage(f.def);
+    } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
+      const f = game.bag[game.selectedBag];
+      selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass (not the path) to deploy`;
+      showEvolveLineage(f);
+    } else {
+      selectHint.textContent = "Drag friends to move. Equip from bag, then tap grass to deploy.";
+      showEvolveLineage(null);
+    }
+  } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
+    const f = game.bag[game.selectedBag];
+    selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass (not the path) to deploy`;
+    showEvolveLineage(f);
   } else {
-    selectHint.textContent = "Tap a friend on the path. Fish can evolve on Upgrade!";
+    selectHint.textContent = "Drag friends to move. Equip from bag, then tap grass to deploy.";
+    showEvolveLineage(null);
   }
 
   toast.textContent = game.toastText;
   toast.classList.toggle("show", game.toastTimer > 0);
+  const wasHidden = over.classList.contains("hidden");
   over.classList.toggle("hidden", !game.gameOver);
+  // Only rebuild score UI when overlay first opens — avoid wiping the name field
+  if (game.gameOver && wasHidden) {
+    scorePromptShown = false;
+    scoreSavedThisRun = false;
+    setupGameOverScoreUi();
+  }
 
   (document.querySelector("#summon") as HTMLButtonElement).disabled = game.stars < 1;
   (document.querySelector("#lucky") as HTMLButtonElement).disabled = game.stars < 3;
+  const startBtn = document.querySelector("#start-wave") as HTMLButtonElement;
+  startBtn.disabled = !game.canStartWave();
+  startBtn.textContent = game.canStartWave()
+    ? game.autoWaveTimer > 0
+      ? `Start Now (${Math.ceil(game.autoWaveTimer)})`
+      : `Start Wave ${game.wave}`
+    : game.waveInProgress || game.spawnLeft > 0 || game.thieves.some((t) => t.alive)
+      ? `Wave ${game.wave}…`
+      : `Start Wave ${game.wave}`;
+
+  const pauseLabel = game.paused ? "Resume" : "Pause";
+  (document.querySelector("#pause-btn") as HTMLButtonElement).textContent = pauseLabel;
+  const pauseAction = document.querySelector("#pause-action") as HTMLButtonElement;
+  pauseAction.textContent = pauseLabel;
+  pauseAction.disabled = game.gameOver;
+  pauseAction.classList.toggle("is-paused", game.paused);
+
+  refreshCourses();
 }
 
 game.onChange = refresh;
 refresh();
+refreshHomeScores();
 
 function showHome() {
   game.running = false;
+  game.setPaused(false);
   home.classList.remove("hidden");
   playScreen.classList.add("hidden");
+  refreshCourses();
+  refreshHomeScores();
 }
 
 function showPlay() {
+  unlockAudio();
   home.classList.add("hidden");
   playScreen.classList.remove("hidden");
   game.running = true;
+  game.setPaused(false);
   game.paint();
   refresh();
 }
@@ -145,15 +364,63 @@ function showPlay() {
 document.querySelector("#play-btn")!.addEventListener("click", showPlay);
 document.querySelector("#back-home")!.addEventListener("click", showHome);
 
+const muteBtn = document.querySelector<HTMLButtonElement>("#mute-btn")!;
+muteBtn.addEventListener("click", () => {
+  setMuted(!isMuted());
+  muteBtn.textContent = isMuted() ? "Sound: Off" : "Sound: On";
+});
+
 document.querySelector("#retry-btn")!.addEventListener("click", () => {
+  unlockAudio();
+  scorePromptShown = false;
+  scoreSavedThisRun = false;
   game.reset();
   over.classList.add("hidden");
 });
 
+document.querySelector("#save-score-btn")!.addEventListener("click", () => {
+  unlockAudio();
+  saveCurrentScore();
+});
+scoreNameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    saveCurrentScore();
+  }
+});
+
 document.querySelector("#summon")!.addEventListener("click", () => game.summon(false));
 document.querySelector("#lucky")!.addEventListener("click", () => game.summon(true));
+document.querySelector("#start-wave")!.addEventListener("click", () => {
+  unlockAudio();
+  game.requestStartWave();
+});
+
+function onPauseClick() {
+  unlockAudio();
+  game.togglePause();
+}
+document.querySelector("#pause-btn")!.addEventListener("click", onPauseClick);
+document.querySelector("#pause-action")!.addEventListener("click", onPauseClick);
+
+document.querySelector("#home-random-course")!.addEventListener("click", () => {
+  unlockAudio();
+  game.randomizeCourse();
+  refreshCourses();
+});
+document.querySelector("#play-random-course")!.addEventListener("click", () => {
+  unlockAudio();
+  game.randomizeCourse();
+});
+
 document.querySelector("#upgrade")!.addEventListener("click", () => game.upgradeSelected());
 document.querySelector("#sell")!.addEventListener("click", () => game.sellSelected());
+document.querySelector("#clear-board")!.addEventListener("click", () => {
+  if (confirm("Move all board friends back to the bag?")) game.clearBoard();
+});
+document.querySelector("#delete-unit")!.addEventListener("click", () => {
+  if (confirm("Delete this friend forever?")) game.deleteSelected();
+});
 document.querySelector("#crumb")!.addEventListener("click", () => game.cast("crumb"));
 document.querySelector("#frost")!.addEventListener("click", () => game.cast("frost"));
 document.querySelector("#zap")!.addEventListener("click", () => game.cast("zap"));
@@ -168,7 +435,7 @@ function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   game.update(dt);
-  if (game.toastTimer > 0 || game.gameOver) refresh();
+  if (game.toastTimer > 0 || game.gameOver || game.waveWaiting || game.paused || game.autoWaveTimer > 0) refresh();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
