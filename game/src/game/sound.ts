@@ -4,6 +4,7 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let muted = false;
 let lastShootAt = 0;
+let unlockPromise: Promise<void> | null = null;
 
 function ensure(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -12,29 +13,62 @@ function ensure(): AudioContext | null {
     if (!AC) return null;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = 0.35;
+    master.gain.value = muted ? 0 : 0.35;
     master.connect(ctx.destination);
   }
-  if (ctx.state === "suspended") void ctx.resume();
+  if (ctx.state === "suspended") {
+    // Keep resume in-flight; callers that must unlock (user gesture) await unlockAudio()
+    if (!unlockPromise) {
+      unlockPromise = ctx
+        .resume()
+        .then(() => {
+          unlockPromise = null;
+        })
+        .catch(() => {
+          unlockPromise = null;
+        });
+    }
+  }
   return ctx;
 }
 
-/** Call once on a user tap (Play button) so browsers allow sound */
+/** Call on a user tap (Play / Sound / etc.) so browsers allow sound */
 export function unlockAudio() {
   const c = ensure();
-  if (!c) return;
-  // silent blip to unlock
-  const o = c.createOscillator();
-  const g = c.createGain();
-  g.gain.value = 0.0001;
-  o.connect(g);
-  g.connect(master!);
-  o.start();
-  o.stop(c.currentTime + 0.01);
+  if (!c || !master) return;
+
+  const kick = () => {
+    if (!ctx || !master || muted) return;
+    // silent blip to unlock / confirm the graph is live
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    g.gain.value = 0.0001;
+    o.connect(g);
+    g.connect(master);
+    o.start();
+    o.stop(ctx.currentTime + 0.01);
+  };
+
+  if (c.state === "suspended") {
+    void c.resume().then(kick).catch(() => {});
+  } else {
+    kick();
+  }
+}
+
+/** Short confirmation chirp when the player turns sound on */
+export function playUnmuteChirp() {
+  if (muted) return;
+  unlockAudio();
+  tone(660, 0.08, "sine", 0.12, 880);
+  tone(990, 0.1, "triangle", 0.08, 1320);
 }
 
 export function setMuted(m: boolean) {
   muted = m;
+  if (!m) {
+    unlockAudio();
+  }
   if (master) master.gain.value = m ? 0 : 0.35;
 }
 
@@ -52,6 +86,10 @@ function tone(
   if (muted) return;
   const c = ensure();
   if (!c || !master) return;
+  if (c.state === "suspended") {
+    void c.resume();
+    return;
+  }
   const t0 = c.currentTime;
   const osc = c.createOscillator();
   const g = c.createGain();
@@ -73,6 +111,10 @@ function noiseBurst(dur: number, gain = 0.15, filterFreq = 2000) {
   if (muted) return;
   const c = ensure();
   if (!c || !master) return;
+  if (c.state === "suspended") {
+    void c.resume();
+    return;
+  }
   const t0 = c.currentTime;
   const n = Math.floor(c.sampleRate * dur);
   const buf = c.createBuffer(1, n, c.sampleRate);

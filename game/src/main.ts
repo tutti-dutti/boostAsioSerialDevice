@@ -1,7 +1,7 @@
 import "./style.css";
 import { Game } from "./game/Game";
 import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, type FriendDef } from "./game/data";
-import { unlockAudio, setMuted, isMuted } from "./game/sound";
+import { unlockAudio, setMuted, isMuted, playUnmuteChirp } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST } from "./game/types";
 import {
@@ -52,7 +52,7 @@ app.innerHTML = `
       <div class="status-meta">
         <span class="status-upgrade" id="status-upgrade">Select friend for upgrade cost</span>
         <div class="status-links">
-          <button class="home-link" id="mute-btn" type="button">Sound</button>
+          <button class="home-link" id="mute-btn" type="button">Sound: On</button>
           <button class="home-link" id="play-feedback-btn" type="button">Feedback</button>
           <button class="home-link" id="back-home" type="button">Home</button>
         </div>
@@ -571,9 +571,16 @@ document.querySelector("#feedback-submit")!.addEventListener("click", () => {
 });
 
 const muteBtn = document.querySelector<HTMLButtonElement>("#mute-btn")!;
-muteBtn.addEventListener("click", () => {
-  setMuted(!isMuted());
+function syncMuteLabel() {
   muteBtn.textContent = isMuted() ? "Sound: Off" : "Sound: On";
+}
+syncMuteLabel();
+muteBtn.addEventListener("click", () => {
+  unlockAudio();
+  const next = !isMuted();
+  setMuted(next);
+  syncMuteLabel();
+  if (!next) playUnmuteChirp();
 });
 
 document.querySelector("#retry-btn")!.addEventListener("click", () => {
