@@ -453,6 +453,13 @@ function dams(ctx: CanvasRenderingContext2D, list: Dam[]) {
 
 function shots(ctx: CanvasRenderingContext2D, list: Shot[]) {
   for (const s of list) {
+    if (s.dumpling) {
+      ctx.font = "22px serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🥟", s.x, s.y);
+      continue;
+    }
     ctx.fillStyle = s.color;
     const r = s.godBeam ? 7 : s.heavyHit ? 7 : s.freeze || s.floppy ? 6 : 4;
     ctx.beginPath();
@@ -492,6 +499,7 @@ function booms(ctx: CanvasRenderingContext2D, list: Boom[]) {
       floppy: "#5eb8e0",
       wall: "#c4782a",
       dam: "#8a6040",
+      dumpling: "#f0c878",
       beam: "#ff5040",
       freeze: "#9ad4ff",
       heavy: "#c87838",

@@ -96,14 +96,23 @@ function noiseBurst(dur: number, gain = 0.15, filterFreq = 2000) {
 
 /** Fun laser / pew when a friend shoots */
 export function playShoot(
-  kind: "normal" | "floppy" | "god" | "minigun" | "laser" | "freeze" | "heavy" = "normal",
+  kind: "normal" | "floppy" | "god" | "minigun" | "laser" | "freeze" | "heavy" | "dumpling" = "normal",
 ) {
   if (muted) return;
   const now = performance.now();
   // throttle so many towers don't explode the speakers
-  const gap = kind === "minigun" || kind === "laser" ? 22 : 35;
+  const gap = kind === "minigun" || kind === "laser" ? 22 : kind === "dumpling" ? 50 : 35;
   if (now - lastShootAt < gap) return;
   lastShootAt = now;
+
+  if (kind === "dumpling") {
+    // soft plop + cartoon whoosh — dumpling toss
+    const base = 280 + Math.random() * 80;
+    tone(base, 0.12, "triangle", 0.16, base * 0.4);
+    tone(base * 1.6, 0.08, "sine", 0.08, base * 0.7);
+    noiseBurst(0.05, 0.06, 1800);
+    return;
+  }
 
   if (kind === "minigun") {
     const base = 1100 + Math.random() * 500;

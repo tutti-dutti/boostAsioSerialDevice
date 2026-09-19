@@ -326,6 +326,9 @@ function refresh() {
         const pts = f.beaverPoints ?? 0;
         extra += ` · ${pts}/${BEAVER_DAM_COST}🪵 dam points`;
       }
+      if (f.def.id === "giantpanda" || f.def.id === "redpanda") {
+        extra += " · random 🥟 dumplings!";
+      }
       selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
       showEvolveLineage(f.def);
     } else if (game.selectedBag != null && game.bag[game.selectedBag]) {

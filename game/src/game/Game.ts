@@ -23,10 +23,13 @@ import {
   uid,
   upgradeCost,
   damageVsThief,
+  friendDamage,
   isBeaverBuilder,
   beaverKillPoints,
   beaverDamMaxHp,
   BEAVER_DAM_COST,
+  isDumplingPanda,
+  nextDumplingDelay,
   type Boom,
   type Dam,
   type FloatText,
@@ -421,6 +424,7 @@ export class Game {
             abilityTimer: def.ability === "foxWall" ? 30 : 0,
             orbitAngle: Math.random() * Math.PI * 2,
             beaverPoints: typeof slot.beaverPoints === "number" ? slot.beaverPoints : 0,
+            dumplingTimer: isDumplingPanda(def) ? nextDumplingDelay() : undefined,
           },
         };
         this.slots.push(placed);
@@ -524,6 +528,9 @@ export class Game {
         slot.friend.def = evolved;
         slot.friend.level = Math.max(1, slot.friend.level);
         slot.friend.abilityTimer = evolved.ability === "foxWall" ? 30 : 0;
+        if (isDumplingPanda(slot.friend)) {
+          slot.friend.dumplingTimer = nextDumplingDelay() * 0.4;
+        }
         // Keep evolved icons off the path — never let a bigger form cover the trail
         this.ensureOffPath(slot);
         this.toast(
@@ -772,6 +779,7 @@ export class Game {
         abilityTimer: friend.ability === "foxWall" ? 2 : 0,
         orbitAngle: Math.random() * Math.PI * 2,
         beaverPoints: 0,
+        dumplingTimer: isDumplingPanda(friend) ? nextDumplingDelay() : undefined,
       },
     });
     this.bag.splice(this.selectedBag, 1);
@@ -966,6 +974,64 @@ export class Game {
     this.booms.push({ kind: "wall", x: p.x, y: p.y, life: 0.8, radius: 40 });
   }
 
+  /** Kung Fu Panda style — randomly hurl dumplings at thieves */
+  throwDumplings(slot: Slot) {
+    const f = slot.friend;
+    if (!f || !isDumplingPanda(f)) return;
+    const alive = this.thieves.filter((t) => t.alive);
+    if (!alive.length) return;
+
+    // Prefer thieves in range; fall back to any on the board
+    const range = friendRange(f) * 1.15;
+    let targets = alive.filter((t) => {
+      const p = pathPoint(t.progress);
+      return Math.hypot(p.x - slot.x, p.y - slot.y) <= range;
+    });
+    if (!targets.length) targets = alive;
+
+    // Shuffle and take up to 3
+    for (let i = targets.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [targets[i], targets[j]] = [targets[j], targets[i]];
+    }
+    const count = Math.min(3, targets.length);
+    const baseDmg = Math.round(friendDamage(f) * (f.def.id === "redpanda" ? 1.35 : 1.15));
+
+    for (let i = 0; i < count; i++) {
+      const t = targets[i];
+      const p = pathPoint(t.progress);
+      // Slight aim scatter like a cartoon toss
+      const scatter = 12 + Math.random() * 18;
+      const ang = Math.random() * Math.PI * 2;
+      this.shots.push({
+        x: slot.x,
+        y: slot.y - 8,
+        tx: p.x + Math.cos(ang) * scatter * 0.25,
+        ty: p.y + Math.sin(ang) * scatter * 0.25,
+        speed: 260 + Math.random() * 60,
+        damage: baseDmg,
+        color: "#f5d6a8",
+        targetId: t.uid,
+        dumpling: true,
+        ownerSlotId: slot.id,
+        weaponRole: weaponRoleFor(f.def),
+      });
+      playShoot("dumpling");
+    }
+
+    this.booms.push({ kind: "dumpling", x: slot.x, y: slot.y - 10, life: 0.7, radius: 34 });
+    this.floats.push({
+      x: slot.x,
+      y: slot.y - 36,
+      text: Math.random() < 0.35 ? "Skadoosh!" : "🥟 Dumpling!",
+      color: "#c4782a",
+      life: 1.1,
+    });
+    if (Math.random() < 0.4) {
+      this.toast(`${f.def.emoji} Dumpling volley!`, true);
+    }
+  }
+
   update(dt: number) {
     this.time += dt;
     if (this.toastTimer > 0) this.toastTimer -= dt;
@@ -1018,6 +1084,18 @@ export class Game {
       if (f.abilityTimer <= 0) {
         this.placeFoxWall(slot.x, slot.y);
         f.abilityTimer = 30;
+      }
+    }
+
+    // Pandas randomly throw dumpling volleys (Kung Fu Panda style)
+    for (const slot of this.slots) {
+      const f = slot.friend;
+      if (!f || !isDumplingPanda(f)) continue;
+      if (f.dumplingTimer == null) f.dumplingTimer = nextDumplingDelay();
+      f.dumplingTimer -= dt;
+      if (f.dumplingTimer <= 0) {
+        this.throwDumplings(slot);
+        f.dumplingTimer = nextDumplingDelay();
       }
     }
 
@@ -1220,6 +1298,19 @@ export class Game {
           if (s.heavyHit) {
             dmg = Math.round(dmg * (t.def.kind === "strength" ? 1.25 : 1.05));
             this.booms.push({ kind: "heavy", x: p.x, y: p.y, life: 0.45, radius: 36 });
+          }
+          if (s.dumpling) {
+            dmg = Math.round(dmg * 1.2);
+            this.booms.push({ kind: "dumpling", x: p.x, y: p.y, life: 0.65, radius: 48 });
+            this.floats.push({ x: p.x, y: p.y - 18, text: "🥟", color: "#c4782a", life: 0.7 });
+            // Splash — dumplings go everywhere
+            for (const other of this.thieves) {
+              if (!other.alive || other.uid === t.uid) continue;
+              const op = pathPoint(other.progress);
+              if (Math.hypot(op.x - p.x, op.y - p.y) < 70) {
+                this.hurt(other, Math.round(dmg * 0.55), op.x, op.y, false, false, false, s.ownerSlotId);
+              }
+            }
           }
           const chill = s.weaponRole === "antiSpeed" && !s.floppy && !s.freeze;
           this.hurt(t, dmg, p.x, p.y, !!s.floppy, chill, !!s.freeze, s.ownerSlotId);

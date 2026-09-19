@@ -25,6 +25,8 @@ export interface PlacedFriend {
   orbitAngle: number;
   /** Beaver dam points earned from kills */
   beaverPoints?: number;
+  /** Countdown until next random dumpling volley (pandas) */
+  dumplingTimer?: number;
 }
 
 /** Kill points needed for a beaver to build one dam */
@@ -33,6 +35,17 @@ export const BEAVER_DAM_COST = 5;
 export function isBeaverBuilder(f: PlacedFriend | FriendDef): boolean {
   const id = "def" in f ? f.def.id : f.id;
   return id === "beaver" || id === "giantpanda";
+}
+
+/** Kung Fu Panda–style dumpling throwers */
+export function isDumplingPanda(f: PlacedFriend | FriendDef): boolean {
+  const id = "def" in f ? f.def.id : f.id;
+  return id === "giantpanda" || id === "redpanda";
+}
+
+export function nextDumplingDelay(): number {
+  // Random 3.5–7.5s between dumpling volleys
+  return 3.5 + Math.random() * 4;
 }
 
 export function beaverKillPoints(thief: ThiefDef): number {
@@ -97,6 +110,8 @@ export interface Shot {
   weaponRole?: WeaponRole;
   /** Slot that fired this shot (for kill credit) */
   ownerSlotId?: number;
+  /** Kung Fu Panda dumpling projectile */
+  dumpling?: boolean;
 }
 
 export interface FloatText {
@@ -108,7 +123,7 @@ export interface FloatText {
 }
 
 export interface Boom {
-  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy" | "dam";
+  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy" | "dam" | "dumpling";
   x: number;
   y: number;
   life: number;
