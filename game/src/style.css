@@ -151,6 +151,12 @@ body {
   color: var(--cookie-dark);
 }
 
+.top-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
 .home-link {
   font-family: var(--font);
   font-weight: 800;

@@ -10,6 +10,7 @@ import {
 } from "./data";
 import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress } from "./path";
 import { draw, drawRangeHint } from "./render";
+import { playHit, playShoot, playSpell } from "./sound";
 import {
   friendDamage,
   friendRange,
@@ -263,6 +264,7 @@ export class Game {
         this.booms.push({ kind: "zap", x: p.x, y: p.y, life: 0.8, radius: 30 });
       }
     }
+    playSpell(kind);
     this.onChange();
   }
 
@@ -433,34 +435,55 @@ export class Game {
       if (!f) continue;
       f.cooldown -= dt;
       if (f.cooldown > 0) continue;
-      const range = friendRange(f);
-      let best: Thief | null = null;
-      let bestD = Infinity;
-      for (const t of this.thieves) {
-        if (!t.alive) continue;
-        const p = pathPoint(t.progress);
-        const d = Math.hypot(p.x - slot.x, p.y - slot.y);
-        if (d <= range && d < bestD) {
-          best = t;
-          bestD = d;
+
+      const isFlyer = !!f.def.flies;
+      const isLegend = f.def.rarity === "legendary" && !isFlyer;
+      // Flyers can dump multiple shots per frame so fire rate isn't capped by FPS
+      const maxBurst = isFlyer ? 8 : isLegend ? 3 : 1;
+      let burst = 0;
+
+      while (f.cooldown <= 0 && burst < maxBurst) {
+        const range = friendRange(f);
+        let best: Thief | null = null;
+        let bestD = Infinity;
+        for (const t of this.thieves) {
+          if (!t.alive) continue;
+          const p = pathPoint(t.progress);
+          const d = Math.hypot(p.x - slot.x, p.y - slot.y);
+          if (d <= range && d < bestD) {
+            best = t;
+            bestD = d;
+          }
         }
-      }
-      if (best) {
+        if (!best) break;
+
         const p = pathPoint(best.progress);
+        const kind = isFlyer
+          ? "minigun"
+          : isLegend
+            ? "minigun"
+            : f.def.ability === "godBeam"
+              ? "god"
+              : f.def.ability === "floppyFin"
+                ? "floppy"
+                : "normal";
         this.shots.push({
           x: slot.x,
           y: slot.y,
           tx: p.x,
           ty: p.y,
-          speed: f.def.ability === "godBeam" ? 420 : 320,
+          speed: isFlyer ? 1100 : isLegend ? 720 : f.def.ability === "godBeam" ? 420 : 320,
           damage: friendDamage(f),
           color: f.def.color,
           targetId: best.uid,
           floppy: f.def.ability === "floppyFin",
           godBeam: f.def.ability === "godBeam",
         });
-        f.cooldown = 1 / f.def.attackSpeed;
+        playShoot(kind);
+        f.cooldown += 1 / f.def.attackSpeed;
+        burst += 1;
       }
+      if (burst === 0 && f.cooldown < 0) f.cooldown = 0;
     }
 
     for (const s of this.shots) {
@@ -486,6 +509,7 @@ export class Game {
             }
           }
           this.hurt(t, dmg, p.x, p.y, !!s.floppy);
+          playHit();
         }
         s.speed = -1;
       } else {
