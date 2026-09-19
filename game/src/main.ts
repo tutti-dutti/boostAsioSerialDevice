@@ -59,7 +59,7 @@ app.innerHTML = `
           <button class="spell" id="frost" type="button">Frost (4🪙)</button>
           <button class="spell" id="zap" type="button">Zap (6🪙)</button>
         </div>
-        <p class="hint" id="select-hint">Fish can evolve when you upgrade!</p>
+        <p class="hint" id="select-hint">Upgrade to try a 0.5% mythical evolve!</p>
         <div class="row">
           <button id="new-game" type="button">New game</button>
         </div>
@@ -112,13 +112,15 @@ function refresh() {
   if (game.selectedSlot != null && game.slots[game.selectedSlot]?.friend) {
     const f = game.slots[game.selectedSlot].friend!;
     let extra = "";
-    if (f.def.id === "fish") extra = " · Floppy Fin · tiny evolve chance!";
-    if (f.def.id === "fox") extra = " · builds walls every 30s";
-    if (f.def.id === "shark") extra = " · can become Megalodon!";
+    if (f.def.ability === "floppyFin") extra += " · Floppy Fin";
+    if (f.def.ability === "foxWall") extra += " · builds walls";
+    if (f.def.ability === "godBeam") extra += " · God Beam";
+    if (f.def.canEvolve && f.def.evolvesTo) extra += " · 0.5% mythical evolve!";
+    if (f.def.rarity === "mythical") extra = " · MYTHICAL form!";
     if (f.def.rarity === "god") extra = " · GOD TIER!";
     selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
   } else {
-    selectHint.textContent = "Tap a friend on the path. Fish can evolve on Upgrade!";
+    selectHint.textContent = "Upgrade any friend for a 0.5% chance to go MYTHICAL!";
   }
 
   toast.textContent = game.toastText;

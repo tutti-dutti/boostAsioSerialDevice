@@ -1,4 +1,4 @@
-export type Rarity = "common" | "rare" | "legendary" | "god";
+export type Rarity = "common" | "rare" | "legendary" | "mythical" | "god";
 
 export type AbilityId = "none" | "floppyFin" | "foxWall" | "godBeam";
 
@@ -12,10 +12,12 @@ export interface FriendDef {
   range: number;
   attackSpeed: number;
   ability: AbilityId;
-  /** Fish can evolve; shark can become megalodon */
   canEvolve?: boolean;
-  /** Flying animals: sniper range + ultra-fast low-damage shots */
+  /** Target mythical / next form id */
+  evolvesTo?: string;
   flies?: boolean;
+  /** Evolved forms are summon-blocked */
+  evolvedForm?: boolean;
 }
 
 export interface ThiefDef {
@@ -29,60 +31,77 @@ export interface ThiefDef {
   boss?: boolean;
 }
 
-/** Basic forest animals + hummingbird */
+/** Base animals + mythical evolutions */
 export const FRIENDS: FriendDef[] = [
-  // —— Basic (common) ——
-  { id: "hummingbird", name: "Hummingbird", emoji: "🐦", rarity: "common", color: "#7ecf9a", damage: 2, range: 95, attackSpeed: 1.15, ability: "none", flies: true },
-  { id: "bunny", name: "Bunny", emoji: "🐰", rarity: "common", color: "#f0e0d0", damage: 6, range: 90, attackSpeed: 1.2, ability: "none" },
-  { id: "squirrel", name: "Squirrel", emoji: "🐿️", rarity: "common", color: "#c48848", damage: 7, range: 88, attackSpeed: 1.3, ability: "none" },
-  { id: "hedgehog", name: "Hedgehog", emoji: "🦔", rarity: "common", color: "#a08060", damage: 8, range: 80, attackSpeed: 0.95, ability: "none" },
-  { id: "chipmunk", name: "Chipmunk", emoji: "🐹", rarity: "common", color: "#d0a060", damage: 6, range: 92, attackSpeed: 1.4, ability: "none" },
-  { id: "mouse", name: "Forest Mouse", emoji: "🐭", rarity: "common", color: "#c0b0a0", damage: 5, range: 86, attackSpeed: 1.5, ability: "none" },
+  // —— Basic ——
+  { id: "hummingbird", name: "Hummingbird", emoji: "🐦", rarity: "common", color: "#7ecf9a", damage: 2, range: 95, attackSpeed: 1.15, ability: "none", flies: true, canEvolve: true, evolvesTo: "phoenixlet" },
+  { id: "bunny", name: "Bunny", emoji: "🐰", rarity: "common", color: "#f0e0d0", damage: 6, range: 90, attackSpeed: 1.2, ability: "none", canEvolve: true, evolvesTo: "moonhare" },
+  { id: "squirrel", name: "Squirrel", emoji: "🐿️", rarity: "common", color: "#c48848", damage: 7, range: 88, attackSpeed: 1.3, ability: "none", canEvolve: true, evolvesTo: "stormsquirrel" },
+  { id: "hedgehog", name: "Hedgehog", emoji: "🦔", rarity: "common", color: "#a08060", damage: 8, range: 80, attackSpeed: 0.95, ability: "none", canEvolve: true, evolvesTo: "spikeking" },
+  { id: "chipmunk", name: "Chipmunk", emoji: "🐹", rarity: "common", color: "#d0a060", damage: 6, range: 92, attackSpeed: 1.4, ability: "none", canEvolve: true, evolvesTo: "jewelmunk" },
+  { id: "mouse", name: "Forest Mouse", emoji: "🐭", rarity: "common", color: "#c0b0a0", damage: 5, range: 86, attackSpeed: 1.5, ability: "none", canEvolve: true, evolvesTo: "shadowmouse" },
 
-  // —— Tier two (rare) ——
-  { id: "owl", name: "Owl", emoji: "🦉", rarity: "rare", color: "#8a7050", damage: 3, range: 110, attackSpeed: 1.0, ability: "none", flies: true },
-  { id: "deer", name: "Deer", emoji: "🦌", rarity: "rare", color: "#c89858", damage: 16, range: 110, attackSpeed: 1.05, ability: "none" },
-  { id: "beaver", name: "Beaver", emoji: "🦫", rarity: "rare", color: "#8a6040", damage: 18, range: 100, attackSpeed: 0.9, ability: "none" },
-  { id: "wolf", name: "Wolf", emoji: "🐺", rarity: "rare", color: "#808898", damage: 20, range: 115, attackSpeed: 1.2, ability: "none" },
-  { id: "fox", name: "Fox", emoji: "🦊", rarity: "rare", color: "#e87840", damage: 15, range: 105, attackSpeed: 1.15, ability: "foxWall" },
-  { id: "fish", name: "Fish", emoji: "🐟", rarity: "rare", color: "#5eb8e0", damage: 12, range: 100, attackSpeed: 1.25, ability: "floppyFin", canEvolve: true },
+  // —— Tier two ——
+  { id: "owl", name: "Owl", emoji: "🦉", rarity: "rare", color: "#8a7050", damage: 3, range: 110, attackSpeed: 1.0, ability: "none", flies: true, canEvolve: true, evolvesTo: "nightoracle" },
+  { id: "deer", name: "Deer", emoji: "🦌", rarity: "rare", color: "#c89858", damage: 16, range: 110, attackSpeed: 1.05, ability: "none", canEvolve: true, evolvesTo: "starcervid" },
+  { id: "beaver", name: "Beaver", emoji: "🦫", rarity: "rare", color: "#8a6040", damage: 18, range: 100, attackSpeed: 0.9, ability: "none", canEvolve: true, evolvesTo: "damtitan" },
+  { id: "wolf", name: "Wolf", emoji: "🐺", rarity: "rare", color: "#808898", damage: 20, range: 115, attackSpeed: 1.2, ability: "none", canEvolve: true, evolvesTo: "fenrirpup" },
+  { id: "fox", name: "Fox", emoji: "🦊", rarity: "rare", color: "#e87840", damage: 15, range: 105, attackSpeed: 1.15, ability: "foxWall", canEvolve: true, evolvesTo: "kitsune" },
+  { id: "fish", name: "Fish", emoji: "🐟", rarity: "rare", color: "#5eb8e0", damage: 12, range: 100, attackSpeed: 1.25, ability: "floppyFin", canEvolve: true, evolvesTo: "tidalkoi" },
 
-  // —— Legendary (strong hits, slower fire) ——
-  { id: "otter", name: "Otter", emoji: "🦦", rarity: "legendary", color: "#b08050", damage: 50, range: 125, attackSpeed: 1.2, ability: "none" },
-  { id: "brownbear", name: "Brown Bear", emoji: "🐻", rarity: "legendary", color: "#8a5030", damage: 50, range: 115, attackSpeed: 0.9, ability: "none" },
-  { id: "polarbear", name: "Polar Bear", emoji: "🐻‍❄️", rarity: "legendary", color: "#e8f0f8", damage: 50, range: 120, attackSpeed: 0.95, ability: "none" },
-  { id: "eagle", name: "Bald Eagle", emoji: "🦅", rarity: "legendary", color: "#d0a040", damage: 3, range: 130, attackSpeed: 1.25, ability: "none", flies: true },
-  { id: "shark", name: "Shark", emoji: "🦈", rarity: "legendary", color: "#6080a0", damage: 50, range: 135, attackSpeed: 1.1, ability: "floppyFin", canEvolve: true },
+  // —— Legendary (debuffed: lower damage / slower fire) ——
+  { id: "otter", name: "Otter", emoji: "🦦", rarity: "legendary", color: "#b08050", damage: 22, range: 115, attackSpeed: 1.05, ability: "none", canEvolve: true, evolvesTo: "riverspirit" },
+  { id: "brownbear", name: "Brown Bear", emoji: "🐻", rarity: "legendary", color: "#8a5030", damage: 26, range: 110, attackSpeed: 0.8, ability: "none", canEvolve: true, evolvesTo: "ursaking" },
+  { id: "polarbear", name: "Polar Bear", emoji: "🐻‍❄️", rarity: "legendary", color: "#e8f0f8", damage: 24, range: 115, attackSpeed: 0.85, ability: "none", canEvolve: true, evolvesTo: "frostursine" },
+  { id: "eagle", name: "Bald Eagle", emoji: "🦅", rarity: "legendary", color: "#d0a040", damage: 3, range: 130, attackSpeed: 1.1, ability: "none", flies: true, canEvolve: true, evolvesTo: "thunderroc" },
+  { id: "shark", name: "Shark", emoji: "🦈", rarity: "legendary", color: "#6080a0", damage: 28, range: 130, attackSpeed: 1.0, ability: "floppyFin", canEvolve: true, evolvesTo: "megalodon" },
 
-  // —— GOD tier ——
-  { id: "redpanda", name: "Red Panda", emoji: "🐼", rarity: "god", color: "#e05030", damage: 95, range: 180, attackSpeed: 1.5, ability: "godBeam" },
-  { id: "megalodon", name: "Megalodon", emoji: "🐋", rarity: "god", color: "#204060", damage: 110, range: 190, attackSpeed: 1.0, ability: "floppyFin" },
+  // —— Mythical evolutions (bigger/stronger, evolve-only) ——
+  { id: "phoenixlet", name: "Phoenixlet", emoji: "🔥", rarity: "mythical", color: "#ff7040", damage: 14, range: 150, attackSpeed: 1.6, ability: "none", flies: true, evolvedForm: true },
+  { id: "moonhare", name: "Moon Hare", emoji: "🌙", rarity: "mythical", color: "#d0e0ff", damage: 28, range: 130, attackSpeed: 1.5, ability: "none", evolvedForm: true },
+  { id: "stormsquirrel", name: "Storm Squirrel", emoji: "⚡", rarity: "mythical", color: "#f0d040", damage: 30, range: 125, attackSpeed: 1.7, ability: "none", evolvedForm: true },
+  { id: "spikeking", name: "Spike King", emoji: "🛡️", rarity: "mythical", color: "#a09070", damage: 36, range: 120, attackSpeed: 1.1, ability: "none", evolvedForm: true },
+  { id: "jewelmunk", name: "Jewelmunk", emoji: "💎", rarity: "mythical", color: "#70e0ff", damage: 26, range: 135, attackSpeed: 1.8, ability: "none", evolvedForm: true },
+  { id: "shadowmouse", name: "Shadow Mouse", emoji: "🖤", rarity: "mythical", color: "#504060", damage: 24, range: 130, attackSpeed: 2.0, ability: "none", evolvedForm: true },
+  { id: "nightoracle", name: "Night Oracle", emoji: "🔮", rarity: "mythical", color: "#6a40a0", damage: 18, range: 170, attackSpeed: 1.4, ability: "none", flies: true, evolvedForm: true },
+  { id: "starcervid", name: "Star Cervid", emoji: "✨", rarity: "mythical", color: "#ffe08a", damage: 42, range: 145, attackSpeed: 1.35, ability: "none", evolvedForm: true },
+  { id: "damtitan", name: "Dam Titan", emoji: "🏗️", rarity: "mythical", color: "#6a5040", damage: 48, range: 130, attackSpeed: 1.05, ability: "none", evolvedForm: true },
+  { id: "fenrirpup", name: "Fenrir", emoji: "🌑", rarity: "mythical", color: "#303848", damage: 52, range: 150, attackSpeed: 1.45, ability: "none", evolvedForm: true },
+  { id: "kitsune", name: "Kitsune", emoji: "🦊", rarity: "mythical", color: "#ff9040", damage: 40, range: 140, attackSpeed: 1.5, ability: "foxWall", evolvedForm: true },
+  { id: "tidalkoi", name: "Tidal Koi", emoji: "🐠", rarity: "mythical", color: "#30c0e8", damage: 38, range: 145, attackSpeed: 1.55, ability: "floppyFin", evolvedForm: true },
+  { id: "riverspirit", name: "River Spirit", emoji: "🌊", rarity: "mythical", color: "#40c0e0", damage: 45, range: 150, attackSpeed: 1.4, ability: "none", evolvedForm: true },
+  { id: "ursaking", name: "Ursa King", emoji: "👑", rarity: "mythical", color: "#6a3020", damage: 58, range: 140, attackSpeed: 1.05, ability: "none", evolvedForm: true },
+  { id: "frostursine", name: "Frost Ursine", emoji: "❄️", rarity: "mythical", color: "#b0e0ff", damage: 55, range: 145, attackSpeed: 1.1, ability: "none", evolvedForm: true },
+  { id: "thunderroc", name: "Thunder Roc", emoji: "🌩️", rarity: "mythical", color: "#e8c040", damage: 20, range: 190, attackSpeed: 1.55, ability: "none", flies: true, evolvedForm: true },
+  { id: "megalodon", name: "Megalodon", emoji: "🐋", rarity: "mythical", color: "#204060", damage: 95, range: 190, attackSpeed: 1.15, ability: "floppyFin", evolvedForm: true },
+  { id: "crimsonoracle", name: "Crimson Oracle", emoji: "☄️", rarity: "mythical", color: "#ff3020", damage: 140, range: 210, attackSpeed: 1.7, ability: "godBeam", evolvedForm: true },
+
+  // —— GOD ——
+  { id: "redpanda", name: "Red Panda", emoji: "🐼", rarity: "god", color: "#e05030", damage: 95, range: 180, attackSpeed: 1.5, ability: "godBeam", canEvolve: true, evolvesTo: "crimsonoracle" },
 ];
 
+/** Stronger thieves */
 export const THIEVES: ThiefDef[] = [
-  { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 26, speed: 44, gold: 1, size: 14 },
-  { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 50, speed: 38, gold: 2, size: 16 },
-  { id: "skunk", name: "Skunk", emoji: "🦨", hp: 42, speed: 48, gold: 2, size: 15 },
-  { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 75, speed: 32, gold: 3, size: 18 },
-  { id: "boar", name: "Cookie Boar", emoji: "🐗", hp: 120, speed: 28, gold: 5, size: 20 },
-  { id: "boss", name: "King Raccoon", emoji: "👑", hp: 300, speed: 24, gold: 18, size: 26, boss: true },
+  { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 55, speed: 48, gold: 2, size: 14 },
+  { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 110, speed: 42, gold: 3, size: 16 },
+  { id: "skunk", name: "Skunk", emoji: "🦨", hp: 95, speed: 52, gold: 3, size: 15 },
+  { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 180, speed: 36, gold: 5, size: 18 },
+  { id: "boar", name: "Cookie Boar", emoji: "🐗", hp: 280, speed: 32, gold: 8, size: 20 },
+  { id: "boss", name: "King Raccoon", emoji: "👑", hp: 900, speed: 28, gold: 30, size: 28, boss: true },
 ];
 
-/** Normal summon: mostly common/rare, tiny legendary, special 0.5% red panda */
 export function pickFriend(lucky = false): FriendDef {
   const roll = Math.random() * 100;
-
-  // GOD red panda: 0.5% normal, a bit higher on lucky
   const pandaChance = lucky ? 1.5 : 0.5;
   if (roll < pandaChance) {
     return FRIENDS.find((f) => f.id === "redpanda")!;
   }
 
-  // Never summon shark/megalodon from portal — evolve only
-  const summonable = FRIENDS.filter((f) => f.id !== "shark" && f.id !== "megalodon" && f.id !== "redpanda");
+  const summonable = FRIENDS.filter(
+    (f) => !f.evolvedForm && f.rarity !== "mythical" && f.id !== "redpanda",
+  );
 
   if (lucky) {
-    // better odds
     const r = Math.random() * 100;
     let rarity: Rarity = "common";
     if (r < 40) rarity = "common";
@@ -96,28 +115,20 @@ export function pickFriend(lucky = false): FriendDef {
   let rarity: Rarity = "common";
   if (r < 62) rarity = "common";
   else if (r < 90) rarity = "rare";
-  else rarity = "legendary"; // ~10% legendary
+  else rarity = "legendary";
 
   const pool = summonable.filter((f) => f.rarity === rarity);
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-/**
- * Fish → Shark 0.5%, Fish → Megalodon 0.1%
- * Shark → Megalodon 0.1%
- */
+/** 0.5% chance to evolve into mythical / next form on upgrade */
+export const EVOLVE_CHANCE_PERCENT = 0.5;
+
 export function tryEvolve(current: FriendDef): FriendDef | null {
+  if (!current.canEvolve || !current.evolvesTo) return null;
   const roll = Math.random() * 100;
-  if (current.id === "fish") {
-    if (roll < 0.1) return FRIENDS.find((f) => f.id === "megalodon")!;
-    if (roll < 0.1 + 0.5) return FRIENDS.find((f) => f.id === "shark")!;
-    return null;
-  }
-  if (current.id === "shark") {
-    if (roll < 0.1) return FRIENDS.find((f) => f.id === "megalodon")!;
-    return null;
-  }
-  return null;
+  if (roll >= EVOLVE_CHANCE_PERCENT) return null;
+  return FRIENDS.find((f) => f.id === current.evolvesTo) ?? null;
 }
 
 export const SUMMON_COST = 1;
@@ -132,15 +143,17 @@ export function thiefForWave(wave: number): ThiefDef {
 }
 
 export function waveCount(wave: number): number {
-  return Math.min(10, 2 + Math.floor(wave / 2));
+  return Math.min(12, 3 + Math.floor(wave / 2));
 }
 
 export function waveHpScale(wave: number): number {
-  return 1 + (wave - 1) * 0.1 + Math.floor(wave / 10) * 0.25;
+  // Much tougher scaling
+  return 1.4 + (wave - 1) * 0.22 + Math.floor(wave / 10) * 0.55;
 }
 
 export function rarityLabel(r: Rarity): string {
   if (r === "god") return "GOD";
+  if (r === "mythical") return "MYTHICAL";
   if (r === "legendary") return "LEGENDARY";
   if (r === "rare") return "TIER 2";
   return "BASIC";

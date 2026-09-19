@@ -40,7 +40,10 @@ export function flyerWorldPos(slotX: number, slotY: number, f: PlacedFriend): { 
 /** How fast birds circle (radians / second) */
 export function flyerOrbitSpeed(f: PlacedFriend): number {
   if (f.def.id === "hummingbird") return 2.4;
+  if (f.def.id === "phoenixlet") return 2.2;
   if (f.def.id === "eagle") return 1.5;
+  if (f.def.id === "thunderroc") return 1.35;
+  if (f.def.id === "nightoracle") return 1.6;
   return 1.8; // owl
 }
 
@@ -94,7 +97,8 @@ export interface Wall {
 }
 
 export function friendDamage(f: PlacedFriend): number {
-  const tier = f.def.rarity === "god" ? 1.15 : 1;
+  const tier =
+    f.def.rarity === "god" ? 1.15 : f.def.rarity === "mythical" ? 1.1 : 1;
   return Math.round(f.def.damage * (1 + (f.level - 1) * 0.35) * tier);
 }
 
@@ -106,11 +110,13 @@ export function upgradeCost(f: PlacedFriend): number {
   const mult =
     f.def.rarity === "god"
       ? 4
-      : f.def.rarity === "legendary"
-        ? 2.2
-        : f.def.rarity === "rare"
-          ? 1.35
-          : 1;
+      : f.def.rarity === "mythical"
+        ? 3
+        : f.def.rarity === "legendary"
+          ? 2.2
+          : f.def.rarity === "rare"
+            ? 1.35
+            : 1;
   return Math.round(6 * Math.pow(1.5, f.level - 1) * mult);
 }
 

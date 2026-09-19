@@ -389,6 +389,10 @@ button.green {
 .rarity-legendary {
   color: #d08820;
 }
+.rarity-mythical {
+  color: #c060ff;
+  font-weight: 900;
+}
 .rarity-god {
   color: #e05030;
   font-weight: 900;
@@ -397,6 +401,11 @@ button.green {
 .inv-item.rarity-god {
   border-color: #e05030;
   box-shadow: 0 0 0 2px rgba(224, 80, 48, 0.25);
+}
+
+.inv-item.rarity-mythical {
+  border-color: #c060ff;
+  box-shadow: 0 0 0 2px rgba(192, 96, 255, 0.25);
 }
 
 .inv-item.rarity-legendary {

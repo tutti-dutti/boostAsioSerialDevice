@@ -43,8 +43,8 @@ export class Game {
   gold = 20;
   stars = 5;
   wave = 1;
-  cookieHp = 40;
-  cookieMax = 40;
+  cookieHp = 55;
+  cookieMax = 55;
   spawnLeft = 0;
   spawnTimer = 0;
   wavePause = 2;
@@ -107,8 +107,8 @@ export class Game {
       this.gold = data.gold ?? 20;
       this.stars = data.stars ?? 5;
       this.wave = data.wave ?? 1;
-      this.cookieHp = data.cookieHp ?? 40;
-      this.cookieMax = data.cookieMax ?? 40;
+      this.cookieHp = data.cookieHp ?? 55;
+      this.cookieMax = data.cookieMax ?? 55;
       this.bag = (data.bag || [])
         .map((id: string) => FRIENDS.find((f) => f.id === id))
         .filter(Boolean);
@@ -145,8 +145,8 @@ export class Game {
     this.gold = 20;
     this.stars = 5;
     this.wave = 1;
-    this.cookieHp = 40;
-    this.cookieMax = 40;
+    this.cookieHp = 55;
+    this.cookieMax = 55;
     this.spawnLeft = 0;
     this.spawnTimer = 0;
     this.wavePause = 2;
@@ -189,14 +189,14 @@ export class Game {
     }
     this.gold -= cost;
 
-    // Fish / Shark evolution rolls on upgrade
+    // Evolution roll on every upgrade (0.5% → mythical form)
     if (slot.friend.def.canEvolve) {
       const evolved = tryEvolve(slot.friend.def);
       if (evolved) {
         slot.friend.def = evolved;
         slot.friend.level = Math.max(1, slot.friend.level);
         slot.friend.abilityTimer = evolved.ability === "foxWall" ? 30 : 0;
-        this.toast(`${evolved.emoji} Evolved into ${evolved.name}!!!`, true);
+        this.toast(`${evolved.emoji} MYTHICAL! ${evolved.name}!!!`, true);
         this.booms.push({ kind: "beam", x: slot.x, y: slot.y, life: 1.2, radius: 60 });
         this.save();
         this.onChange();

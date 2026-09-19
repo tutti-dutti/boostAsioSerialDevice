@@ -86,6 +86,12 @@ function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number) {
   ctx.fillRect(x - 34, y + 56, 68 * pct, 8);
 }
 
+function friendTokenRadius(f: PlacedFriend): number {
+  if (f.def.rarity === "god") return 32;
+  if (f.def.rarity === "mythical") return 30;
+  return 24;
+}
+
 function drawFriendPad(
   ctx: CanvasRenderingContext2D,
   f: PlacedFriend,
@@ -93,45 +99,55 @@ function drawFriendPad(
   y: number,
   selected: boolean,
 ) {
-  // round top-down token
+  const r = friendTokenRadius(f);
+  // round top-down token (mythical / god forms are bigger)
   ctx.fillStyle = f.def.color;
   ctx.beginPath();
-  ctx.arc(x, y, 24, 0, Math.PI * 2);
+  ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = selected ? "#ffd24a" : "rgba(0,0,0,0.35)";
   ctx.lineWidth = selected ? 4 : 2;
   ctx.stroke();
 
-  // god / legendary ring
+  // god / mythical / legendary ring
   if (f.def.rarity === "god") {
     ctx.strokeStyle = "#ff5040";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(x, y, 29, 0, Math.PI * 2);
+    ctx.arc(x, y, r + 5, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (f.def.rarity === "mythical") {
+    ctx.strokeStyle = "#c060ff";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 5, 0, Math.PI * 2);
     ctx.stroke();
   } else if (f.def.rarity === "legendary") {
     ctx.strokeStyle = "#e8c15a";
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(x, y, 28, 0, Math.PI * 2);
+    ctx.arc(x, y, r + 4, 0, Math.PI * 2);
     ctx.stroke();
   }
 
-  ctx.font = "26px serif";
+  const emojiSize = f.def.rarity === "mythical" || f.def.rarity === "god" ? 34 : 26;
+  ctx.font = `${emojiSize}px serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(f.def.emoji, x, y);
 
+  const badgeX = x + r - 8;
+  const badgeY = y - r + 8;
   ctx.fillStyle = "#fff6e8";
   ctx.strokeStyle = "#c4782a";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(x + 16, y - 16, 10, 0, Math.PI * 2);
+  ctx.arc(badgeX, badgeY, 10, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = "#2a3040";
   ctx.font = "800 10px Nunito, sans-serif";
-  ctx.fillText(String(f.level), x + 16, y - 15);
+  ctx.fillText(String(f.level), badgeX, badgeY + 1);
 }
 
 function slots(ctx: CanvasRenderingContext2D, list: Slot[], selected: number | null) {
