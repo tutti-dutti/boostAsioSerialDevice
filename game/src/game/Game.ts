@@ -448,7 +448,7 @@ export class Game {
 
       const isFlyer = !!f.def.flies;
       const isLegend = f.def.rarity === "legendary" && !isFlyer;
-      const maxBurst = isLegend ? 3 : 1;
+      const maxBurst = 1;
       let burst = 0;
       const birdPos = isFlyer ? flyerWorldPos(slot.x, slot.y, f) : { x: slot.x, y: slot.y };
 
@@ -474,7 +474,7 @@ export class Game {
         const kind = isFlyer
           ? "normal"
           : isLegend
-            ? "minigun"
+            ? "normal"
             : f.def.ability === "godBeam"
               ? "god"
               : f.def.ability === "floppyFin"
@@ -485,7 +485,7 @@ export class Game {
           y: birdPos.y,
           tx: p.x,
           ty: p.y,
-          speed: isFlyer ? 480 : isLegend ? 720 : f.def.ability === "godBeam" ? 420 : 320,
+          speed: isFlyer ? 480 : isLegend ? 420 : f.def.ability === "godBeam" ? 420 : 320,
           damage: friendDamage(f),
           color: f.def.color,
           targetId: best.uid,
