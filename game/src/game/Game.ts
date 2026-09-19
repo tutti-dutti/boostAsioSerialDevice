@@ -15,7 +15,7 @@ import {
 } from "./data";
 import { COOKIE, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses, canPlaceAt, pathClearanceFor } from "./path";
 import { draw, drawRangeHint } from "./render";
-import { playHit, playShoot, playSpell, playCookieMunch } from "./sound";
+import { playHit, playShoot, playSpell, playCookieMunch, shootSoundFor, playPoisonFart, playFoxWall } from "./sound";
 import { funnyQuipFor } from "./quips";
 import {
   difficultyTuning,
@@ -1259,6 +1259,7 @@ export class Game {
     const p = pathPoint(prog);
     this.walls.push({ x: p.x, y: p.y, life: 10, maxLife: 10, progress: prog });
     this.booms.push({ kind: "wall", x: p.x, y: p.y, life: 0.8, radius: 40 });
+    playFoxWall();
   }
 
   /** Skunk lets one rip — lingering poison cloud on the path */
@@ -1301,6 +1302,7 @@ export class Game {
     this.booms.push({ kind: "fart", x, y, life: 0.85, radius: radius * 0.7 });
     f.speech = { text: Math.random() < 0.5 ? "Phew!" : "Toot!", life: 1.6 };
     this.floats.push({ x, y: y - 20, text: "💨", color: "#5a8060", life: 0.9 });
+    playPoisonFart();
     if (Math.random() < 0.35) this.toast(`${f.def.emoji} Toxic cloud!`, true);
   }
 
@@ -1650,19 +1652,7 @@ export class Game {
         if (!best) break;
 
         const p = pathPoint(best.progress);
-        const kind = isFlyer
-          ? "laser"
-          : isLegend
-            ? "minigun"
-            : f.def.ability === "godBeam"
-              ? "god"
-              : f.def.ability === "floppyFin"
-                ? "floppy"
-                : f.def.ability === "freeze"
-                  ? "freeze"
-                  : f.def.ability === "heavyHit"
-                    ? "heavy"
-                    : "normal";
+        const kind = shootSoundFor(f.def);
         this.shots.push({
           x: birdPos.x,
           y: birdPos.y,

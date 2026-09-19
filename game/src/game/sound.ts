@@ -1,5 +1,8 @@
 /** Tiny Web Audio synth — no audio files needed */
 
+import type { FriendDef } from "./data";
+import { weaponRoleFor } from "./data";
+
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let muted = false;
@@ -136,18 +139,52 @@ function noiseBurst(dur: number, gain = 0.15, filterFreq = 2000) {
   src.stop(t0 + dur + 0.02);
 }
 
-/** Fun laser / pew when a friend shoots */
-export function playShoot(
-  kind: "normal" | "floppy" | "god" | "minigun" | "laser" | "freeze" | "heavy" | "dumpling" = "normal",
-) {
+/** Distinct synth voices per weapon / ability */
+export type ShootSoundKind =
+  | "antiSpeed"
+  | "antiStrength"
+  | "balanced"
+  | "floppy"
+  | "god"
+  | "minigun"
+  | "laser"
+  | "freeze"
+  | "heavy"
+  | "fox"
+  | "poison"
+  | "dumpling";
+
+/** Pick the shoot voice for a friend from ability, flyer/legend, then weapon role */
+export function shootSoundFor(def: FriendDef): ShootSoundKind {
+  if (def.flies) return "laser";
+  if (def.ability === "godBeam") return "god";
+  if (def.ability === "floppyFin") return "floppy";
+  if (def.ability === "freeze") return "freeze";
+  if (def.ability === "heavyHit") return "heavy";
+  if (def.ability === "foxWall") return "fox";
+  if (def.ability === "poisonFart") return "poison";
+  if (def.rarity === "legendary") return "minigun";
+  return weaponRoleFor(def);
+}
+
+/** Fun laser / pew when a friend shoots — voice matches weapon type */
+export function playShoot(kind: ShootSoundKind | "normal" = "balanced") {
   if (muted) return;
+  const voice: ShootSoundKind = kind === "normal" ? "balanced" : kind;
   const now = performance.now();
   // throttle so many towers don't explode the speakers
-  const gap = kind === "minigun" || kind === "laser" ? 22 : kind === "dumpling" ? 50 : 35;
+  const gap =
+    voice === "minigun" || voice === "laser" || voice === "antiSpeed"
+      ? 22
+      : voice === "dumpling" || voice === "poison"
+        ? 50
+        : voice === "heavy" || voice === "antiStrength"
+          ? 45
+          : 35;
   if (now - lastShootAt < gap) return;
   lastShootAt = now;
 
-  if (kind === "dumpling") {
+  if (voice === "dumpling") {
     // soft plop + cartoon whoosh — dumpling toss
     const base = 280 + Math.random() * 80;
     tone(base, 0.12, "triangle", 0.16, base * 0.4);
@@ -156,7 +193,26 @@ export function playShoot(
     return;
   }
 
-  if (kind === "minigun") {
+  if (voice === "poison") {
+    // wet raspberry / toxic puff for skunk shots + farts
+    const base = 160 + Math.random() * 40;
+    tone(base, 0.14, "sawtooth", 0.14, 55);
+    tone(base * 2.2, 0.1, "square", 0.07, 90);
+    noiseBurst(0.12, 0.14, 700);
+    noiseBurst(0.08, 0.08, 1600);
+    return;
+  }
+
+  if (voice === "fox") {
+    // sly twang — fox wall shooters
+    const base = 640 + Math.random() * 120;
+    tone(base, 0.1, "triangle", 0.14, 220);
+    tone(base * 1.5, 0.08, "sine", 0.08, 180);
+    tone(base * 0.7, 0.06, "square", 0.05, 140);
+    return;
+  }
+
+  if (voice === "minigun") {
     const base = 1100 + Math.random() * 500;
     tone(base, 0.04, "square", 0.1, base * 0.35);
     tone(base * 1.8, 0.03, "sawtooth", 0.05, base * 0.5);
@@ -164,8 +220,8 @@ export function playShoot(
     return;
   }
 
-  if (kind === "laser") {
-    // snappy sniper zap — high pew with sparkle
+  if (voice === "laser") {
+    // snappy sniper zap — flyer pew with sparkle
     const base = 1400 + Math.random() * 400;
     tone(base, 0.11, "sawtooth", 0.14, 180);
     tone(base * 1.35, 0.08, "square", 0.07, 260);
@@ -174,7 +230,7 @@ export function playShoot(
     return;
   }
 
-  if (kind === "god") {
+  if (voice === "god") {
     // chunky rainbow beam
     tone(880, 0.16, "sawtooth", 0.18, 160);
     tone(1320, 0.14, "square", 0.1, 220);
@@ -183,7 +239,7 @@ export function playShoot(
     return;
   }
 
-  if (kind === "floppy") {
+  if (voice === "floppy") {
     // wet blorp laser
     tone(520, 0.15, "triangle", 0.16, 140);
     tone(360, 0.12, "sine", 0.1, 100);
@@ -191,7 +247,7 @@ export function playShoot(
     return;
   }
 
-  if (kind === "freeze") {
+  if (voice === "freeze") {
     // icy chime
     tone(980, 0.12, "sine", 0.12, 420);
     tone(1480, 0.1, "triangle", 0.08, 600);
@@ -199,20 +255,59 @@ export function playShoot(
     return;
   }
 
-  if (kind === "heavy") {
-    // thudding impact
+  if (voice === "heavy") {
+    // thudding impact — heavy-hit ability
     tone(140, 0.14, "sawtooth", 0.16, 60);
     tone(90, 0.12, "square", 0.1, 40);
     noiseBurst(0.06, 0.12, 900);
     return;
   }
 
-  // classic cool arcade laser pew-pew
+  if (voice === "antiSpeed") {
+    // zippy peashooter — fast vs runners
+    const base = 1200 + Math.random() * 380;
+    tone(base, 0.07, "square", 0.12, 320);
+    tone(base * 1.7, 0.05, "triangle", 0.07, 400);
+    noiseBurst(0.025, 0.05, 5200);
+    return;
+  }
+
+  if (voice === "antiStrength") {
+    // punchy mid boom — cracks tanks
+    const base = 220 + Math.random() * 80;
+    tone(base, 0.11, "sawtooth", 0.15, 70);
+    tone(base * 1.8, 0.07, "square", 0.08, 90);
+    noiseBurst(0.05, 0.1, 1200);
+    return;
+  }
+
+  // balanced — classic cool arcade laser pew-pew
   const base = 980 + Math.random() * 320;
   tone(base, 0.12, "sawtooth", 0.15, 120);
   tone(base * 1.6, 0.09, "square", 0.08, 180);
   tone(base * 2.1, 0.05, "triangle", 0.05, 300);
   noiseBurst(0.035, 0.06, 4500);
+}
+
+/** Skunk poison fart / toxic cloud burst */
+export function playPoisonFart() {
+  if (muted) return;
+  const now = performance.now();
+  if (now - lastShootAt < 80) return;
+  lastShootAt = now;
+  const base = 90 + Math.random() * 30;
+  tone(base, 0.22, "sawtooth", 0.18, 40);
+  tone(base * 1.6, 0.16, "square", 0.1, 55);
+  noiseBurst(0.2, 0.2, 500);
+  noiseBurst(0.14, 0.12, 1100);
+}
+
+/** Fox wall plonk when a barrier goes up */
+export function playFoxWall() {
+  if (muted) return;
+  tone(380, 0.12, "triangle", 0.14, 160);
+  tone(260, 0.14, "sine", 0.1, 90);
+  noiseBurst(0.06, 0.08, 1400);
 }
 
 /** Soft hit when a shot lands */
