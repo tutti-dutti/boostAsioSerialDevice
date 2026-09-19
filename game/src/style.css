@@ -133,6 +133,26 @@ body {
   transform: scale(0.98);
 }
 
+.home-feedback {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 1.05rem;
+  border: 3px solid #5aa0c8;
+  background: #d8efff;
+  color: var(--ink);
+  padding: 0.7rem 1.5rem;
+  border-radius: 999px;
+  cursor: pointer;
+  touch-action: manipulation;
+  min-height: 2.85rem;
+}
+
+.home-feedback:hover {
+  transform: scale(1.03);
+}
+
 .home-note {
   position: relative;
   z-index: 1;
@@ -707,6 +727,107 @@ button.danger {
   font-weight: 800;
   color: var(--ink);
   line-height: 1.3;
+}
+
+.feedback-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: rgba(40, 60, 80, 0.55);
+}
+
+.feedback-overlay.hidden {
+  display: none;
+}
+
+.feedback-card {
+  width: min(26rem, 100%);
+  background: var(--cream);
+  border: 4px solid var(--cookie);
+  border-radius: 20px;
+  padding: 1.25rem 1.35rem;
+  text-align: left;
+  box-shadow: 0 14px 36px rgba(42, 48, 64, 0.22);
+}
+
+.feedback-card h2 {
+  font-family: var(--display);
+  font-size: 1.55rem;
+  color: var(--cookie-dark);
+  margin-bottom: 0.25rem;
+  text-align: center;
+}
+
+.feedback-lead {
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 0.85rem;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.feedback-kinds {
+  display: flex;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+}
+
+.feedback-kind {
+  flex: 1;
+  min-height: 2.85rem;
+  background: #fff;
+  border: 3px solid rgba(42, 48, 64, 0.12);
+}
+
+.feedback-kind.selected {
+  background: #ffe08a;
+  border-color: #c4782a;
+}
+
+.feedback-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.7rem;
+  font-weight: 800;
+  color: var(--cookie-dark);
+  font-size: 0.88rem;
+}
+
+.feedback-field input,
+.feedback-field textarea {
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 1rem;
+  border: 3px solid #c4782a;
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 2.85rem;
+}
+
+.feedback-field textarea {
+  min-height: 7rem;
+  line-height: 1.4;
+}
+
+.feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.feedback-actions button {
+  flex: 1;
+  min-width: 7rem;
 }
 
 /* —— Tablet / large touch layout —— */

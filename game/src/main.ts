@@ -12,6 +12,7 @@ import {
   submitHighScore,
   type HighScore,
 } from "./game/highscores";
+import { submitFeedback, type FeedbackKind } from "./game/feedback";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -25,6 +26,7 @@ app.innerHTML = `
       <button class="course-random" id="home-random-course" type="button">🎲 Random course</button>
     </div>
     <button class="home-play" id="play-btn" type="button">Play</button>
+    <button class="home-feedback" id="home-feedback-btn" type="button">Feedback &amp; ideas</button>
     <p class="home-note">No ads. Just the game.</p>
     <div class="home-scores" id="home-scores">
       <h2 class="scores-title">High Scores</h2>
@@ -39,6 +41,7 @@ app.innerHTML = `
       <div class="top-actions">
         <button class="home-link" id="pause-btn" type="button">Pause</button>
         <button class="home-link" id="mute-btn" type="button">Sound: On</button>
+        <button class="home-link" id="play-feedback-btn" type="button">Feedback</button>
         <button class="home-link" id="back-home" type="button">Home</button>
       </div>
     </header>
@@ -122,6 +125,30 @@ app.innerHTML = `
       </section>
     </div>
   </section>
+
+  <div class="feedback-overlay hidden" id="feedback-overlay" role="dialog" aria-modal="true" aria-labelledby="feedback-title">
+    <div class="feedback-card">
+      <h2 id="feedback-title">Send a note</h2>
+      <p class="feedback-lead">Share feedback or an idea request for Cookie Guard.</p>
+      <div class="feedback-kinds" role="tablist" aria-label="Message type">
+        <button type="button" class="feedback-kind selected" data-kind="feedback" id="kind-feedback">Feedback</button>
+        <button type="button" class="feedback-kind" data-kind="idea" id="kind-idea">Idea request</button>
+      </div>
+      <label class="feedback-field">
+        <span>Your name (optional)</span>
+        <input id="feedback-name" type="text" maxlength="40" placeholder="Player name" autocomplete="nickname" />
+      </label>
+      <label class="feedback-field">
+        <span>Your message</span>
+        <textarea id="feedback-message" rows="5" maxlength="2000" placeholder="What should we know or add?"></textarea>
+      </label>
+      <p class="hint" id="feedback-status"></p>
+      <div class="feedback-actions">
+        <button type="button" class="green" id="feedback-submit">Submit</button>
+        <button type="button" id="feedback-cancel">Close</button>
+      </div>
+    </div>
+  </div>
 `;
 
 const home = document.querySelector<HTMLElement>("#home")!;
@@ -146,9 +173,15 @@ const scoreSave = document.querySelector("#score-save")!;
 const scoreNameInput = document.querySelector<HTMLInputElement>("#score-name")!;
 const scoreSaveStatus = document.querySelector("#score-save-status")!;
 const overScoresList = document.querySelector("#over-scores-list")!;
+const feedbackOverlay = document.querySelector("#feedback-overlay")!;
+const feedbackNameInput = document.querySelector<HTMLInputElement>("#feedback-name")!;
+const feedbackMessageInput = document.querySelector<HTMLTextAreaElement>("#feedback-message")!;
+const feedbackStatus = document.querySelector("#feedback-status")!;
 
 let scorePromptShown = false;
 let scoreSavedThisRun = false;
+let feedbackKind: FeedbackKind = "feedback";
+let pausedForFeedback = false;
 
 function renderScoresList(container: Element, scores: HighScore[], compact = false) {
   container.innerHTML = scores
@@ -363,6 +396,71 @@ function showPlay() {
 
 document.querySelector("#play-btn")!.addEventListener("click", showPlay);
 document.querySelector("#back-home")!.addEventListener("click", showHome);
+
+function openFeedbackMenu() {
+  unlockAudio();
+  feedbackKind = "feedback";
+  document.querySelectorAll<HTMLButtonElement>(".feedback-kind").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.kind === feedbackKind);
+  });
+  feedbackNameInput.value = getSavedPlayerName();
+  feedbackMessageInput.value = "";
+  feedbackStatus.textContent = "";
+  pausedForFeedback = false;
+  if (game.running && !game.paused && !game.gameOver) {
+    game.setPaused(true);
+    pausedForFeedback = true;
+  }
+  feedbackOverlay.classList.remove("hidden");
+  setTimeout(() => feedbackMessageInput.focus(), 40);
+  refresh();
+}
+
+function closeFeedbackMenu() {
+  feedbackOverlay.classList.add("hidden");
+  if (pausedForFeedback && game.paused && !game.gameOver) {
+    game.setPaused(false);
+  }
+  pausedForFeedback = false;
+  refresh();
+}
+
+document.querySelector("#home-feedback-btn")!.addEventListener("click", openFeedbackMenu);
+document.querySelector("#play-feedback-btn")!.addEventListener("click", openFeedbackMenu);
+document.querySelector("#feedback-cancel")!.addEventListener("click", closeFeedbackMenu);
+feedbackOverlay.addEventListener("click", (e) => {
+  if (e.target === feedbackOverlay) closeFeedbackMenu();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !feedbackOverlay.classList.contains("hidden")) {
+    closeFeedbackMenu();
+  }
+});
+
+document.querySelectorAll<HTMLButtonElement>(".feedback-kind").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    feedbackKind = (btn.dataset.kind as FeedbackKind) || "feedback";
+    document.querySelectorAll<HTMLButtonElement>(".feedback-kind").forEach((b) => {
+      b.classList.toggle("selected", b.dataset.kind === feedbackKind);
+    });
+  });
+});
+
+document.querySelector("#feedback-submit")!.addEventListener("click", () => {
+  unlockAudio();
+  const result = submitFeedback({
+    kind: feedbackKind,
+    name: feedbackNameInput.value,
+    message: feedbackMessageInput.value,
+  });
+  if (!result.ok) {
+    feedbackStatus.textContent = result.error;
+    return;
+  }
+  feedbackStatus.textContent = "Saved — opening your mail app to send it. Thanks!";
+  feedbackMessageInput.value = "";
+  setTimeout(() => closeFeedbackMenu(), 900);
+});
 
 const muteBtn = document.querySelector<HTMLButtonElement>("#mute-btn")!;
 muteBtn.addEventListener("click", () => {
