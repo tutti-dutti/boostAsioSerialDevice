@@ -135,6 +135,83 @@ body {
   opacity: 0.85;
 }
 
+.course-picker {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: 22rem;
+  width: 100%;
+}
+
+.course-label,
+.course-panel .hint {
+  font-weight: 800;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.course-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.course-chip {
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 0.85rem;
+  border: 3px solid #8aa878;
+  background: #e8f6dc;
+  color: var(--ink);
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.course-chip.selected {
+  background: #ffe08a;
+  border-color: #c4782a;
+}
+
+.course-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.course-random {
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 0.95rem;
+  border: 3px solid #5aa0c8;
+  background: #d8efff;
+  color: var(--ink);
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.course-random.selected {
+  background: #b8e0ff;
+  border-color: #2a78a8;
+}
+
+.course-random:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.course-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+  margin: 0.15rem 0 0.35rem;
+}
+
 .home.hidden,
 .play-screen.hidden {
   display: none;

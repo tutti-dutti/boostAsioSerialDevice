@@ -1,4 +1,4 @@
-import { WAVES_PER_MAP, mapIndexForWave } from "./path";
+import { WAVES_PER_MAP, getActiveCourseIndex } from "./path";
 
 export type Rarity = "common" | "rare" | "legendary" | "mythical" | "god";
 
@@ -111,8 +111,8 @@ export function isLevelBossWave(wave: number): boolean {
   return wave > 0 && wave % WAVES_PER_MAP === 0;
 }
 
-export function levelBossForWave(wave: number): ThiefDef {
-  return LEVEL_BOSSES[mapIndexForWave(wave)];
+export function levelBossForWave(_wave: number): ThiefDef {
+  return LEVEL_BOSSES[getActiveCourseIndex() % LEVEL_BOSSES.length];
 }
 
 export function pickFriend(lucky = false): FriendDef {

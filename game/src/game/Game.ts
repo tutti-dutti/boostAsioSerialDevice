@@ -10,7 +10,7 @@ import {
   levelBossForWave,
   type FriendDef,
 } from "./data";
-import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveMapForWave } from "./path";
+import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses } from "./path";
 import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell, playCookieMunch } from "./sound";
 import {
@@ -36,6 +36,10 @@ export class Game {
   ctx: CanvasRenderingContext2D;
   slots: Slot[] = [];
   mapTier = 0;
+  /** Which base course theme is active (Forest, River, …) */
+  courseIndex = 0;
+  /** When true, each new map tier picks a different random course */
+  courseRandom = true;
   bag: FriendDef[] = [];
   selectedBag: number | null = null;
   selectedSlot: number | null = null;
@@ -71,6 +75,7 @@ export class Game {
     this.ctx = canvas.getContext("2d")!;
     canvas.width = W;
     canvas.height = H;
+    this.courseIndex = randomCourseIndex();
     this.applyMapForWave(1, false);
     this.load();
     this.syncMapForWave(false);
@@ -81,7 +86,7 @@ export class Game {
   /** Rebuild pads for the wave's map; optionally keep friends by slot index */
   applyMapForWave(wave: number, announce: boolean) {
     const prevFriends = this.slots.map((s) => s.friend);
-    const map = setActiveMapForWave(wave);
+    const map = setActiveCourseMap(this.courseIndex, wave);
     this.mapTier = mapTierForWave(wave);
     this.slots = SLOT_SPOTS.map((p, i) => ({
       id: i,
@@ -106,7 +111,8 @@ export class Game {
     this.selectedSlot = null;
     if (announce) {
       const hard = this.mapTier > 0 ? " (harder!)" : "";
-      this.toast(`🗺️ New map: ${map.name}${hard}`, true);
+      const roll = this.courseRandom ? " 🎲" : "";
+      this.toast(`🗺️ Course: ${map.name}${hard}${roll}`, true);
     }
   }
 
@@ -114,8 +120,55 @@ export class Game {
     const next = mapTierForWave(this.wave);
     if (next !== this.mapTier || this.slots.length === 0) {
       const changed = this.slots.length > 0 && next !== this.mapTier;
+      if (changed && this.courseRandom) {
+        this.courseIndex = randomCourseIndex(this.courseIndex);
+      }
       this.applyMapForWave(this.wave, announce && changed);
     }
+  }
+
+  /** True when the player can switch courses (between waves) */
+  canChangeCourse() {
+    return (
+      !this.gameOver &&
+      this.waveWaiting &&
+      !this.waveInProgress &&
+      this.spawnLeft <= 0 &&
+      this.thieves.every((t) => !t.alive)
+    );
+  }
+
+  /** Pick a specific course theme (only between waves) */
+  selectCourse(index: number, opts: { random?: boolean; announce?: boolean } = {}) {
+    if (this.slots.length > 0 && !this.canChangeCourse()) {
+      this.toast("Finish the wave first", true);
+      return;
+    }
+    const courses = listCourses();
+    if (!courses.length) return;
+    const next = ((Math.floor(index) % courses.length) + courses.length) % courses.length;
+    const same = next === this.courseIndex && this.courseRandom === !!opts.random;
+    this.courseRandom = !!opts.random;
+    this.courseIndex = next;
+    if (!same) this.applyMapForWave(this.wave, opts.announce !== false);
+    else if (opts.announce !== false && opts.random) {
+      this.toast(`🎲 Random courses on — ${courses[next].name}`, true);
+    }
+    this.save();
+    this.onChange();
+  }
+
+  /** Jump to a different random course (only between waves) */
+  randomizeCourse() {
+    if (this.slots.length > 0 && !this.canChangeCourse()) {
+      this.toast("Finish the wave first", true);
+      return;
+    }
+    this.courseRandom = true;
+    this.courseIndex = randomCourseIndex(this.courseIndex);
+    this.applyMapForWave(this.wave, true);
+    this.save();
+    this.onChange();
   }
 
   /** Toggle pause — freezes thieves, shots, and wave spawning */
@@ -155,6 +208,8 @@ export class Game {
       wave: this.wave,
       cookieHp: this.cookieHp,
       cookieMax: this.cookieMax,
+      courseIndex: this.courseIndex,
+      courseRandom: this.courseRandom,
       bag: this.bag.map((f) => f.id),
       slots: this.slots.map((s) =>
         s.friend ? { id: s.friend.def.id, level: s.friend.level } : null,
@@ -174,6 +229,9 @@ export class Game {
       this.wave = data.wave ?? 1;
       this.cookieHp = data.cookieHp ?? 55;
       this.cookieMax = data.cookieMax ?? 55;
+      if (typeof data.courseIndex === "number") this.courseIndex = data.courseIndex;
+      if (typeof data.courseRandom === "boolean") this.courseRandom = data.courseRandom;
+      this.applyMapForWave(this.wave, false);
       this.bag = (data.bag || [])
         .map((id: string) => FRIENDS.find((f) => f.id === id))
         .filter(Boolean);
@@ -227,7 +285,8 @@ export class Game {
     this.gameOver = false;
     this.running = true;
     this.paused = false;
-    this.syncMapForWave(false);
+    if (this.courseRandom) this.courseIndex = randomCourseIndex(this.courseIndex);
+    this.applyMapForWave(1, false);
     this.onChange();
   }
 

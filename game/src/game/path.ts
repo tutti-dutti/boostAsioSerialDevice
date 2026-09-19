@@ -337,19 +337,43 @@ const MAP_DEFS: ArenaMap[] = [
 
 export const MAPS: ArenaMap[] = MAP_DEFS.map(withDenseSlots);
 
+export const COURSE_COUNT = MAP_DEFS.length;
+
+/** Base courses players can pick (theme only — complexity still scales with wave) */
+export function listCourses(): { id: string; name: string; index: number }[] {
+  return MAP_DEFS.map((m, index) => ({ id: m.id, name: m.name, index }));
+}
+
 /** How many map rotations have happened (0 at waves 1–30, 1 at 31–60, …) */
 export function mapTierForWave(wave: number): number {
   return Math.floor(Math.max(0, wave - 1) / WAVES_PER_MAP);
 }
 
-/** Theme cycle index (Forest → River → Meadow → Canyon → …) */
+/** Theme cycle index (Forest → River → Meadow → Canyon → …) — legacy fallback */
 export function mapIndexForWave(wave: number): number {
   return mapTierForWave(wave) % MAP_DEFS.length;
 }
 
-export function buildMapForWave(wave: number): ArenaMap {
-  const tier = mapTierForWave(wave);
-  const theme = MAP_DEFS[tier % MAP_DEFS.length];
+function clampCourseIndex(index: number): number {
+  const n = MAP_DEFS.length;
+  return ((Math.floor(index) % n) + n) % n;
+}
+
+/** Pick a random course, optionally different from the current one */
+export function randomCourseIndex(exclude?: number): number {
+  if (MAP_DEFS.length <= 1) return 0;
+  if (exclude == null || MAP_DEFS.length < 2) {
+    return Math.floor(Math.random() * MAP_DEFS.length);
+  }
+  const ex = clampCourseIndex(exclude);
+  let i = Math.floor(Math.random() * (MAP_DEFS.length - 1));
+  if (i >= ex) i += 1;
+  return i;
+}
+
+export function buildMap(courseIndex: number, complexity: number): ArenaMap {
+  const theme = MAP_DEFS[clampCourseIndex(courseIndex)];
+  const tier = Math.max(0, Math.floor(complexity));
   const path = complexifyPath(theme.path, tier);
   const stars = "★".repeat(Math.min(tier, 5));
   return {
@@ -363,11 +387,16 @@ export function buildMapForWave(wave: number): ArenaMap {
   };
 }
 
-export function mapForWave(wave: number): ArenaMap {
-  return buildMapForWave(wave);
+export function buildMapForWave(wave: number, courseIndex = mapIndexForWave(wave)): ArenaMap {
+  return buildMap(courseIndex, mapTierForWave(wave));
 }
 
-let active = buildMapForWave(1);
+export function mapForWave(wave: number, courseIndex?: number): ArenaMap {
+  return buildMapForWave(wave, courseIndex);
+}
+
+let activeCourseIndex = 0;
+let active = buildMap(0, 0);
 let CUM = [0];
 let PATH_LEN = 0;
 
@@ -393,13 +422,22 @@ export function getActiveMap(): ArenaMap {
   return active;
 }
 
-export function setActiveMap(index: number): ArenaMap {
-  // Back-compat: treat index as a tier into the theme cycle at complexity 0..n
-  return setActiveMapForWave(index * WAVES_PER_MAP + 1);
+export function getActiveCourseIndex(): number {
+  return activeCourseIndex;
 }
 
-export function setActiveMapForWave(wave: number): ArenaMap {
-  active = buildMapForWave(wave);
+export function setActiveMap(index: number): ArenaMap {
+  // Back-compat: treat index as a course theme at complexity 0
+  return setActiveCourseMap(index, 1);
+}
+
+export function setActiveMapForWave(wave: number, courseIndex = activeCourseIndex): ArenaMap {
+  return setActiveCourseMap(courseIndex, wave);
+}
+
+export function setActiveCourseMap(courseIndex: number, wave: number): ArenaMap {
+  activeCourseIndex = clampCourseIndex(courseIndex);
+  active = buildMap(activeCourseIndex, mapTierForWave(wave));
   PATH = active.path;
   SLOT_SPOTS = active.slots;
   COOKIE = active.cookie;

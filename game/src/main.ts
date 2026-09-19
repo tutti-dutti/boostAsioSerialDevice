@@ -2,7 +2,7 @@ import "./style.css";
 import { Game } from "./game/Game";
 import { rarityLabel, evolveChanceFor } from "./game/data";
 import { unlockAudio, setMuted, isMuted } from "./game/sound";
-import { getActiveMap } from "./game/path";
+import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -11,6 +11,11 @@ app.innerHTML = `
   <section class="home" id="home">
     <h1 class="home-brand">Cookie Guard</h1>
     <p class="home-line">Protect your giant cookie with cute animal friends.</p>
+    <div class="course-picker" id="home-courses">
+      <p class="course-label">Choose a course</p>
+      <div class="course-chips" id="home-course-chips"></div>
+      <button class="course-random" id="home-random-course" type="button">🎲 Random course</button>
+    </div>
     <button class="home-play" id="play-btn" type="button">Play</button>
     <p class="home-note">No ads. Just the game.</p>
     <p class="home-credit">made by James Nguyen</p>
@@ -62,6 +67,11 @@ app.innerHTML = `
         <div class="row">
           <button class="pause-btn" id="pause-action" type="button">Pause</button>
         </div>
+        <div class="course-panel">
+          <p class="hint">Course (between waves)</p>
+          <div class="course-chips" id="play-course-chips"></div>
+          <button class="course-random" id="play-random-course" type="button">🎲 Random course</button>
+        </div>
         <div class="row">
           <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
           <button id="sell" type="button">To bag</button>
@@ -93,13 +103,46 @@ const bag = document.querySelector("#bag")!;
 const toast = document.querySelector("#toast")!;
 const over = document.querySelector("#over")!;
 const selectHint = document.querySelector("#select-hint")!;
+const homeCourseChips = document.querySelector("#home-course-chips")!;
+const playCourseChips = document.querySelector("#play-course-chips")!;
+
+function renderCourseChips(container: Element, opts: { requireIdle: boolean }) {
+  const courses = listCourses();
+  const locked = opts.requireIdle && !game.canChangeCourse();
+  container.innerHTML = courses
+    .map(
+      (c) => `
+    <button class="course-chip ${!game.courseRandom && game.courseIndex === c.index ? "selected" : ""}"
+      data-course="${c.index}" type="button" ${locked ? "disabled" : ""}>
+      ${c.name}
+    </button>`,
+    )
+    .join("");
+  container.querySelectorAll<HTMLButtonElement>(".course-chip").forEach((btn) => {
+    btn.onclick = () => {
+      unlockAudio();
+      game.selectCourse(Number(btn.dataset.course), { random: false });
+      refreshCourses();
+    };
+  });
+}
+
+function refreshCourses() {
+  renderCourseChips(homeCourseChips, { requireIdle: false });
+  renderCourseChips(playCourseChips, { requireIdle: true });
+  const homeRandom = document.querySelector("#home-random-course") as HTMLButtonElement;
+  const playRandom = document.querySelector("#play-random-course") as HTMLButtonElement;
+  homeRandom.classList.toggle("selected", game.courseRandom);
+  playRandom.classList.toggle("selected", game.courseRandom);
+  playRandom.disabled = !game.canChangeCourse();
+}
 
 function refresh() {
   stats.innerHTML = `
     <div class="stat">🪙 ${game.gold}</div>
     <div class="stat">⭐ ${game.stars}</div>
     <div class="stat">Wave ${game.wave}</div>
-    <div class="stat">🗺️ ${getActiveMap().name}</div>
+    <div class="stat">🗺️ ${getActiveMap().name}${game.courseRandom ? " 🎲" : ""}</div>
     <div class="stat">🍪 ${game.cookieHp}/${game.cookieMax}</div>
   `;
 
@@ -171,6 +214,8 @@ function refresh() {
   pauseAction.textContent = pauseLabel;
   pauseAction.disabled = game.gameOver;
   pauseAction.classList.toggle("is-paused", game.paused);
+
+  refreshCourses();
 }
 
 game.onChange = refresh;
@@ -181,6 +226,7 @@ function showHome() {
   game.setPaused(false);
   home.classList.remove("hidden");
   playScreen.classList.add("hidden");
+  refreshCourses();
 }
 
 function showPlay() {
@@ -221,6 +267,17 @@ function onPauseClick() {
 }
 document.querySelector("#pause-btn")!.addEventListener("click", onPauseClick);
 document.querySelector("#pause-action")!.addEventListener("click", onPauseClick);
+
+document.querySelector("#home-random-course")!.addEventListener("click", () => {
+  unlockAudio();
+  game.randomizeCourse();
+  refreshCourses();
+});
+document.querySelector("#play-random-course")!.addEventListener("click", () => {
+  unlockAudio();
+  game.randomizeCourse();
+});
+
 document.querySelector("#upgrade")!.addEventListener("click", () => game.upgradeSelected());
 document.querySelector("#sell")!.addEventListener("click", () => game.sellSelected());
 document.querySelector("#clear-board")!.addEventListener("click", () => {
