@@ -167,58 +167,127 @@ export function waveInLevel(wave: number): number {
 }
 
 /**
+ * Weighted pick in [minIdx, maxIdx]. favorWeak 0..1 biases toward the low end
+ * so early waves stay winnable while still allowing occasional tougher spawns.
+ */
+function weightedThiefIndex(minIdx: number, maxIdx: number, favorWeak: number): number {
+  if (maxIdx <= minIdx) return minIdx;
+  const bias = Math.max(0.05, Math.min(1, favorWeak));
+  const weights: number[] = [];
+  const span = maxIdx - minIdx;
+  for (let i = 0; i <= span; i++) {
+    // Stronger exponential weight on weaker indices when favorWeak is high
+    weights.push(Math.pow(1 + bias * 4, span - i));
+  }
+  const total = weights.reduce((a, b) => a + b, 0);
+  let roll = Math.random() * total;
+  for (let i = 0; i < weights.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return minIdx + i;
+  }
+  return minIdx;
+}
+
+/**
  * Pick a thief for this wave.
- * Higher map levels unlock tougher targets from the first wave of that level.
+ * Early level is heavily weighted toward weak bugs; higher levels open harder
+ * but still bias toward the weaker end of their unlocked pool.
  */
 export function thiefForWave(wave: number): ThiefDef {
   if (isLevelBossWave(wave)) return levelBossForWave(wave);
-  if (wave > 0 && wave % 10 === 0) return THIEVES[5];
 
   const tier = mapTierForWave(wave);
   const local = waveInLevel(wave);
 
-  // Floor rises each map level so level 2+ never opens on the weakest bugs
-  const startFloor = Math.min(3, tier);
-  let maxIdx = startFloor;
-  if (local >= 3) maxIdx = Math.min(4, Math.max(maxIdx, startFloor + 1));
-  if (local >= 6) maxIdx = Math.min(4, Math.max(maxIdx, startFloor + 2));
-  if (local >= 12) maxIdx = Math.min(4, maxIdx + 1);
-  if (local >= 20) maxIdx = 4;
+  // Soft mini-boss: full King only later; early checkpoints use a snack pig
+  if (wave > 0 && wave % 10 === 0) {
+    if (tier === 0 && local <= 10) return THIEVES[3];
+    return THIEVES[5];
+  }
 
-  const minIdx = startFloor;
-  const span = Math.max(0, maxIdx - minIdx);
-  return THIEVES[minIdx + Math.floor(Math.random() * (span + 1))];
+  // Unlock window for this point in the level
+  let minIdx: number;
+  let maxIdx: number;
+  let favorWeak: number;
+
+  if (tier === 0) {
+    // Level 1 — very gentle, almost always crumb bugs at first
+    if (local <= 4) return THIEVES[0];
+    if (local <= 8) {
+      minIdx = 0;
+      maxIdx = 1;
+      favorWeak = 0.95;
+    } else if (local <= 14) {
+      minIdx = 0;
+      maxIdx = 2;
+      favorWeak = 0.85;
+    } else if (local <= 22) {
+      minIdx = 0;
+      maxIdx = 3;
+      favorWeak = 0.7;
+    } else {
+      minIdx = 1;
+      maxIdx = 4;
+      favorWeak = 0.55;
+    }
+  } else {
+    // Higher levels: harder floor, but still weighted so packs are beatable
+    minIdx = Math.min(3, tier);
+    maxIdx = minIdx;
+    if (local >= 3) maxIdx = Math.min(4, Math.max(maxIdx, minIdx + 1));
+    if (local >= 8) maxIdx = Math.min(4, Math.max(maxIdx, minIdx + 2));
+    if (local >= 16) maxIdx = 4;
+    favorWeak = Math.max(0.35, 0.75 - tier * 0.08 - local * 0.01);
+  }
+
+  return THIEVES[weightedThiefIndex(minIdx, maxIdx, favorWeak)];
 }
 
 export function waveCount(wave: number): number {
   if (isLevelBossWave(wave)) return 1; // solo boss fight
+  // Checkpoint mini-boss waves are a single tougher foe
+  if (wave > 0 && wave % 10 === 0) return 1;
   const tier = mapTierForWave(wave);
   const local = waveInLevel(wave);
-  // More thieves as the level progresses, and denser packs on higher levels
-  return Math.min(16, 3 + Math.floor(local / 2) + tier * 2);
+  if (tier === 0) {
+    // Short early packs so new players can clear waves
+    if (local <= 4) return 2;
+    if (local <= 8) return 3;
+    if (local <= 14) return 4;
+    return Math.min(10, 4 + Math.floor((local - 14) / 3));
+  }
+  return Math.min(14, 3 + Math.floor(local / 3) + tier);
 }
 
 /**
- * HP multiplier. Each new map level starts above the previous level's opening,
- * then ramps within the level.
+ * HP multiplier. Level 1 opens soft and ramps slowly; higher levels stay
+ * tougher at the start but remain below a runaway curve.
  */
 export function waveHpScale(wave: number): number {
   const tier = mapTierForWave(wave);
   const local = waveInLevel(wave);
-  // Level 1 stays approachable; higher levels open tougher
-  const tierFloor = tier === 0 ? 1.0 : 1.2 + tier * 0.8;
+
+  if (tier === 0) {
+    // ~0.55 → ~2.2 across the first map — winnable with a few basic friends
+    const soft = 0.55 + (local - 1) * 0.05 + Math.floor(local / 10) * 0.2;
+    if (isLevelBossWave(wave)) return soft * 1.6;
+    return soft;
+  }
+
+  const tierFloor = 1.05 + tier * 0.55;
   const localRamp =
-    (local - 1) * (0.12 + tier * 0.035) + Math.floor(local / 10) * (0.35 + tier * 0.18);
+    (local - 1) * (0.09 + tier * 0.025) + Math.floor(local / 10) * (0.28 + tier * 0.12);
   const base = tierFloor + localRamp;
-  if (isLevelBossWave(wave)) return base * (2.0 + tier * 0.2);
+  if (isLevelBossWave(wave)) return base * (1.8 + tier * 0.15);
   return base;
 }
 
-/** Mild speed bump on higher map levels so packs feel more threatening */
+/** Mild speed bump; level 1 stays at base speed longer */
 export function waveSpeedScale(wave: number): number {
   const tier = mapTierForWave(wave);
   const local = waveInLevel(wave);
-  return 1 + tier * 0.06 + (local - 1) * 0.004;
+  if (tier === 0) return 1 + Math.max(0, local - 10) * 0.003;
+  return 1 + tier * 0.05 + (local - 1) * 0.003;
 }
 
 export function rarityLabel(r: Rarity): string {
