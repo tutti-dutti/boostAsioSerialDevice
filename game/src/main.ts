@@ -60,6 +60,7 @@ app.innerHTML = `
     </div>
 
     <div class="action-banner" id="action-banner">
+      <button class="new-game-btn" id="new-game" type="button">New game</button>
       <button class="wave-btn" id="start-wave" type="button">Start Wave</button>
       <button class="pause-btn" id="pause-action" type="button">Pause</button>
       <button class="spell" id="crumb" type="button">Crumb 5🪙</button>
@@ -123,9 +124,6 @@ app.innerHTML = `
             <span class="evolve-label">Evolves into</span>
             <span class="evolve-value" id="evolve-into">—</span>
           </div>
-        </div>
-        <div class="manage-row">
-          <button id="new-game" type="button">New game</button>
         </div>
       </div>
     </div>

@@ -486,10 +486,18 @@ body {
 }
 
 .action-banner .wave-btn,
-.action-banner .pause-btn {
+.action-banner .pause-btn,
+.action-banner .new-game-btn {
   width: auto;
   flex: 0 0 auto;
   min-width: 6.5rem;
+}
+
+.action-banner .new-game-btn {
+  min-width: 5.5rem;
+  background: #efe6d8;
+  border-color: #c8b49a;
+  color: var(--ink);
 }
 
 .action-banner .spell {
@@ -1354,7 +1362,8 @@ button.danger {
   }
 
   .action-banner .wave-btn,
-  .action-banner .pause-btn {
+  .action-banner .pause-btn,
+  .action-banner .new-game-btn {
     min-width: 0;
     flex: 0 1 auto;
     font-size: 0.68rem;
@@ -1586,7 +1595,8 @@ button.danger {
   }
 
   .action-banner .wave-btn,
-  .action-banner .pause-btn {
+  .action-banner .pause-btn,
+  .action-banner .new-game-btn {
     font-size: 0.62rem;
     padding: 0.18rem 0.28rem;
     min-height: 1.6rem;
