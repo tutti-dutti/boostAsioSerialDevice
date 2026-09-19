@@ -14,6 +14,8 @@ import { playHit, playShoot, playSpell } from "./sound";
 import {
   friendDamage,
   friendRange,
+  flyerOrbitSpeed,
+  flyerWorldPos,
   uid,
   upgradeCost,
   type Boom,
@@ -121,6 +123,7 @@ export class Game {
           cooldown: 0,
           slotId: i,
           abilityTimer: def.ability === "foxWall" ? 30 : 0,
+          orbitAngle: Math.random() * Math.PI * 2,
         };
       });
     } catch {
@@ -292,6 +295,7 @@ export class Game {
             cooldown: 0,
             slotId: slot.id,
             abilityTimer: friend.ability === "foxWall" ? 2 : 0,
+            orbitAngle: Math.random() * Math.PI * 2,
           };
           this.bag.splice(this.selectedBag, 1);
           this.selectedBag = null;
@@ -433,23 +437,32 @@ export class Game {
     for (const slot of this.slots) {
       const f = slot.friend;
       if (!f) continue;
+
+      // Birds fly in a circle around their nest
+      if (f.def.flies) {
+        f.orbitAngle += flyerOrbitSpeed(f) * dt;
+      }
+
       f.cooldown -= dt;
       if (f.cooldown > 0) continue;
 
       const isFlyer = !!f.def.flies;
       const isLegend = f.def.rarity === "legendary" && !isFlyer;
-      // Flyers can dump multiple shots per frame so fire rate isn't capped by FPS
-      const maxBurst = isFlyer ? 8 : isLegend ? 3 : 1;
+      const maxBurst = isLegend ? 3 : 1;
       let burst = 0;
+      const birdPos = isFlyer ? flyerWorldPos(slot.x, slot.y, f) : { x: slot.x, y: slot.y };
 
       while (f.cooldown <= 0 && burst < maxBurst) {
         const range = friendRange(f);
+        // Flyers: hit anything inside the nest circle (pad center)
+        const originX = isFlyer ? slot.x : slot.x;
+        const originY = isFlyer ? slot.y : slot.y;
         let best: Thief | null = null;
         let bestD = Infinity;
         for (const t of this.thieves) {
           if (!t.alive) continue;
           const p = pathPoint(t.progress);
-          const d = Math.hypot(p.x - slot.x, p.y - slot.y);
+          const d = Math.hypot(p.x - originX, p.y - originY);
           if (d <= range && d < bestD) {
             best = t;
             bestD = d;
@@ -459,7 +472,7 @@ export class Game {
 
         const p = pathPoint(best.progress);
         const kind = isFlyer
-          ? "minigun"
+          ? "normal"
           : isLegend
             ? "minigun"
             : f.def.ability === "godBeam"
@@ -468,11 +481,11 @@ export class Game {
                 ? "floppy"
                 : "normal";
         this.shots.push({
-          x: slot.x,
-          y: slot.y,
+          x: birdPos.x,
+          y: birdPos.y,
           tx: p.x,
           ty: p.y,
-          speed: isFlyer ? 1100 : isLegend ? 720 : f.def.ability === "godBeam" ? 420 : 320,
+          speed: isFlyer ? 480 : isLegend ? 720 : f.def.ability === "godBeam" ? 420 : 320,
           damage: friendDamage(f),
           color: f.def.color,
           targetId: best.uid,

@@ -1,6 +1,6 @@
 import { COOKIE, GATE, PATH, W, H } from "./path";
 import type { Boom, FloatText, PlacedFriend, Shot, Slot, Thief, Wall } from "./types";
-import { friendRange } from "./types";
+import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
 function grass(ctx: CanvasRenderingContext2D) {
   // Top-down grass field
@@ -152,6 +152,36 @@ function slots(ctx: CanvasRenderingContext2D, list: Slot[], selected: number | n
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("+", s.x, s.y);
+    } else if (s.friend.def.flies) {
+      const f = s.friend;
+      const orbitR = flyerOrbitRadius(f);
+      // nest pad
+      ctx.fillStyle = on ? "rgba(255,210,74,0.25)" : "rgba(255,255,255,0.18)";
+      ctx.strokeStyle = on ? "#e8a04a" : "rgba(42,48,64,0.25)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // shoot / fly circle
+      ctx.strokeStyle = on ? "rgba(126,200,255,0.55)" : "rgba(126,200,255,0.28)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, orbitR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // inner flight ring
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, orbitR * 0.72, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const pos = flyerWorldPos(s.x, s.y, f);
+      drawFriendPad(ctx, f, pos.x, pos.y, on);
     } else {
       drawFriendPad(ctx, s.friend, s.x, s.y, on);
     }

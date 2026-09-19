@@ -20,6 +20,28 @@ export interface PlacedFriend {
   slotId: number;
   /** Fox wall ability timer */
   abilityTimer: number;
+  /** Bird orbit angle around the pad (radians) */
+  orbitAngle: number;
+}
+
+/** Orbit radius = shoot radius for flyers */
+export function flyerOrbitRadius(f: PlacedFriend): number {
+  return friendRange(f);
+}
+
+export function flyerWorldPos(slotX: number, slotY: number, f: PlacedFriend): { x: number; y: number } {
+  const r = flyerOrbitRadius(f) * 0.72; // fly on a ring inside the shoot circle
+  return {
+    x: slotX + Math.cos(f.orbitAngle) * r,
+    y: slotY + Math.sin(f.orbitAngle) * r,
+  };
+}
+
+/** How fast birds circle (radians / second) */
+export function flyerOrbitSpeed(f: PlacedFriend): number {
+  if (f.def.id === "hummingbird") return 2.4;
+  if (f.def.id === "eagle") return 1.5;
+  return 1.8; // owl
 }
 
 export interface Thief {
