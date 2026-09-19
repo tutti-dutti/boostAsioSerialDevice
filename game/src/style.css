@@ -1335,9 +1335,12 @@ button.danger {
   }
 
   .toast {
-    font-size: 0.78rem;
-    padding: 0.28rem 0.55rem;
+    font-size: 0.72rem;
+    padding: 0.22rem 0.5rem;
     border-width: 2px;
+    top: 0.3rem;
+    pointer-events: none;
+    max-width: min(94%, 18rem);
   }
 
   .home-play {
