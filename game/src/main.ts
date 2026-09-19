@@ -113,15 +113,15 @@ app.innerHTML = `
 
     <div class="bottom-dock" id="bottom-dock">
       <div class="friends-panel" id="friends-strip">
-        <div class="friends-tools">
-          <button class="big" id="summon" type="button">Summon 1⭐</button>
-          <button class="pink" id="lucky" type="button">Lucky 3⭐</button>
-          <button class="danger" id="clear-bag" type="button">Clear unused</button>
-        </div>
         <div class="inventory" id="bag"></div>
       </div>
 
       <div class="manage-panel" id="manage-panel">
+        <div class="manage-row summon-row">
+          <button class="big" id="summon" type="button">Summon 1⭐</button>
+          <button class="pink" id="lucky" type="button">Lucky 3⭐</button>
+          <button class="danger" id="clear-bag" type="button">Clear unused</button>
+        </div>
         <div class="manage-row">
           <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
           <button id="sell" type="button">To bag</button>

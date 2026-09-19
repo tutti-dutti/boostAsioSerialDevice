@@ -583,18 +583,6 @@ canvas#stage {
   border-radius: 12px;
 }
 
-.friends-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  flex: 0 0 auto;
-}
-
-.friends-tools > button {
-  flex: 1 1 auto;
-  min-width: 6rem;
-}
-
 .friends-panel .inventory {
   display: flex;
   flex-wrap: wrap;
@@ -630,6 +618,10 @@ canvas#stage {
 
 .manage-row button {
   flex: 1 1 auto;
+}
+
+.manage-row.summon-row button {
+  min-width: 5.5rem;
 }
 
 button {
@@ -1522,15 +1514,6 @@ button.danger {
     max-height: 32dvh;
   }
 
-  .friends-tools {
-    gap: 0.18rem;
-  }
-
-  .friends-tools > button {
-    min-width: 0;
-    flex: 1 1 0;
-  }
-
   .manage-panel {
     gap: 0.18rem;
     max-height: 32dvh;
@@ -1541,6 +1524,10 @@ button.danger {
 
   .manage-row {
     gap: 0.18rem;
+  }
+
+  .manage-row.summon-row button {
+    min-width: 0;
   }
 
   .course-panel {
