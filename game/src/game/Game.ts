@@ -10,9 +10,10 @@ import {
   isLevelBossWave,
   levelBossForWave,
   weaponRoleFor,
+  friendFootprintRadius,
   type FriendDef,
 } from "./data";
-import { COOKIE, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses, canPlaceAt } from "./path";
+import { COOKIE, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses, canPlaceAt, pathClearanceFor } from "./path";
 import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell, playCookieMunch } from "./sound";
 import {
@@ -110,8 +111,65 @@ export class Game {
       .map((s) => ({ id: s.id, x: s.x, y: s.y }));
   }
 
-  isValidPlace(x: number, y: number, ignoreSlotId?: number) {
-    return canPlaceAt(x, y, { ignoreSlotId, others: this.occupiedPoints(ignoreSlotId) });
+  isValidPlace(x: number, y: number, ignoreSlotId?: number, footprint?: number) {
+    return canPlaceAt(x, y, {
+      ignoreSlotId,
+      others: this.occupiedPoints(ignoreSlotId),
+      footprint,
+    });
+  }
+
+  footprintForSlot(slotId?: number | null): number | undefined {
+    if (slotId == null) return undefined;
+    const slot = this.slots.find((s) => s.id === slotId);
+    return slot?.friend ? friendFootprintRadius(slot.friend.def) : undefined;
+  }
+
+  footprintForEquip(): number | undefined {
+    if (this.selectedBag == null) return undefined;
+    const f = this.bag[this.selectedBag];
+    return f ? friendFootprintRadius(f) : undefined;
+  }
+
+  /** After evolve (or load), push oversized icons fully off the path */
+  ensureOffPath(slot: Slot) {
+    if (!slot.friend) return;
+    const foot = friendFootprintRadius(slot.friend.def);
+    if (this.isValidPlace(slot.x, slot.y, slot.id, foot)) return;
+
+    const prog = nearestProgress(slot.x, slot.y);
+    const p = pathPoint(prog);
+    let dx = slot.x - p.x;
+    let dy = slot.y - p.y;
+    let len = Math.hypot(dx, dy);
+    if (len < 1) {
+      dx = 1;
+      dy = 0;
+      len = 1;
+    }
+    const ux = dx / len;
+    const uy = dy / len;
+    const need = pathClearanceFor(foot) + 4;
+    for (let i = 0; i < 16; i++) {
+      const dist = need + i * 8;
+      for (const sign of [1, -1] as const) {
+        const nx = p.x + ux * dist * sign;
+        const ny = p.y + uy * dist * sign;
+        if (this.isValidPlace(nx, ny, slot.id, foot)) {
+          slot.x = nx;
+          slot.y = ny;
+          return;
+        }
+      }
+      // Try perpendicular if along-normal is blocked
+      const nx = p.x + -uy * dist;
+      const ny = p.y + ux * dist;
+      if (this.isValidPlace(nx, ny, slot.id, foot)) {
+        slot.x = nx;
+        slot.y = ny;
+        return;
+      }
+    }
   }
 
   /** Larger pick radius on tablets / touch so fingers can grab units easily */
@@ -155,14 +213,15 @@ export class Game {
       const f = item.friend;
       let x = item.x;
       let y = item.y;
-      if (!this.isValidPlace(x, y)) {
+      const foot = friendFootprintRadius(f.def);
+      if (!this.isValidPlace(x, y, undefined, foot)) {
         // Nudge outward from the path a few times
         let placed = false;
         for (let a = 0; a < 12 && !placed; a++) {
           const ang = (a / 12) * Math.PI * 2;
-          const nx = item.x + Math.cos(ang) * 48;
-          const ny = item.y + Math.sin(ang) * 48;
-          if (this.isValidPlace(nx, ny)) {
+          const nx = item.x + Math.cos(ang) * (pathClearanceFor(foot) + 8);
+          const ny = item.y + Math.sin(ang) * (pathClearanceFor(foot) + 8);
+          if (this.isValidPlace(nx, ny, undefined, foot)) {
             x = nx;
             y = ny;
             placed = true;
@@ -176,6 +235,7 @@ export class Game {
       const id = this.nextSlotId++;
       f.slotId = id;
       this.slots.push({ id, x, y, friend: f });
+      this.ensureOffPath(this.slots[this.slots.length - 1]);
     }
     if (overflow.length) this.bag.push(...overflow);
     this.walls = [];
@@ -325,12 +385,13 @@ export class Game {
         if (!def) continue;
         const x = typeof slot.x === "number" ? slot.x : W / 2;
         const y = typeof slot.y === "number" ? slot.y : H / 2;
-        if (!this.isValidPlace(x, y)) {
+        const foot = friendFootprintRadius(def);
+        if (!this.isValidPlace(x, y, undefined, foot)) {
           this.bag.push(def);
           continue;
         }
         const id = this.nextSlotId++;
-        this.slots.push({
+        const placed: Slot = {
           id,
           x,
           y,
@@ -343,7 +404,9 @@ export class Game {
             abilityTimer: def.ability === "foxWall" ? 30 : 0,
             orbitAngle: Math.random() * Math.PI * 2,
           },
-        });
+        };
+        this.slots.push(placed);
+        this.ensureOffPath(placed);
       }
       // Always wait for Start Wave after loading a save
       this.waveWaiting = true;
@@ -429,6 +492,8 @@ export class Game {
         slot.friend.def = evolved;
         slot.friend.level = Math.max(1, slot.friend.level);
         slot.friend.abilityTimer = evolved.ability === "foxWall" ? 30 : 0;
+        // Keep evolved icons off the path — never let a bigger form cover the trail
+        this.ensureOffPath(slot);
         this.toast(
           evolved.id === "giantpanda"
             ? `${evolved.emoji} MEGA GIANT PANDA!!!`
@@ -439,8 +504,8 @@ export class Game {
           kind: "beam",
           x: slot.x,
           y: slot.y,
-          life: evolved.id === "giantpanda" ? 1.6 : 1.2,
-          radius: evolved.id === "giantpanda" ? 90 : 60,
+          life: evolved.id === "giantpanda" ? 1.4 : 1.2,
+          radius: evolved.id === "giantpanda" ? 55 : 50,
         });
         this.save();
         this.onChange();
@@ -574,7 +639,8 @@ export class Game {
     }
 
     if (this.selectedBag != null) {
-      if (this.isValidPlace(x, y)) {
+      const foot = this.footprintForEquip();
+      if (this.isValidPlace(x, y, undefined, foot)) {
         this.deployAt(x, y);
       } else {
         this.toast("Place on grass — not on the path!", true);
@@ -591,7 +657,7 @@ export class Game {
     const { x, y } = this.canvasPos(e);
 
     if (this.selectedBag != null && this.draggingSlot == null) {
-      this.deployGhost = { x, y, valid: this.isValidPlace(x, y) };
+      this.deployGhost = { x, y, valid: this.isValidPlace(x, y, undefined, this.footprintForEquip()) };
       this.paint();
       return;
     }
@@ -599,16 +665,17 @@ export class Game {
     if (this.draggingSlot == null) return;
     const slot = this.slots.find((s) => s.id === this.draggingSlot);
     if (!slot) return;
+    const foot = this.footprintForSlot(slot.id);
     const dragSlop = e.pointerType === "touch" ? 10 : 6;
     if (this.dragOrigin && Math.hypot(x - this.dragOrigin.x, y - this.dragOrigin.y) > dragSlop) {
       this.dragMoved = true;
     }
     // Only move onto grass — never onto the path
-    if (this.isValidPlace(x, y, slot.id)) {
+    if (this.isValidPlace(x, y, slot.id, foot)) {
       slot.x = x;
       slot.y = y;
     }
-    this.deployGhost = { x, y, valid: this.isValidPlace(x, y, slot.id) };
+    this.deployGhost = { x, y, valid: this.isValidPlace(x, y, slot.id, foot) };
     this.paint();
   }
 
@@ -621,15 +688,16 @@ export class Game {
 
     if (this.draggingSlot != null) {
       const slot = this.slots.find((s) => s.id === this.draggingSlot);
-      if (slot && (!this.isValidPlace(slot.x, slot.y, slot.id) || (this.dragOrigin && !this.dragMoved))) {
+      const foot = slot ? this.footprintForSlot(slot.id) : undefined;
+      if (slot && (!this.isValidPlace(slot.x, slot.y, slot.id, foot) || (this.dragOrigin && !this.dragMoved))) {
         // Snap back if ended on path / invalid, or treat as a click-select
-        if (this.dragOrigin && !this.isValidPlace(slot.x, slot.y, slot.id)) {
+        if (this.dragOrigin && !this.isValidPlace(slot.x, slot.y, slot.id, foot)) {
           slot.x = this.dragOrigin.x;
           slot.y = this.dragOrigin.y;
           this.toast("Can't place on the path", true);
         }
       }
-      if (slot && this.dragMoved && this.isValidPlace(slot.x, slot.y, slot.id)) {
+      if (slot && this.dragMoved && this.isValidPlace(slot.x, slot.y, slot.id, foot)) {
         this.toast(`${slot.friend?.def.emoji ?? ""} Moved!`, true);
         this.save();
       }
@@ -652,7 +720,8 @@ export class Game {
       this.onChange();
       return;
     }
-    if (!this.isValidPlace(x, y)) {
+    const foot = friendFootprintRadius(friend);
+    if (!this.isValidPlace(x, y, undefined, foot)) {
       this.toast("Can't place on the path — tap the grass", true);
       this.onChange();
       return;

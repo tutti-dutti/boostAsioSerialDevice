@@ -507,22 +507,38 @@ export function distanceToPath(x: number, y: number): number {
   return best;
 }
 
-/** Keep friends fully off the path band (+ friend footprint margin) */
-export const PATH_CLEARANCE = 50;
+/** Path stroke half-width */
+export const PATH_HALF = 22;
+/** Extra air between friend edge and path edge */
+export const PATH_EDGE_MARGIN = 10;
+/** Default clearance when footprint unknown (typical basic friend) */
+export const PATH_CLEARANCE = PATH_HALF + 24 + PATH_EDGE_MARGIN;
+
+/** Clearance so the friend's full icon stays off the path band */
+export function pathClearanceFor(footprintRadius: number): number {
+  return PATH_HALF + Math.max(18, footprintRadius) + PATH_EDGE_MARGIN;
+}
 
 export function canPlaceAt(
   x: number,
   y: number,
-  opts: { ignoreSlotId?: number; others?: { id: number; x: number; y: number }[] } = {},
+  opts: {
+    ignoreSlotId?: number;
+    others?: { id: number; x: number; y: number }[];
+    /** Friend token radius — larger evolves need more clearance */
+    footprint?: number;
+  } = {},
 ): boolean {
   if (x < 30 || x > W - 30 || y < 30 || y > H - 30) return false;
-  // Hard block: never on or overlapping the path
-  if (distanceToPath(x, y) < PATH_CLEARANCE) return false;
-  if (Math.hypot(x - COOKIE.x, y - COOKIE.y) < 52) return false;
-  if (Math.hypot(x - GATE.x, y - GATE.y) < 42) return false;
+  const foot = opts.footprint ?? 24;
+  // Hard block: never on or overlapping the path (icon edge included)
+  if (distanceToPath(x, y) < pathClearanceFor(foot)) return false;
+  if (Math.hypot(x - COOKIE.x, y - COOKIE.y) < 52 + Math.max(0, foot - 24)) return false;
+  if (Math.hypot(x - GATE.x, y - GATE.y) < 42 + Math.max(0, foot - 24)) return false;
+  const spacing = Math.max(40, foot + 18);
   for (const o of opts.others || []) {
     if (opts.ignoreSlotId != null && o.id === opts.ignoreSlotId) continue;
-    if (Math.hypot(o.x - x, o.y - y) < 40) return false;
+    if (Math.hypot(o.x - x, o.y - y) < spacing) return false;
   }
   return true;
 }

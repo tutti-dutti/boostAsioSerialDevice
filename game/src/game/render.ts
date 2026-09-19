@@ -1,5 +1,5 @@
 import { COOKIE, GATE, PATH, W, H, getActiveMap } from "./path";
-import { evolveLineage } from "./data";
+import { evolveLineage, friendDisplayScale, friendFootprintRadius } from "./data";
 import type { Boom, FloatText, PlacedFriend, Shot, Slot, Thief, Wall } from "./types";
 import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
@@ -183,10 +183,7 @@ function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number, biteFlas
 }
 
 function friendTokenRadius(f: PlacedFriend): number {
-  const scale = f.def.scale ?? 1;
-  if (f.def.rarity === "god") return Math.round(32 * scale);
-  if (f.def.rarity === "mythical") return Math.round(30 * scale);
-  return Math.round(24 * scale);
+  return friendFootprintRadius(f.def);
 }
 
 function drawFriendPad(
@@ -197,8 +194,8 @@ function drawFriendPad(
   selected: boolean,
 ) {
   const r = friendTokenRadius(f);
-  const scale = f.def.scale ?? 1;
-  // round top-down token (mythical / god / mega forms are bigger)
+  const scale = friendDisplayScale(f.def);
+  // round top-down token (mythical / god stay a bit larger, but capped off the path)
   ctx.fillStyle = f.def.color;
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -215,18 +212,11 @@ function drawFriendPad(
     ctx.arc(x, y, r + 5, 0, Math.PI * 2);
     ctx.stroke();
   } else if (f.def.rarity === "mythical") {
-    ctx.strokeStyle = scale >= 1.8 ? "#ffd24a" : "#c060ff";
-    ctx.lineWidth = scale >= 1.8 ? 4 : 3;
+    ctx.strokeStyle = scale >= 1.2 ? "#ffd24a" : "#c060ff";
+    ctx.lineWidth = scale >= 1.2 ? 3.5 : 3;
     ctx.beginPath();
     ctx.arc(x, y, r + 5, 0, Math.PI * 2);
     ctx.stroke();
-    if (scale >= 1.8) {
-      ctx.strokeStyle = "rgba(255,210,74,0.45)";
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.arc(x, y, r + 12, 0, Math.PI * 2);
-      ctx.stroke();
-    }
   } else if (f.def.rarity === "legendary") {
     ctx.strokeStyle = "#e8c15a";
     ctx.lineWidth = 2.5;
@@ -235,7 +225,7 @@ function drawFriendPad(
     ctx.stroke();
   }
 
-  const emojiSize = Math.round((f.def.rarity === "mythical" || f.def.rarity === "god" ? 34 : 26) * scale);
+  const emojiSize = Math.round((f.def.rarity === "mythical" || f.def.rarity === "god" ? 30 : 24) * scale);
   ctx.font = `${emojiSize}px serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";

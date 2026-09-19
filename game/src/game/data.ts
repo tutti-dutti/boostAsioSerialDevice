@@ -27,8 +27,23 @@ export interface FriendDef {
   flies?: boolean;
   /** Evolved forms are summon-blocked */
   evolvedForm?: boolean;
-  /** Visual size multiplier (default 1). Mega forms use ~1.8–2.2 */
+  /** Visual size multiplier (default 1). Capped — mega forms stay slightly larger without covering the path */
   scale?: number;
+}
+
+/** Hard cap so evolved icons never cover the path */
+export const MAX_FRIEND_SCALE = 1.25;
+
+export function friendDisplayScale(def: FriendDef): number {
+  return Math.min(def.scale ?? 1, MAX_FRIEND_SCALE);
+}
+
+/** Drawn token radius — used for path clearance so icons can't overhang the path */
+export function friendFootprintRadius(def: FriendDef): number {
+  const scale = friendDisplayScale(def);
+  if (def.rarity === "god") return Math.round(28 * scale);
+  if (def.rarity === "mythical") return Math.round(26 * scale);
+  return Math.round(22 * scale);
 }
 
 export interface ThiefDef {
@@ -87,10 +102,10 @@ export const FRIENDS: FriendDef[] = [
   { id: "emperorpenguin", name: "Emperor Penguin", emoji: "🧊", rarity: "mythical", color: "#70b8e0", damage: 22, range: 140, attackSpeed: 1.35, ability: "freeze", weaponRole: "antiSpeed", evolvedForm: true },
   { id: "titanmole", name: "Titan Mole", emoji: "⛏️", rarity: "mythical", color: "#6a5040", damage: 48, range: 125, attackSpeed: 0.75, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true },
   { id: "frostseal", name: "Frost Seal", emoji: "❄️", rarity: "mythical", color: "#c0e8ff", damage: 36, range: 150, attackSpeed: 1.25, ability: "freeze", weaponRole: "antiSpeed", evolvedForm: true },
-  { id: "megamoose", name: "Mega Moose", emoji: "🦌", rarity: "mythical", color: "#804820", damage: 70, range: 140, attackSpeed: 0.65, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true, scale: 1.6 },
+  { id: "megamoose", name: "Mega Moose", emoji: "🦌", rarity: "mythical", color: "#804820", damage: 70, range: 140, attackSpeed: 0.65, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true, scale: 1.2 },
   { id: "nightoracle", name: "Night Oracle", emoji: "🔮", rarity: "mythical", color: "#6a40a0", damage: 10, range: 170, attackSpeed: 2.8, ability: "none", flies: true, weaponRole: "antiSpeed", evolvedForm: true },
   { id: "starcervid", name: "Star Cervid", emoji: "✨", rarity: "mythical", color: "#ffe08a", damage: 42, range: 145, attackSpeed: 1.35, ability: "none", weaponRole: "balanced", evolvedForm: true },
-  { id: "giantpanda", name: "Giant Panda", emoji: "🐼", rarity: "mythical", color: "#f0f0f0", damage: 95, range: 165, attackSpeed: 0.85, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true, scale: 2.15 },
+  { id: "giantpanda", name: "Giant Panda", emoji: "🐼", rarity: "mythical", color: "#f0f0f0", damage: 95, range: 165, attackSpeed: 0.85, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true, scale: 1.25 },
   { id: "werewolf", name: "Werewolf", emoji: "🐺", rarity: "mythical", color: "#4a3048", damage: 58, range: 155, attackSpeed: 1.5, ability: "none", weaponRole: "antiStrength", evolvedForm: true },
   { id: "kitsune", name: "Kitsune", emoji: "🦊", rarity: "mythical", color: "#ff9040", damage: 40, range: 140, attackSpeed: 1.5, ability: "foxWall", weaponRole: "antiSpeed", evolvedForm: true },
   { id: "tidalkoi", name: "Tidal Koi", emoji: "🐠", rarity: "mythical", color: "#30c0e8", damage: 38, range: 145, attackSpeed: 1.55, ability: "floppyFin", weaponRole: "antiSpeed", evolvedForm: true },
