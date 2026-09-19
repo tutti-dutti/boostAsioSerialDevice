@@ -10,6 +10,7 @@ import {
 } from "./data";
 import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress } from "./path";
 import { draw, drawRangeHint } from "./render";
+import { playHit, playShoot, playSpell } from "./sound";
 import {
   friendDamage,
   friendRange,
@@ -263,6 +264,7 @@ export class Game {
         this.booms.push({ kind: "zap", x: p.x, y: p.y, life: 0.8, radius: 30 });
       }
     }
+    playSpell(kind);
     this.onChange();
   }
 
@@ -447,18 +449,27 @@ export class Game {
       }
       if (best) {
         const p = pathPoint(best.progress);
+        const isLegend = f.def.rarity === "legendary";
+        const kind = isLegend
+          ? "minigun"
+          : f.def.ability === "godBeam"
+            ? "god"
+            : f.def.ability === "floppyFin"
+              ? "floppy"
+              : "normal";
         this.shots.push({
           x: slot.x,
           y: slot.y,
           tx: p.x,
           ty: p.y,
-          speed: f.def.ability === "godBeam" ? 420 : 320,
+          speed: isLegend ? 720 : f.def.ability === "godBeam" ? 420 : 320,
           damage: friendDamage(f),
           color: f.def.color,
           targetId: best.uid,
           floppy: f.def.ability === "floppyFin",
           godBeam: f.def.ability === "godBeam",
         });
+        playShoot(kind);
         f.cooldown = 1 / f.def.attackSpeed;
       }
     }
@@ -486,6 +497,7 @@ export class Game {
             }
           }
           this.hurt(t, dmg, p.x, p.y, !!s.floppy);
+          playHit();
         }
         s.speed = -1;
       } else {
