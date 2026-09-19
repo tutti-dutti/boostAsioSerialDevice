@@ -495,7 +495,8 @@ button.danger {
   border-radius: 20px;
   padding: 1.25rem 1.4rem;
   text-align: center;
-  max-width: 20rem;
+  max-width: 22rem;
+  width: 100%;
 }
 
 .overlay-card h2 {
@@ -508,8 +509,117 @@ button.danger {
 .overlay-card p {
   font-weight: 700;
   color: var(--muted);
-  margin-bottom: 1rem;
-  line-height: 1.4;
+  margin-bottom: 0.75rem;
+}
+
+.home-scores {
+  position: relative;
+  z-index: 1;
+  margin-top: 1rem;
+  width: min(22rem, 100%);
+  text-align: left;
+}
+
+.scores-title {
+  font-family: var(--display);
+  font-size: 1.2rem;
+  color: var(--cookie-dark);
+  text-align: center;
+  margin-bottom: 0.45rem;
+}
+
+.scores-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  background: rgba(255, 248, 238, 0.75);
+  border: 3px solid rgba(196, 120, 42, 0.35);
+  border-radius: 14px;
+  padding: 0.55rem 0.7rem;
+}
+
+.scores-list-compact {
+  margin: 0.5rem 0 0.85rem;
+  max-height: 8rem;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.score-row {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr auto;
+  gap: 0.35rem 0.45rem;
+  align-items: baseline;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.scores-list:not(.scores-list-compact) .score-row {
+  grid-template-columns: 1.6rem 1fr auto;
+}
+
+.score-rank {
+  color: var(--cookie-dark);
+}
+
+.score-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-wave {
+  color: #3a6a48;
+  white-space: nowrap;
+}
+
+.score-meta {
+  grid-column: 2 / -1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.scores-empty {
+  text-align: center;
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.score-save {
+  margin: 0.5rem 0 0.35rem;
+  text-align: left;
+}
+
+.score-save-label {
+  font-weight: 800 !important;
+  color: var(--cookie-dark) !important;
+  margin-bottom: 0.4rem !important;
+}
+
+.score-save-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.score-save-row input {
+  flex: 1;
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 1rem;
+  border: 3px solid #c4782a;
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+  background: #fff;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.score-save-row button {
+  flex-shrink: 0;
 }
 
 .empty-inv {

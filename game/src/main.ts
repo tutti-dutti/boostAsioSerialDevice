@@ -4,6 +4,14 @@ import { rarityLabel, evolveChanceFor, weaponRoleFor, weaponRoleLabel } from "./
 import { unlockAudio, setMuted, isMuted } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost } from "./game/types";
+import {
+  formatScoreDate,
+  getSavedPlayerName,
+  isHighScoreWorthy,
+  loadHighScores,
+  submitHighScore,
+  type HighScore,
+} from "./game/highscores";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -18,6 +26,11 @@ app.innerHTML = `
     </div>
     <button class="home-play" id="play-btn" type="button">Play</button>
     <p class="home-note">No ads. Just the game.</p>
+    <div class="home-scores" id="home-scores">
+      <h2 class="scores-title">High Scores</h2>
+      <ol class="scores-list" id="home-scores-list"></ol>
+      <p class="scores-empty hidden" id="home-scores-empty">No scores yet — clear waves to earn a spot!</p>
+    </div>
   </section>
 
   <section class="play-screen hidden" id="play-screen">
@@ -38,7 +51,16 @@ app.innerHTML = `
       <div class="overlay hidden" id="over">
         <div class="overlay-card">
           <h2>Cookie gone!</h2>
-          <p>The thieves ate it. Try again?</p>
+          <p id="over-score-line">The thieves ate it. Try again?</p>
+          <div class="score-save hidden" id="score-save">
+            <p class="score-save-label">New high score! Enter your name:</p>
+            <div class="score-save-row">
+              <input id="score-name" type="text" maxlength="16" placeholder="Your name" autocomplete="nickname" />
+              <button class="green" id="save-score-btn" type="button">Save</button>
+            </div>
+            <p class="hint" id="score-save-status"></p>
+          </div>
+          <ol class="scores-list scores-list-compact" id="over-scores-list"></ol>
           <button class="big" id="retry-btn" type="button">Play again</button>
         </div>
       </div>
@@ -104,6 +126,67 @@ const over = document.querySelector("#over")!;
 const selectHint = document.querySelector("#select-hint")!;
 const homeCourseChips = document.querySelector("#home-course-chips")!;
 const playCourseChips = document.querySelector("#play-course-chips")!;
+const homeScoresList = document.querySelector("#home-scores-list")!;
+const homeScoresEmpty = document.querySelector("#home-scores-empty")!;
+const overScoreLine = document.querySelector("#over-score-line")!;
+const scoreSave = document.querySelector("#score-save")!;
+const scoreNameInput = document.querySelector<HTMLInputElement>("#score-name")!;
+const scoreSaveStatus = document.querySelector("#score-save-status")!;
+const overScoresList = document.querySelector("#over-scores-list")!;
+
+let scorePromptShown = false;
+let scoreSavedThisRun = false;
+
+function renderScoresList(container: Element, scores: HighScore[], compact = false) {
+  container.innerHTML = scores
+    .map(
+      (s, i) => `
+    <li class="score-row">
+      <span class="score-rank">${i + 1}.</span>
+      <span class="score-name">${escapeHtml(s.name)}</span>
+      <span class="score-wave">Wave ${s.wave}</span>
+      ${compact ? "" : `<span class="score-meta">${s.gold}🪙 · ${formatScoreDate(s.at)}</span>`}
+    </li>`,
+    )
+    .join("");
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function refreshHomeScores() {
+  const scores = loadHighScores();
+  renderScoresList(homeScoresList, scores);
+  homeScoresEmpty.classList.toggle("hidden", scores.length > 0);
+  homeScoresList.classList.toggle("hidden", scores.length === 0);
+}
+
+function setupGameOverScoreUi() {
+  overScoreLine.textContent = `Reached wave ${game.wave} with ${game.gold}🪙. The thieves ate it!`;
+  const scores = loadHighScores();
+  renderScoresList(overScoresList, scores, true);
+
+  const worthy = !scoreSavedThisRun && isHighScoreWorthy(game.wave, game.gold);
+  scoreSave.classList.toggle("hidden", !worthy);
+  if (worthy && !scorePromptShown) {
+    scorePromptShown = true;
+    scoreNameInput.value = getSavedPlayerName();
+    scoreSaveStatus.textContent = "";
+    setTimeout(() => scoreNameInput.focus(), 50);
+  }
+}
+
+function saveCurrentScore() {
+  if (scoreSavedThisRun) return;
+  const name = scoreNameInput.value.trim() || getSavedPlayerName() || "Player";
+  const list = submitHighScore(name, game.wave, game.gold);
+  scoreSavedThisRun = true;
+  scoreSave.classList.add("hidden");
+  scoreSaveStatus.textContent = `Saved — nice run, ${name}!`;
+  renderScoresList(overScoresList, list, true);
+  refreshHomeScores();
+}
 
 function renderCourseChips(container: Element, opts: { requireIdle: boolean }) {
   const courses = listCourses();
@@ -206,7 +289,14 @@ function refresh() {
 
   toast.textContent = game.toastText;
   toast.classList.toggle("show", game.toastTimer > 0);
+  const wasHidden = over.classList.contains("hidden");
   over.classList.toggle("hidden", !game.gameOver);
+  // Only rebuild score UI when overlay first opens — avoid wiping the name field
+  if (game.gameOver && wasHidden) {
+    scorePromptShown = false;
+    scoreSavedThisRun = false;
+    setupGameOverScoreUi();
+  }
 
   (document.querySelector("#summon") as HTMLButtonElement).disabled = game.stars < 1;
   (document.querySelector("#lucky") as HTMLButtonElement).disabled = game.stars < 3;
@@ -230,6 +320,7 @@ function refresh() {
 
 game.onChange = refresh;
 refresh();
+refreshHomeScores();
 
 function showHome() {
   game.running = false;
@@ -237,6 +328,7 @@ function showHome() {
   home.classList.remove("hidden");
   playScreen.classList.add("hidden");
   refreshCourses();
+  refreshHomeScores();
 }
 
 function showPlay() {
@@ -260,8 +352,21 @@ muteBtn.addEventListener("click", () => {
 
 document.querySelector("#retry-btn")!.addEventListener("click", () => {
   unlockAudio();
+  scorePromptShown = false;
+  scoreSavedThisRun = false;
   game.reset();
   over.classList.add("hidden");
+});
+
+document.querySelector("#save-score-btn")!.addEventListener("click", () => {
+  unlockAudio();
+  saveCurrentScore();
+});
+scoreNameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    saveCurrentScore();
+  }
 });
 
 document.querySelector("#summon")!.addEventListener("click", () => game.summon(false));
