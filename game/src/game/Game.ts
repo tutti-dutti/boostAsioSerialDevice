@@ -64,10 +64,11 @@ export class Game {
   cookieBiteFlash = 0;
   spawnLeft = 0;
   spawnTimer = 0;
-  /** Player must press Start Wave */
+  /** Player must press Start Wave (or wait for auto-start) */
   waveWaiting = true;
   waveInProgress = false;
-  wavePause = 0;
+  /** Seconds until auto-start; 0 = wait for manual Start Wave */
+  autoWaveTimer = 0;
   time = 0;
   running = true;
   paused = false;
@@ -340,6 +341,7 @@ export class Game {
       // Always wait for Start Wave after loading a save
       this.waveWaiting = true;
       this.waveInProgress = false;
+      this.autoWaveTimer = 0;
       this.spawnLeft = 0;
       this.thieves = [];
       this.shots = [];
@@ -371,7 +373,7 @@ export class Game {
     this.spawnTimer = 0;
     this.waveWaiting = true;
     this.waveInProgress = false;
-    this.wavePause = 0;
+    this.autoWaveTimer = 0;
     this.gameOver = false;
     this.running = true;
     this.paused = false;
@@ -694,6 +696,7 @@ export class Game {
       return;
     }
     this.paused = false;
+    this.autoWaveTimer = 0;
     this.startWave();
     this.onChange();
   }
@@ -703,7 +706,7 @@ export class Game {
     this.waveInProgress = true;
     this.spawnLeft = waveCount(this.wave);
     this.spawnTimer = 0.2;
-    this.wavePause = 0;
+    this.autoWaveTimer = 0;
     if (isLevelBossWave(this.wave)) {
       const boss = levelBossForWave(this.wave);
       this.toast(`⚔️ BOSS FIGHT! ${boss.emoji} ${boss.name}!`, true);
@@ -784,7 +787,15 @@ export class Game {
     }
 
     if (this.waveWaiting) {
-      // idle — wait for Start Wave button
+      // Auto-start next wave unless the player paused (timer freezes while paused)
+      if (this.autoWaveTimer > 0) {
+        this.autoWaveTimer -= dt;
+        if (this.autoWaveTimer <= 0) {
+          this.autoWaveTimer = 0;
+          this.startWave();
+          this.onChange();
+        }
+      }
     } else if (this.spawnLeft > 0) {
       this.spawnTimer -= dt;
       if (this.spawnTimer <= 0) {
@@ -800,7 +811,8 @@ export class Game {
       this.stars += 1;
       this.gold += 3;
       this.syncMapForWave(true);
-      this.toast(`Wave clear! Ready for wave ${this.wave}`, true);
+      this.autoWaveTimer = 3.2;
+      this.toast(`Wave clear! Next wave in 3… (Pause to prepare)`, true);
       this.save();
       this.onChange();
     }
@@ -1031,6 +1043,7 @@ export class Game {
       deployMode: this.selectedBag != null,
       waveWaiting: this.waveWaiting,
       paused: this.paused,
+      autoWaveTimer: this.autoWaveTimer,
       deployGhost: this.deployGhost,
     });
     const selected = this.slotById(this.selectedSlot);

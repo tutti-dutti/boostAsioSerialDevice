@@ -303,7 +303,9 @@ function refresh() {
   const startBtn = document.querySelector("#start-wave") as HTMLButtonElement;
   startBtn.disabled = !game.canStartWave();
   startBtn.textContent = game.canStartWave()
-    ? `Start Wave ${game.wave}`
+    ? game.autoWaveTimer > 0
+      ? `Start Now (${Math.ceil(game.autoWaveTimer)})`
+      : `Start Wave ${game.wave}`
     : game.waveInProgress || game.spawnLeft > 0 || game.thieves.some((t) => t.alive)
       ? `Wave ${game.wave}…`
       : `Start Wave ${game.wave}`;
@@ -415,7 +417,7 @@ function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   game.update(dt);
-  if (game.toastTimer > 0 || game.gameOver || game.waveWaiting || game.paused) refresh();
+  if (game.toastTimer > 0 || game.gameOver || game.waveWaiting || game.paused || game.autoWaveTimer > 0) refresh();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

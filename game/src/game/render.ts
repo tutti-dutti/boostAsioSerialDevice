@@ -474,6 +474,7 @@ export interface DrawState {
   deployMode?: boolean;
   waveWaiting?: boolean;
   paused?: boolean;
+  autoWaveTimer?: number;
   deployGhost?: { x: number; y: number; valid: boolean } | null;
 }
 
@@ -500,7 +501,12 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
     ctx.fillStyle = "rgba(42, 48, 64, 0.8)";
     ctx.font = "800 18px Nunito, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(`Ready — press Start Wave ${s.wave}`, W / 2, H - 16);
+    if (s.autoWaveTimer && s.autoWaveTimer > 0) {
+      const secs = Math.max(1, Math.ceil(s.autoWaveTimer));
+      ctx.fillText(`Wave ${s.wave} auto-starts in ${secs}… (Pause to prepare)`, W / 2, H - 16);
+    } else {
+      ctx.fillText(`Ready — press Start Wave ${s.wave}`, W / 2, H - 16);
+    }
   }
 
   if (s.deployMode) {
