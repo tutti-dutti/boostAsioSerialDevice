@@ -95,43 +95,63 @@ function noiseBurst(dur: number, gain = 0.15, filterFreq = 2000) {
 }
 
 /** Fun laser / pew when a friend shoots */
-export function playShoot(kind: "normal" | "floppy" | "god" | "minigun" = "normal") {
+export function playShoot(kind: "normal" | "floppy" | "god" | "minigun" | "laser" = "normal") {
   if (muted) return;
   const now = performance.now();
   // throttle so many towers don't explode the speakers
-  const gap = kind === "minigun" ? 28 : 40;
+  const gap = kind === "minigun" || kind === "laser" ? 22 : 35;
   if (now - lastShootAt < gap) return;
   lastShootAt = now;
 
   if (kind === "minigun") {
-    // rapid clicky minigun chatter
-    const base = 900 + Math.random() * 400;
-    tone(base, 0.035, "square", 0.09, base * 0.45);
-    noiseBurst(0.025, 0.06, 2800);
+    const base = 1100 + Math.random() * 500;
+    tone(base, 0.04, "square", 0.1, base * 0.35);
+    tone(base * 1.8, 0.03, "sawtooth", 0.05, base * 0.5);
+    noiseBurst(0.02, 0.05, 4200);
     return;
   }
+
+  if (kind === "laser") {
+    // snappy sniper zap — high pew with sparkle
+    const base = 1400 + Math.random() * 400;
+    tone(base, 0.11, "sawtooth", 0.14, 180);
+    tone(base * 1.35, 0.08, "square", 0.07, 260);
+    tone(base * 0.5, 0.06, "triangle", 0.05, 120);
+    noiseBurst(0.04, 0.07, 5000);
+    return;
+  }
+
   if (kind === "god") {
-    tone(660, 0.12, "sawtooth", 0.16, 180);
-    tone(990, 0.1, "square", 0.08, 220);
-    noiseBurst(0.06, 0.08, 3500);
+    // chunky rainbow beam
+    tone(880, 0.16, "sawtooth", 0.18, 160);
+    tone(1320, 0.14, "square", 0.1, 220);
+    tone(1760, 0.1, "triangle", 0.07, 400);
+    noiseBurst(0.08, 0.1, 3800);
     return;
   }
+
   if (kind === "floppy") {
-    tone(420, 0.14, "triangle", 0.18, 160);
-    tone(280, 0.1, "sine", 0.1, 120);
+    // wet blorp laser
+    tone(520, 0.15, "triangle", 0.16, 140);
+    tone(360, 0.12, "sine", 0.1, 100);
+    tone(780, 0.08, "square", 0.05, 200);
     return;
   }
-  // classic arcade pew
-  const base = 720 + Math.random() * 180;
-  tone(base, 0.09, "square", 0.14, 140);
-  tone(base * 1.5, 0.06, "triangle", 0.06, 200);
+
+  // classic cool arcade laser pew-pew
+  const base = 980 + Math.random() * 320;
+  tone(base, 0.12, "sawtooth", 0.15, 120);
+  tone(base * 1.6, 0.09, "square", 0.08, 180);
+  tone(base * 2.1, 0.05, "triangle", 0.05, 300);
+  noiseBurst(0.035, 0.06, 4500);
 }
 
 /** Soft hit when a shot lands */
 export function playHit() {
   if (muted) return;
-  tone(180 + Math.random() * 40, 0.05, "triangle", 0.1, 90);
-  noiseBurst(0.04, 0.07, 900);
+  tone(240 + Math.random() * 80, 0.05, "square", 0.08, 80);
+  tone(480 + Math.random() * 60, 0.04, "triangle", 0.05, 140);
+  noiseBurst(0.035, 0.06, 1600);
 }
 
 /** Spell boom */

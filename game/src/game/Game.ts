@@ -648,9 +648,9 @@ export class Game {
 
         const p = pathPoint(best.progress);
         const kind = isFlyer
-          ? "normal"
+          ? "laser"
           : isLegend
-            ? "normal"
+            ? "minigun"
             : f.def.ability === "godBeam"
               ? "god"
               : f.def.ability === "floppyFin"
