@@ -34,7 +34,8 @@ The script will:
 - Deploy it as a public website
 - Print your live URL (like `https://cookie-guard-xxxxx-uc.a.run.app`)
 
-Feedback and idea requests are saved to the Firestore collection `cookie_guard_feedback` (no email).
+Feedback and idea requests are saved to Cloud Storage
+(`gs://YOUR_PROJECT_ID-cookie-guard-data/feedback/`) — no email.
 
 ## Auto-deploy with GitHub Actions (optional)
 

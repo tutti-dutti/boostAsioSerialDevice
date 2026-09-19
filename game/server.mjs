@@ -1,25 +1,25 @@
 /**
- * Cookie Guard — static host + feedback API (Firestore)
+ * Cookie Guard — static host + feedback API (Cloud Storage)
  */
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Firestore } from "@google-cloud/firestore";
+import { Storage } from "@google-cloud/storage";
+import { randomUUID } from "crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const DIST = path.join(__dirname, "dist");
-const COLLECTION = process.env.FEEDBACK_COLLECTION || "cookie_guard_feedback";
+const BUCKET =
+  process.env.FEEDBACK_BUCKET ||
+  `${process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || "fairway-finder-507002-n2"}-cookie-guard-data`;
+const PREFIX = process.env.FEEDBACK_PREFIX || "feedback/";
 
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "24kb" }));
 
-let db = null;
-function getDb() {
-  if (!db) db = new Firestore();
-  return db;
-}
+const storage = new Storage();
 
 /** Simple in-memory rate limit: max N posts per IP per window */
 const hits = new Map();
@@ -45,7 +45,7 @@ function clientIp(req) {
 }
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, service: "cookie-guard" });
+  res.json({ ok: true, service: "cookie-guard", store: "gcs", bucket: BUCKET });
 });
 
 app.post("/api/feedback", async (req, res) => {
@@ -73,17 +73,29 @@ app.post("/api/feedback", async (req, res) => {
       return;
     }
 
+    const id = randomUUID();
+    const at = Date.now();
     const doc = {
+      id,
       kind,
       name: name || "Anonymous",
       message: message.slice(0, 2000),
-      at: Date.now(),
-      createdAt: new Date().toISOString(),
+      at,
+      createdAt: new Date(at).toISOString(),
       userAgent: String(req.headers["user-agent"] || "").slice(0, 240),
     };
 
-    const ref = await getDb().collection(COLLECTION).add(doc);
-    res.status(201).json({ ok: true, id: ref.id });
+    const objectPath = `${PREFIX}${new Date(at).toISOString().slice(0, 10)}/${at}-${id}.json`;
+    await storage.bucket(BUCKET).file(objectPath).save(JSON.stringify(doc, null, 2), {
+      contentType: "application/json",
+      resumable: false,
+      metadata: {
+        cacheControl: "no-store",
+        metadata: { kind, id },
+      },
+    });
+
+    res.status(201).json({ ok: true, id });
   } catch (err) {
     console.error("feedback write failed", err);
     res.status(500).json({ ok: false, error: "Could not save right now. Please try again." });
@@ -102,5 +114,5 @@ app.get("*", (req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Cookie Guard listening on :${PORT}`);
+  console.log(`Cookie Guard listening on :${PORT} (bucket=${BUCKET})`);
 });
