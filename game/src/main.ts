@@ -50,7 +50,7 @@ app.innerHTML = `
         <div class="row">
           <button class="danger" id="delete-unit" type="button">Delete unit</button>
         </div>
-        <p class="hint">Tap a friend, then tap a circle — or Delete to remove extras.</p>
+        <p class="hint">Tap a friend once to equip, then tap a + spot to deploy.</p>
       </section>
 
       <section class="panel">
@@ -111,9 +111,7 @@ function refresh() {
       .join("");
     bag.querySelectorAll<HTMLButtonElement>(".inv-item").forEach((btn) => {
       btn.onclick = () => {
-        game.selectedBag = Number(btn.dataset.i);
-        game.selectedSlot = null;
-        refresh();
+        game.equipFromBag(Number(btn.dataset.i));
       };
     });
   }
@@ -141,9 +139,9 @@ function refresh() {
     selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
   } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
     const f = game.bag[game.selectedBag];
-    selectHint.textContent = `${f.emoji} ${f.name} in bag — tap a circle to place, or Delete to remove`;
+    selectHint.textContent = `${f.emoji} ${f.name} equipped — tap a glowing + spot to deploy`;
   } else {
-    selectHint.textContent = "Clear board moves everyone to the bag. Delete removes extras forever.";
+    selectHint.textContent = "Tap a bag friend once to equip, then tap a + spot to deploy.";
   }
 
   toast.textContent = game.toastText;

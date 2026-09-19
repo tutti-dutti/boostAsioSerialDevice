@@ -317,7 +317,10 @@ button.danger {
 }
 
 .inv-item.selected {
-  border-color: var(--cookie);
+  border-color: #e8a04a;
+  box-shadow: 0 0 0 3px rgba(232, 160, 74, 0.45);
+  background: #fff6e0;
+  transform: scale(1.04);
 }
 
 .inv-item .emoji {

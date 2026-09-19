@@ -385,39 +385,78 @@ export class Game {
     const x = ((e.clientX - rect.left) / rect.width) * W;
     const y = ((e.clientY - rect.top) / rect.height) * H;
 
+    // Find nearest pad (larger radius so one tap is enough)
+    let nearest: Slot | null = null;
+    let nearestD = Infinity;
     for (const slot of this.slots) {
-      if (Math.hypot(slot.x - x, slot.y - y) <= 28) {
-        if (slot.friend) {
-          this.selectedSlot = slot.id;
-          this.selectedBag = null;
-          this.onChange();
-          return;
-        }
-        if (this.selectedBag != null) {
-          const friend = this.bag[this.selectedBag];
-          if (!friend) return;
-          slot.friend = {
-            uid: uid("f"),
-            def: friend,
-            level: 1,
-            cooldown: 0,
-            slotId: slot.id,
-            abilityTimer: friend.ability === "foxWall" ? 2 : 0,
-            orbitAngle: Math.random() * Math.PI * 2,
-          };
-          this.bag.splice(this.selectedBag, 1);
-          this.selectedBag = null;
-          this.selectedSlot = slot.id;
-          this.save();
-          this.onChange();
-          return;
-        }
-        this.toast("Pick a friend from your bag first", true);
+      const d = Math.hypot(slot.x - x, slot.y - y);
+      if (d < nearestD) {
+        nearestD = d;
+        nearest = slot;
+      }
+    }
+
+    const equipping = this.selectedBag != null;
+    const hitR = equipping ? 42 : 32;
+
+    if (!nearest || nearestD > hitR) {
+      // Missed pads — keep equipped friend so the next tap can still deploy
+      if (!equipping) this.selectedSlot = null;
+      this.onChange();
+      return;
+    }
+
+    // Equipped friend: one tap on an empty pad deploys there
+    if (equipping) {
+      if (nearest.friend) {
+        this.toast("That spot is full — tap an empty + circle", true);
         this.onChange();
         return;
       }
+      const friend = this.bag[this.selectedBag!];
+      if (!friend) {
+        this.selectedBag = null;
+        this.onChange();
+        return;
+      }
+      nearest.friend = {
+        uid: uid("f"),
+        def: friend,
+        level: 1,
+        cooldown: 0,
+        slotId: nearest.id,
+        abilityTimer: friend.ability === "foxWall" ? 2 : 0,
+        orbitAngle: Math.random() * Math.PI * 2,
+      };
+      this.bag.splice(this.selectedBag!, 1);
+      this.selectedBag = null;
+      this.selectedSlot = nearest.id;
+      this.toast(`${friend.emoji} Deployed!`, true);
+      this.save();
+      this.onChange();
+      return;
     }
+
+    // Not equipping: tap a placed friend to select it
+    if (nearest.friend) {
+      this.selectedSlot = nearest.id;
+      this.selectedBag = null;
+      this.onChange();
+      return;
+    }
+
+    this.toast("Tap a friend in your bag first, then tap a + spot", true);
     this.selectedSlot = null;
+    this.onChange();
+  }
+
+  /** One tap in the bag equips a friend for the next pad tap */
+  equipFromBag(index: number) {
+    if (index < 0 || index >= this.bag.length) return;
+    this.selectedBag = index;
+    this.selectedSlot = null;
+    const f = this.bag[index];
+    this.toast(`${f.emoji} Equipped — tap a + spot to deploy`, true);
     this.onChange();
   }
 
@@ -707,6 +746,7 @@ export class Game {
       time: this.time,
       wave: this.wave,
       bossFight: isLevelBossWave(this.wave),
+      deployMode: this.selectedBag != null,
     });
     if (this.selectedSlot != null) {
       const slot = this.slots[this.selectedSlot];

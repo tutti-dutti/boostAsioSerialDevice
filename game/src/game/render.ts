@@ -254,20 +254,31 @@ function drawFriendPad(
   ctx.fillText(String(f.level), badgeX, badgeY + 1);
 }
 
-function slots(ctx: CanvasRenderingContext2D, list: Slot[], selected: number | null) {
+function slots(
+  ctx: CanvasRenderingContext2D,
+  list: Slot[],
+  selected: number | null,
+  deployMode = false,
+  time = 0,
+) {
   for (const s of list) {
     const on = selected === s.id;
     if (!s.friend) {
-      ctx.fillStyle = on ? "rgba(255,210,74,0.35)" : "rgba(255,255,255,0.22)";
-      ctx.strokeStyle = on ? "#e8a04a" : "rgba(42,48,64,0.3)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 4]);
+      const pulse = deployMode ? 0.55 + Math.sin(time * 6 + s.id) * 0.2 : 0.22;
+      ctx.fillStyle = deployMode
+        ? `rgba(255, 210, 74, ${pulse})`
+        : on
+          ? "rgba(255,210,74,0.35)"
+          : "rgba(255,255,255,0.22)";
+      ctx.strokeStyle = deployMode ? "#e8a04a" : on ? "#e8a04a" : "rgba(42,48,64,0.3)";
+      ctx.lineWidth = deployMode ? 3 : 2;
+      ctx.setLineDash(deployMode ? [] : [5, 4]);
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 24, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, deployMode ? 26 : 24, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(42,48,64,0.4)";
+      ctx.fillStyle = deployMode ? "#c4782a" : "rgba(42,48,64,0.4)";
       ctx.font = "800 16px Nunito, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -436,6 +447,7 @@ export interface DrawState {
   time: number;
   wave: number;
   bossFight?: boolean;
+  deployMode?: boolean;
 }
 
 export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
@@ -443,7 +455,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   path(ctx);
   gate(ctx);
   walls(ctx, s.walls);
-  slots(ctx, s.slots, s.selectedSlot);
+  slots(ctx, s.slots, s.selectedSlot, !!s.deployMode, s.time);
   thieves(ctx, s.thieves, s.thiefPos);
   shots(ctx, s.shots);
   booms(ctx, s.booms);
@@ -455,6 +467,13 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   ctx.textAlign = "left";
   const map = getActiveMap();
   ctx.fillText(`Wave ${s.wave} · ${map.name}`, 14, 24);
+
+  if (s.deployMode) {
+    ctx.fillStyle = "rgba(232, 160, 74, 0.92)";
+    ctx.font = "800 16px Nunito, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Equipped — tap a glowing + spot to deploy", W / 2, H - 16);
+  }
 
   if (s.bossFight) {
     const pulse = 0.75 + Math.sin(s.time * 5) * 0.25;
