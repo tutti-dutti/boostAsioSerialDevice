@@ -404,11 +404,6 @@ function refresh() {
       </button>`,
         )
         .join("");
-      bag.querySelectorAll<HTMLButtonElement>(".inv-item").forEach((btn) => {
-        btn.onclick = () => {
-          game.equipFromBag(Number(btn.dataset.i));
-        };
-      });
     }
   }
 
@@ -663,6 +658,16 @@ scoreNameInput.addEventListener("keydown", (e) => {
   }
 });
 
+// Event delegation — survives bag DOM rebuilds so the first tap always equips
+bag.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".inv-item");
+  if (!btn || !bag.contains(btn)) return;
+  const i = Number(btn.dataset.i);
+  if (!Number.isFinite(i)) return;
+  unlockAudio();
+  game.equipFromBag(i);
+});
+
 document.querySelector("#summon")!.addEventListener("click", () => game.summon(false));
 document.querySelector("#lucky")!.addEventListener("click", () => game.summon(true));
 document.querySelector("#start-wave")!.addEventListener("click", () => {
@@ -761,14 +766,31 @@ document.addEventListener("keydown", (e) => {
 
 game.running = false;
 
+function refreshToastOnly() {
+  toast.textContent = game.toastText;
+  toast.classList.toggle("show", game.toastTimer > 0);
+}
+
 let last = performance.now();
+let lastAutoWaveCeil = -1;
 function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   game.update(dt);
-  // Avoid per-frame full UI refresh while waiting on a wave — rebuilding the bag
-  // DOM every frame ate clicks and blocked equip/place before wave 1.
-  if (game.toastTimer > 0 || game.gameOver || game.paused || game.autoWaveTimer > 0) refresh();
+  // Never full-refresh every frame for toasts — that rebuilt UI during the summon
+  // toast window and ate the first bag tap. Toast visibility is updated lightly.
+  if (game.toastTimer > 0 || toast.classList.contains("show")) refreshToastOnly();
+  if (game.gameOver || game.paused) {
+    refresh();
+  } else if (game.autoWaveTimer > 0) {
+    const ceil = Math.ceil(game.autoWaveTimer);
+    if (ceil !== lastAutoWaveCeil) {
+      lastAutoWaveCeil = ceil;
+      refresh();
+    }
+  } else {
+    lastAutoWaveCeil = -1;
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

@@ -618,15 +618,16 @@ export class Game {
     this.stars -= cost;
     const friend = pickFriend(lucky);
     this.bag.unshift(friend);
-    // Keep any equipped bag selection pointed at the same friend
-    if (this.selectedBag != null) this.selectedBag += 1;
+    // Newly summoned friend is equipped immediately (front of bag)
+    this.selectedBag = 0;
+    this.selectedSlot = null;
     const tag =
       friend.rarity === "god"
         ? "GOD!"
         : friend.rarity === "legendary"
           ? "LEGENDARY!"
           : friend.name;
-    this.toast(`${friend.emoji} ${tag}`, true);
+    this.toast(`${friend.emoji} ${tag} — tap grass to deploy`, true);
     this.save();
     this.onChange();
   }
