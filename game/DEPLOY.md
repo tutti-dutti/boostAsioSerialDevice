@@ -29,10 +29,12 @@ bash scripts/deploy-gcp.sh
 ```
 
 The script will:
-- Turn on Cloud Run, Cloud Build, and Artifact Registry
-- Build the game in Docker
+- Turn on Cloud Run, Cloud Build, Artifact Registry, and **Firestore**
+- Build the game + feedback API in Docker
 - Deploy it as a public website
 - Print your live URL (like `https://cookie-guard-xxxxx-uc.a.run.app`)
+
+Feedback and idea requests are saved to the Firestore collection `cookie_guard_feedback` (no email).
 
 ## Auto-deploy with GitHub Actions (optional)
 

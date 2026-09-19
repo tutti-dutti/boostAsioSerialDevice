@@ -1,13 +1,6 @@
 const FB_KEY = "cookie-guard-feedback-v1";
 const MAX_SAVED = 40;
 
-/** Inbox for Feedback / Idea requests */
-export const FEEDBACK_EMAIL = "tai.d.nguyen@gmail.com";
-
-/** Fallback if mail client is unavailable */
-export const FEEDBACK_ISSUE_URL =
-  "https://github.com/tutti-dutti/boostAsioSerialDevice/issues/new";
-
 export type FeedbackKind = "feedback" | "idea";
 
 export interface FeedbackEntry {
@@ -15,6 +8,7 @@ export interface FeedbackEntry {
   name: string;
   message: string;
   at: number;
+  id?: string;
 }
 
 export function kindLabel(kind: FeedbackKind): string {
@@ -51,23 +45,12 @@ export function rememberFeedback(entry: FeedbackEntry) {
   saveFeedbackList(list);
 }
 
-export function buildFeedbackBody(entry: FeedbackEntry): string {
-  const who = entry.name.trim() || "Anonymous";
-  return [
-    `Type: ${kindLabel(entry.kind)}`,
-    `From: ${who}`,
-    `Game: Cookie Guard by James Nguyen`,
-    "",
-    entry.message.trim(),
-  ].join("\n");
-}
-
-/** Save locally and open mail / GitHub issue compose for real delivery */
-export function submitFeedback(input: {
+/** Save to Firestore via Cloud Run API (also keep a local copy). */
+export async function submitFeedback(input: {
   kind: FeedbackKind;
   name: string;
   message: string;
-}): { ok: true; entry: FeedbackEntry } | { ok: false; error: string } {
+}): Promise<{ ok: true; entry: FeedbackEntry } | { ok: false; error: string }> {
   const message = input.message.trim();
   if (message.length < 3) {
     return { ok: false, error: "Write a little more so we can understand your idea." };
@@ -82,31 +65,32 @@ export function submitFeedback(input: {
     message: message.slice(0, 2000),
     at: Date.now(),
   };
-  rememberFeedback(entry);
-
-  const title = `[Cookie Guard] ${kindLabel(entry.kind)}${entry.name ? ` — ${entry.name}` : ""}`;
-  const body = buildFeedbackBody(entry);
-
-  if (FEEDBACK_EMAIL) {
-    const mailto = `mailto:${encodeURIComponent(FEEDBACK_EMAIL)}?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-    const link = document.createElement("a");
-    link.href = mailto;
-    link.rel = "noopener";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  } else {
-    const issue = `${FEEDBACK_ISSUE_URL}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-    window.open(issue, "_blank", "noopener,noreferrer");
-  }
 
   try {
-    void navigator.clipboard?.writeText(`${title}\n\n${body}`).catch(() => {
-      /* clipboard optional */
+    const res = await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: entry.kind,
+        name: entry.name,
+        message: entry.message,
+      }),
     });
-  } catch {
-    /* clipboard optional */
-  }
+    const data = (await res.json().catch(() => null)) as
+      | { ok?: boolean; id?: string; error?: string }
+      | null;
 
-  return { ok: true, entry };
+    if (!res.ok || !data?.ok) {
+      return {
+        ok: false,
+        error: data?.error || "Could not save right now. Please try again.",
+      };
+    }
+
+    if (data.id) entry.id = data.id;
+    rememberFeedback(entry);
+    return { ok: true, entry };
+  } catch {
+    return { ok: false, error: "Network error — check your connection and try again." };
+  }
 }

@@ -609,20 +609,27 @@ document.querySelectorAll<HTMLButtonElement>(".feedback-kind").forEach((btn) => 
   });
 });
 
-document.querySelector("#feedback-submit")!.addEventListener("click", () => {
+document.querySelector("#feedback-submit")!.addEventListener("click", async () => {
   unlockAudio();
-  const result = submitFeedback({
-    kind: feedbackKind,
-    name: feedbackNameInput.value,
-    message: feedbackMessageInput.value,
-  });
-  if (!result.ok) {
-    feedbackStatus.textContent = result.error;
-    return;
+  feedbackStatus.textContent = "Sending…";
+  const submitBtn = document.querySelector<HTMLButtonElement>("#feedback-submit")!;
+  submitBtn.disabled = true;
+  try {
+    const result = await submitFeedback({
+      kind: feedbackKind,
+      name: feedbackNameInput.value,
+      message: feedbackMessageInput.value,
+    });
+    if (!result.ok) {
+      feedbackStatus.textContent = result.error;
+      return;
+    }
+    feedbackStatus.textContent = "Saved — thanks for the note!";
+    feedbackMessageInput.value = "";
+    setTimeout(() => closeFeedbackMenu(), 900);
+  } finally {
+    submitBtn.disabled = false;
   }
-  feedbackStatus.textContent = "Saved — opening your mail app to send it. Thanks!";
-  feedbackMessageInput.value = "";
-  setTimeout(() => closeFeedbackMenu(), 900);
 });
 
 const muteBtn = document.querySelector<HTMLButtonElement>("#mute-btn")!;
