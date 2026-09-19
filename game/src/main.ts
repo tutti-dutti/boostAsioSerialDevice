@@ -88,44 +88,48 @@ app.innerHTML = `
       </div>
     </div>
 
-    <div class="friends-strip" id="friends-strip">
-      <button class="big" id="summon" type="button">Summon 1⭐</button>
-      <button class="pink" id="lucky" type="button">Lucky 3⭐</button>
-      <div class="inventory" id="bag"></div>
-    </div>
+    <div class="bottom-dock" id="bottom-dock">
+      <div class="friends-panel" id="friends-strip">
+        <div class="friends-tools">
+          <button class="big" id="summon" type="button">Summon 1⭐</button>
+          <button class="pink" id="lucky" type="button">Lucky 3⭐</button>
+        </div>
+        <div class="inventory" id="bag"></div>
+      </div>
 
-    <div class="manage-panel" id="manage-panel">
-      <div class="manage-row">
-        <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
-        <button id="sell" type="button">To bag</button>
-        <button class="danger" id="delete-unit" type="button">Delete</button>
-        <button id="clear-board" type="button">Clear board</button>
-        <button id="clear-others" type="button">Clear others</button>
-      </div>
-      <div class="manage-row beaver-dam-row hidden" id="beaver-dam-row">
-        <button class="dam-btn" id="build-dam" type="button">Build Dam (5🪵)</button>
-      </div>
-      <div class="manage-row eagle-land-row hidden" id="eagle-land-row">
-        <button class="eagle-btn" id="eagle-land" type="button">Land &amp; Bomb (6⭐)</button>
-      </div>
-      <p class="hint select-hint" id="select-hint">Upgrade to try a 5% mythical evolve!</p>
-      <p class="gold-upgrade-line hint" id="gold-upgrade-line">Gold 0🪙 · Select a friend for upgrade cost</p>
-      <div class="evolve-lineage hidden" id="evolve-lineage" aria-live="polite">
-        <div class="evolve-row">
-          <span class="evolve-label">Evolved from</span>
-          <span class="evolve-value" id="evolve-from">—</span>
+      <div class="manage-panel" id="manage-panel">
+        <div class="manage-row">
+          <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
+          <button id="sell" type="button">To bag</button>
+          <button class="danger" id="delete-unit" type="button">Delete</button>
+          <button id="clear-board" type="button">Clear board</button>
+          <button id="clear-others" type="button">Clear others</button>
         </div>
-        <div class="evolve-row">
-          <span class="evolve-label">Evolves into</span>
-          <span class="evolve-value" id="evolve-into">—</span>
+        <div class="manage-row beaver-dam-row hidden" id="beaver-dam-row">
+          <button class="dam-btn" id="build-dam" type="button">Build Dam (5🪵)</button>
         </div>
-      </div>
-      <div class="course-panel">
-        <div class="course-chips" id="play-course-chips"></div>
-        <button class="course-random" id="play-random-course" type="button">🎲 Random</button>
-      </div>
-      <div class="manage-row">
-        <button id="new-game" type="button">New game</button>
+        <div class="manage-row eagle-land-row hidden" id="eagle-land-row">
+          <button class="eagle-btn" id="eagle-land" type="button">Land &amp; Bomb (6⭐)</button>
+        </div>
+        <p class="hint select-hint" id="select-hint">Upgrade to try a 5% mythical evolve!</p>
+        <p class="gold-upgrade-line hint" id="gold-upgrade-line">Gold 0🪙 · Select a friend for upgrade cost</p>
+        <div class="evolve-lineage hidden" id="evolve-lineage" aria-live="polite">
+          <div class="evolve-row">
+            <span class="evolve-label">Evolved from</span>
+            <span class="evolve-value" id="evolve-from">—</span>
+          </div>
+          <div class="evolve-row">
+            <span class="evolve-label">Evolves into</span>
+            <span class="evolve-value" id="evolve-into">—</span>
+          </div>
+        </div>
+        <div class="course-panel">
+          <div class="course-chips" id="play-course-chips"></div>
+          <button class="course-random" id="play-random-course" type="button">🎲 Random</button>
+        </div>
+        <div class="manage-row">
+          <button id="new-game" type="button">New game</button>
+        </div>
       </div>
     </div>
   </section>

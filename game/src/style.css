@@ -387,8 +387,7 @@ body {
 
 .status-banner,
 .action-banner,
-.friends-strip,
-.manage-panel {
+.bottom-dock {
   flex: 0 0 auto;
   width: 100%;
 }
@@ -535,37 +534,61 @@ canvas#stage {
   user-select: none;
 }
 
-.friends-strip {
+.bottom-dock {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 0.4rem;
+  align-items: start;
+  max-height: 34dvh;
+  min-height: 0;
+}
+
+.friends-panel {
   display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
+  flex-direction: column;
   gap: 0.35rem;
-  overflow-x: auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: 34dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  padding: 0.15rem 0.1rem;
-  background: rgba(255, 248, 238, 0.88);
+  overscroll-behavior: contain;
+  padding: 0.4rem 0.45rem;
+  background: rgba(255, 248, 238, 0.92);
   border: 3px solid rgba(42, 48, 64, 0.1);
   border-radius: 12px;
 }
 
-.friends-strip > button {
+.friends-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   flex: 0 0 auto;
 }
 
-.friends-strip .inventory {
+.friends-tools > button {
   flex: 1 1 auto;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  min-height: 0;
-  min-width: 0;
+  min-width: 6rem;
+}
+
+.friends-panel .inventory {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0.35rem;
+  flex: 0 1 auto;
+  min-height: 3rem;
+  width: 100%;
 }
 
 .manage-panel {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  max-height: 28dvh;
+  min-width: 0;
+  min-height: 0;
+  max-height: 34dvh;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -1160,7 +1183,12 @@ button.danger {
 
   .manage-panel {
     padding: 0.7rem 0.85rem;
-    max-height: 26dvh;
+  }
+
+  .bottom-dock,
+  .friends-panel,
+  .manage-panel {
+    max-height: 30dvh;
   }
 
   button {
@@ -1246,8 +1274,10 @@ button.danger {
     flex: 1 1 auto;
   }
 
+  .bottom-dock,
+  .friends-panel,
   .manage-panel {
-    max-height: 22dvh;
+    max-height: 26dvh;
   }
 }
 
@@ -1345,16 +1375,32 @@ button.danger {
     border-radius: 8px;
   }
 
-  .friends-strip {
+  .bottom-dock {
+    gap: 0.22rem;
+    max-height: 32dvh;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+
+  .friends-panel {
     gap: 0.18rem;
-    padding: 0.12rem 0.15rem;
+    padding: 0.22rem 0.28rem;
     border-width: 2px;
     border-radius: 8px;
+    max-height: 32dvh;
+  }
+
+  .friends-tools {
+    gap: 0.18rem;
+  }
+
+  .friends-tools > button {
+    min-width: 0;
+    flex: 1 1 0;
   }
 
   .manage-panel {
     gap: 0.18rem;
-    max-height: 26dvh;
+    max-height: 32dvh;
     padding: 0.3rem 0.35rem;
     border-radius: 8px;
     border-width: 2px;
@@ -1501,8 +1547,10 @@ button.danger {
     min-height: 46dvh;
   }
 
+  .bottom-dock,
+  .friends-panel,
   .manage-panel {
-    max-height: 24dvh;
+    max-height: 30dvh;
   }
 
   .home-link {
