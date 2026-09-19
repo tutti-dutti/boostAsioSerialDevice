@@ -395,8 +395,8 @@ export class Game {
   toast(msg: string, force = false) {
     if (!force && this.toastCooldown > 0) return;
     this.toastText = msg;
-    this.toastTimer = 1.6;
-    this.toastCooldown = 3.5;
+    this.toastTimer = 1.15;
+    this.toastCooldown = 2.4;
   }
 
   grantIdleGold() {
@@ -924,12 +924,11 @@ export class Game {
     this.spawnLeft = scaleWaveCount(waveCount(this.wave), this.difficulty);
     this.spawnTimer = 0.2;
     this.autoWaveTimer = 0;
-    const mode = difficultyTuning(this.difficulty).label;
+    // Only announce bosses — normal wave toasts cover the board on phones
     if (isLevelBossWave(this.wave)) {
       const boss = levelBossForWave(this.wave);
-      this.toast(`⚔️ BOSS FIGHT! ${boss.emoji} ${boss.name}! (${mode})`, true);
-    } else {
-      this.toast(`Wave ${this.wave} — ${mode} mode!`, true);
+      const mode = difficultyTuning(this.difficulty).label;
+      this.toast(`⚔️ ${boss.emoji} ${boss.name}! (${mode})`, true);
     }
   }
 
@@ -1327,7 +1326,7 @@ export class Game {
       this.gold += 3;
       this.syncMapForWave(true);
       this.autoWaveTimer = 3.2;
-      this.toast(`Wave clear! Next wave in 3… (Pause to prepare)`, true);
+      // Canvas banner already shows the countdown — skip a covering toast
       this.save();
       this.onChange();
     }

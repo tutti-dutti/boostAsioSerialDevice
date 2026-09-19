@@ -630,20 +630,23 @@ button.danger {
 .toast {
   position: absolute;
   left: 50%;
-  top: 0.75rem;
+  top: 0.45rem;
   transform: translateX(-50%);
-  background: var(--cream);
-  border: 3px solid var(--cookie);
+  background: rgba(255, 248, 238, 0.92);
+  border: 2px solid var(--cookie);
   color: var(--ink);
-  padding: 0.45rem 0.85rem;
+  padding: 0.28rem 0.65rem;
   border-radius: 999px;
   font-weight: 800;
+  font-size: 0.85rem;
+  line-height: 1.25;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.15s ease;
   z-index: 5;
   pointer-events: none;
-  max-width: 90%;
+  max-width: min(92%, 22rem);
   text-align: center;
+  box-shadow: 0 2px 8px rgba(42, 48, 64, 0.12);
 }
 
 .toast.show {

@@ -668,14 +668,14 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   ctx.fillText(`Wave ${s.wave} · ${map.name}${mode}`, 14, 24);
 
   if (s.waveWaiting && !s.deployMode) {
-    ctx.fillStyle = "rgba(42, 48, 64, 0.8)";
-    ctx.font = "800 18px Nunito, sans-serif";
+    ctx.fillStyle = "rgba(42, 48, 64, 0.72)";
+    ctx.font = "700 14px Nunito, sans-serif";
     ctx.textAlign = "center";
     if (s.autoWaveTimer && s.autoWaveTimer > 0) {
       const secs = Math.max(1, Math.ceil(s.autoWaveTimer));
-      ctx.fillText(`Wave ${s.wave} auto-starts in ${secs}… (Pause to prepare)`, W / 2, H - 16);
+      ctx.fillText(`Next wave in ${secs}… · Pause to prepare`, W / 2, H - 12);
     } else {
-      ctx.fillText(`Ready — press Start Wave ${s.wave}`, W / 2, H - 16);
+      ctx.fillText(`Ready · Start Wave ${s.wave}`, W / 2, H - 12);
     }
   }
 
