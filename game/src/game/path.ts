@@ -19,8 +19,49 @@ export interface ArenaMap {
   pathColor: string;
 }
 
+/** Pack lots of pads along both sides of a path (plus any seed spots). */
+function densifySlots(path: Vec2[], seed: Vec2[] = []): Vec2[] {
+  const minGap = 46;
+  const out: Vec2[] = [];
+
+  const tooClose = (p: Vec2) => out.some((q) => Math.hypot(p.x - q.x, p.y - q.y) < minGap);
+  const nearPathNode = (p: Vec2) => path.some((n) => Math.hypot(p.x - n.x, p.y - n.y) < 34);
+
+  const add = (p: Vec2) => {
+    if (p.x < 30 || p.x > W - 30 || p.y < 30 || p.y > H - 30) return;
+    if (nearPathNode(p) || tooClose(p)) return;
+    out.push(p);
+  };
+
+  for (const s of seed) add(s);
+
+  const offsets = [52, 88, 124];
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1];
+    const b = path[i];
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const steps = Math.max(2, Math.ceil(len / 48));
+    const nx = -(b.y - a.y) / len;
+    const ny = (b.x - a.x) / len;
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const x = a.x + (b.x - a.x) * t;
+      const y = a.y + (b.y - a.y) * t;
+      for (const off of offsets) {
+        add({ x: x + nx * off, y: y + ny * off });
+        add({ x: x - nx * off, y: y - ny * off });
+      }
+    }
+  }
+  return out;
+}
+
+function withDenseSlots(map: ArenaMap): ArenaMap {
+  return { ...map, slots: densifySlots(map.path, map.slots) };
+}
+
 /** Distinct maps that rotate every 30 waves */
-export const MAPS: ArenaMap[] = [
+const MAP_DEFS: ArenaMap[] = [
   {
     id: "forest",
     name: "Forest Snarl",
@@ -242,6 +283,8 @@ export const MAPS: ArenaMap[] = [
     ],
   },
 ];
+
+export const MAPS: ArenaMap[] = MAP_DEFS.map(withDenseSlots);
 
 export function mapIndexForWave(wave: number): number {
   return Math.floor(Math.max(0, wave - 1) / WAVES_PER_MAP) % MAPS.length;
