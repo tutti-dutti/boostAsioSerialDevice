@@ -449,6 +449,7 @@ export interface DrawState {
   bossFight?: boolean;
   deployMode?: boolean;
   waveWaiting?: boolean;
+  paused?: boolean;
 }
 
 export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
@@ -492,6 +493,18 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
     ctx.textAlign = "center";
     ctx.fillText("⚔️ BOSS FIGHT ⚔️", W / 2, 48);
     ctx.restore();
+  }
+
+  if (s.paused) {
+    ctx.fillStyle = "rgba(20, 24, 36, 0.45)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#fff8ee";
+    ctx.font = "900 36px Fredoka, Nunito, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Paused", W / 2, H / 2 - 8);
+    ctx.font = "700 16px Nunito, sans-serif";
+    ctx.fillStyle = "rgba(255, 248, 238, 0.9)";
+    ctx.fillText("Press Resume to continue", W / 2, H / 2 + 24);
   }
 }
 

@@ -20,6 +20,7 @@ app.innerHTML = `
     <header class="top-bar">
       <div class="brand-small">Cookie Guard</div>
       <div class="top-actions">
+        <button class="home-link" id="pause-btn" type="button">Pause</button>
         <button class="home-link" id="mute-btn" type="button">Sound: On</button>
         <button class="home-link" id="back-home" type="button">Home</button>
       </div>
@@ -57,6 +58,9 @@ app.innerHTML = `
         <h2>Actions</h2>
         <div class="row">
           <button class="wave-btn" id="start-wave" type="button">Start Wave</button>
+        </div>
+        <div class="row">
+          <button class="pause-btn" id="pause-action" type="button">Pause</button>
         </div>
         <div class="row">
           <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
@@ -160,6 +164,13 @@ function refresh() {
     : game.waveInProgress || game.spawnLeft > 0 || game.thieves.some((t) => t.alive)
       ? `Wave ${game.wave}…`
       : `Start Wave ${game.wave}`;
+
+  const pauseLabel = game.paused ? "Resume" : "Pause";
+  (document.querySelector("#pause-btn") as HTMLButtonElement).textContent = pauseLabel;
+  const pauseAction = document.querySelector("#pause-action") as HTMLButtonElement;
+  pauseAction.textContent = pauseLabel;
+  pauseAction.disabled = game.gameOver;
+  pauseAction.classList.toggle("is-paused", game.paused);
 }
 
 game.onChange = refresh;
@@ -167,6 +178,7 @@ refresh();
 
 function showHome() {
   game.running = false;
+  game.setPaused(false);
   home.classList.remove("hidden");
   playScreen.classList.add("hidden");
 }
@@ -176,6 +188,7 @@ function showPlay() {
   home.classList.add("hidden");
   playScreen.classList.remove("hidden");
   game.running = true;
+  game.setPaused(false);
   game.paint();
   refresh();
 }
@@ -201,6 +214,13 @@ document.querySelector("#start-wave")!.addEventListener("click", () => {
   unlockAudio();
   game.requestStartWave();
 });
+
+function onPauseClick() {
+  unlockAudio();
+  game.togglePause();
+}
+document.querySelector("#pause-btn")!.addEventListener("click", onPauseClick);
+document.querySelector("#pause-action")!.addEventListener("click", onPauseClick);
 document.querySelector("#upgrade")!.addEventListener("click", () => game.upgradeSelected());
 document.querySelector("#sell")!.addEventListener("click", () => game.sellSelected());
 document.querySelector("#clear-board")!.addEventListener("click", () => {
@@ -223,7 +243,7 @@ function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   game.update(dt);
-  if (game.toastTimer > 0 || game.gameOver || game.waveWaiting) refresh();
+  if (game.toastTimer > 0 || game.gameOver || game.waveWaiting || game.paused) refresh();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

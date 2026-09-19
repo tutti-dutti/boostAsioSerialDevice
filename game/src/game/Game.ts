@@ -58,6 +58,7 @@ export class Game {
   wavePause = 0;
   time = 0;
   running = true;
+  paused = false;
   gameOver = false;
   toastTimer = 0;
   toastText = "";
@@ -115,6 +116,20 @@ export class Game {
       const changed = this.slots.length > 0 && next !== this.mapTier;
       this.applyMapForWave(this.wave, announce && changed);
     }
+  }
+
+  /** Toggle pause — freezes thieves, shots, and wave spawning */
+  togglePause() {
+    if (this.gameOver) return;
+    this.paused = !this.paused;
+    this.toast(this.paused ? "Paused" : "Resumed", true);
+    this.onChange();
+  }
+
+  setPaused(p: boolean) {
+    if (p && this.gameOver) return;
+    this.paused = p;
+    this.onChange();
   }
 
   toast(msg: string, force = false) {
@@ -211,6 +226,7 @@ export class Game {
     this.wavePause = 0;
     this.gameOver = false;
     this.running = true;
+    this.paused = false;
     this.syncMapForWave(false);
     this.onChange();
   }
@@ -490,6 +506,7 @@ export class Game {
       }
       return;
     }
+    this.paused = false;
     this.startWave();
     this.onChange();
   }
@@ -562,7 +579,7 @@ export class Game {
     for (const k of Object.keys(this.spellCool) as (keyof typeof this.spellCool)[]) {
       if (this.spellCool[k] > 0) this.spellCool[k] -= dt;
     }
-    if (!this.running || this.gameOver) {
+    if (!this.running || this.gameOver || this.paused) {
       this.paint();
       return;
     }
@@ -788,6 +805,7 @@ export class Game {
       bossFight: isLevelBossWave(this.wave) && this.waveInProgress,
       deployMode: this.selectedBag != null,
       waveWaiting: this.waveWaiting,
+      paused: this.paused,
     });
     if (this.selectedSlot != null) {
       const slot = this.slots[this.selectedSlot];
