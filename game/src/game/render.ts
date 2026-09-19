@@ -258,58 +258,52 @@ function slots(
   ctx: CanvasRenderingContext2D,
   list: Slot[],
   selected: number | null,
-  deployMode = false,
-  _time = 0,
 ) {
   for (const s of list) {
-    if (!s.friend) continue; // free placement — no empty pad clutter
+    if (!s.friend) continue; // never draw empty deploy pads — too crowded
     const on = selected === s.id;
     if (s.friend.def.flies) {
       const f = s.friend;
-      const orbitR = flyerOrbitRadius(f);
-      // nest pad
-      ctx.fillStyle = on ? "rgba(255,210,74,0.25)" : "rgba(255,255,255,0.18)";
-      ctx.strokeStyle = on ? "#e8a04a" : "rgba(42,48,64,0.25)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 16, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // shoot / fly circle
-      ctx.strokeStyle = on ? "rgba(126,200,255,0.55)" : "rgba(126,200,255,0.28)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 6]);
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, orbitR, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // inner flight ring
-      ctx.strokeStyle = "rgba(255,255,255,0.2)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, orbitR * 0.72, 0, Math.PI * 2);
-      ctx.stroke();
-
       const pos = flyerWorldPos(s.x, s.y, f);
+      // Nest / orbit rings only when this flyer is selected — keeps the board clear
+      if (on) {
+        const orbitR = flyerOrbitRadius(f);
+        ctx.fillStyle = "rgba(255,210,74,0.25)";
+        ctx.strokeStyle = "#e8a04a";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(126,200,255,0.55)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, orbitR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.strokeStyle = "rgba(255,255,255,0.25)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, orbitR * 0.72, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       drawFriendPad(ctx, f, pos.x, pos.y, on);
     } else {
       drawFriendPad(ctx, s.friend, s.x, s.y, on);
     }
-  }
-
-  // Soft board hint only while deploying — no pad grid
-  if (deployMode) {
-    void deployMode;
   }
 }
 
 function deployGhost(
   ctx: CanvasRenderingContext2D,
   ghost: { x: number; y: number; valid: boolean } | null | undefined,
+  deployMode: boolean,
 ) {
-  if (!ghost) return;
+  // Placement ghost only while a bag friend is equipped
+  if (!deployMode || !ghost) return;
   ctx.save();
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = ghost.valid ? "rgba(126, 220, 120, 0.45)" : "rgba(220, 80, 80, 0.4)";
@@ -483,8 +477,8 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   path(ctx);
   gate(ctx);
   walls(ctx, s.walls);
-  slots(ctx, s.slots, s.selectedSlot, !!s.deployMode, s.time);
-  deployGhost(ctx, s.deployGhost);
+  slots(ctx, s.slots, s.selectedSlot);
+  deployGhost(ctx, s.deployGhost, !!s.deployMode);
   thieves(ctx, s.thieves, s.thiefPos);
   shots(ctx, s.shots);
   booms(ctx, s.booms);

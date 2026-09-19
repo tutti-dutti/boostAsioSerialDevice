@@ -1020,6 +1020,12 @@ export class Game {
   }
 
   paint() {
+    // Never leave a placement ghost up when not equipping
+    if (this.selectedBag == null) this.deployGhost = null;
+    // Drop any empty pad leftovers so they can't render
+    if (this.slots.some((s) => !s.friend)) {
+      this.slots = this.slots.filter((s) => s.friend);
+    }
     const thiefPos = new Map<string, { x: number; y: number }>();
     for (const t of this.thieves) {
       if (!t.alive) continue;
@@ -1044,9 +1050,12 @@ export class Game {
       waveWaiting: this.waveWaiting,
       paused: this.paused,
       autoWaveTimer: this.autoWaveTimer,
-      deployGhost: this.deployGhost,
+      deployGhost: this.selectedBag != null ? this.deployGhost : null,
     });
-    const selected = this.slotById(this.selectedSlot);
-    if (selected?.friend) drawRangeHint(this.ctx, selected);
+    // Range ring only while a board friend is selected (not during bag deploy)
+    if (this.selectedBag == null) {
+      const selected = this.slotById(this.selectedSlot);
+      if (selected?.friend) drawRangeHint(this.ctx, selected);
+    }
   }
 }
