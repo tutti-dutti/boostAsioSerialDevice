@@ -153,6 +153,17 @@ app.innerHTML = `
       </div>
     </div>
   </div>
+
+  <div class="confirm-overlay hidden" id="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="confirm-card">
+      <h2 id="confirm-title">Are you sure?</h2>
+      <p class="confirm-message" id="confirm-message"></p>
+      <div class="confirm-actions">
+        <button type="button" class="danger" id="confirm-yes">Confirm</button>
+        <button type="button" id="confirm-no">Cancel</button>
+      </div>
+    </div>
+  </div>
 `;
 
 const home = document.querySelector<HTMLElement>("#home")!;
@@ -187,11 +198,51 @@ const feedbackOverlay = document.querySelector("#feedback-overlay")!;
 const feedbackNameInput = document.querySelector<HTMLInputElement>("#feedback-name")!;
 const feedbackMessageInput = document.querySelector<HTMLTextAreaElement>("#feedback-message")!;
 const feedbackStatus = document.querySelector("#feedback-status")!;
+const confirmOverlay = document.querySelector("#confirm-overlay")!;
+const confirmTitle = document.querySelector("#confirm-title")!;
+const confirmMessage = document.querySelector("#confirm-message")!;
+const confirmYesBtn = document.querySelector<HTMLButtonElement>("#confirm-yes")!;
+const confirmNoBtn = document.querySelector<HTMLButtonElement>("#confirm-no")!;
 
 let scorePromptShown = false;
 let scoreSavedThisRun = false;
 let feedbackKind: FeedbackKind = "feedback";
 let pausedForFeedback = false;
+let pausedForConfirm = false;
+let confirmAction: (() => void) | null = null;
+
+function openConfirm(opts: {
+  title?: string;
+  message: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+}) {
+  unlockAudio();
+  confirmTitle.textContent = opts.title ?? "Are you sure?";
+  confirmMessage.textContent = opts.message;
+  confirmYesBtn.textContent = opts.confirmLabel ?? "Confirm";
+  confirmAction = opts.onConfirm;
+  pausedForConfirm = false;
+  if (game.running && !game.paused && !game.gameOver) {
+    game.setPaused(true);
+    pausedForConfirm = true;
+  }
+  confirmOverlay.classList.remove("hidden");
+  setTimeout(() => confirmNoBtn.focus(), 40);
+  refresh();
+}
+
+function closeConfirm(runAction: boolean) {
+  confirmOverlay.classList.add("hidden");
+  const action = confirmAction;
+  confirmAction = null;
+  if (pausedForConfirm && game.paused && !game.gameOver) {
+    game.setPaused(false);
+  }
+  pausedForConfirm = false;
+  if (runAction && action) action();
+  refresh();
+}
 
 function renderScoresList(container: Element, scores: HighScore[], compact = false) {
   container.innerHTML = scores
@@ -636,7 +687,12 @@ document.querySelector("#eagle-land")!.addEventListener("click", () => {
   game.activateEagleLand();
 });
 document.querySelector("#clear-board")!.addEventListener("click", () => {
-  if (confirm("Move all board friends back to the bag?")) game.clearBoard();
+  openConfirm({
+    title: "Clear board?",
+    message: "Move all board friends back to the bag?",
+    confirmLabel: "Clear board",
+    onConfirm: () => game.clearBoard(),
+  });
 });
 document.querySelector("#clear-others")!.addEventListener("click", () => {
   unlockAudio();
@@ -644,18 +700,44 @@ document.querySelector("#clear-others")!.addEventListener("click", () => {
     game.clearUnselected();
     return;
   }
-  if (confirm("Move all other board friends back to the bag? (keeps the selected one)")) {
-    game.clearUnselected();
-  }
+  openConfirm({
+    title: "Clear others?",
+    message: "Move all other board friends back to the bag? (keeps the selected one)",
+    confirmLabel: "Clear others",
+    onConfirm: () => game.clearUnselected(),
+  });
 });
 document.querySelector("#delete-unit")!.addEventListener("click", () => {
-  if (confirm("Delete this friend forever?")) game.deleteSelected();
+  openConfirm({
+    title: "Delete friend?",
+    message: "Delete this friend forever? This cannot be undone.",
+    confirmLabel: "Delete",
+    onConfirm: () => game.deleteSelected(),
+  });
 });
 document.querySelector("#crumb")!.addEventListener("click", () => game.cast("crumb"));
 document.querySelector("#frost")!.addEventListener("click", () => game.cast("frost"));
 document.querySelector("#zap")!.addEventListener("click", () => game.cast("zap"));
 document.querySelector("#new-game")!.addEventListener("click", () => {
-  if (confirm("Start over?")) game.reset();
+  openConfirm({
+    title: "New game?",
+    message: "Start over from wave 1? Your current run will be reset.",
+    confirmLabel: "Start over",
+    onConfirm: () => game.reset(),
+  });
+});
+
+confirmYesBtn.addEventListener("click", () => closeConfirm(true));
+confirmNoBtn.addEventListener("click", () => closeConfirm(false));
+confirmOverlay.addEventListener("click", (e) => {
+  if (e.target === confirmOverlay) closeConfirm(false);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (!confirmOverlay.classList.contains("hidden")) {
+    e.preventDefault();
+    closeConfirm(false);
+  }
 });
 
 game.running = false;

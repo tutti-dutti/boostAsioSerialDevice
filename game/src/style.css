@@ -1005,6 +1005,57 @@ button.danger {
   display: none;
 }
 
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: rgba(40, 60, 80, 0.55);
+}
+
+.confirm-overlay.hidden {
+  display: none;
+}
+
+.confirm-card {
+  width: min(22rem, 100%);
+  background: var(--cream);
+  border: 4px solid var(--cookie);
+  border-radius: 20px;
+  padding: 1.15rem 1.25rem;
+  text-align: center;
+  box-shadow: 0 14px 36px rgba(42, 48, 64, 0.22);
+}
+
+.confirm-card h2 {
+  font-family: var(--display);
+  font-size: 1.45rem;
+  color: var(--cookie-dark);
+  margin-bottom: 0.35rem;
+}
+
+.confirm-message {
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 0.95rem;
+  line-height: 1.35;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.confirm-actions button {
+  flex: 1;
+  min-width: 7rem;
+}
+
 .feedback-card {
   width: min(26rem, 100%);
   background: var(--cream);
