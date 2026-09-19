@@ -13,6 +13,7 @@ import {
   friendFootprintRadius,
   type FriendDef,
 } from "./data";
+import { pickFriendForMath, type MathGrade } from "./mathChallenge";
 import { COOKIE, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses, canPlaceAt, pathClearanceFor } from "./path";
 import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell, playCookieMunch, shootSoundFor, playPoisonFart, playFoxWall } from "./sound";
@@ -636,6 +637,26 @@ export class Game {
     this.toast(`${friend.emoji} ${tag} — tap grass to deploy`, true);
     this.save();
     this.onChange();
+  }
+
+  /** Reward a friend from a correct math challenge (power scales with grade/hardness) */
+  grantMathFriend(grade: MathGrade, hardness: 1 | 2 | 3): FriendDef {
+    const friend = pickFriendForMath(grade, hardness);
+    this.bag.unshift(friend);
+    this.selectedBag = 0;
+    this.selectedSlot = null;
+    const tag =
+      friend.rarity === "god"
+        ? "GOD!"
+        : friend.rarity === "legendary"
+          ? "LEGENDARY!"
+          : friend.rarity === "rare"
+            ? "Tier 2!"
+            : friend.name;
+    this.toast(`📚 ${friend.emoji} Math win — ${tag}`, true);
+    this.save();
+    this.onChange();
+    return friend;
   }
 
   upgradeSelected() {
