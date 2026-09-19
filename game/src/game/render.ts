@@ -57,23 +57,101 @@ function gate(ctx: CanvasRenderingContext2D) {
   ctx.fillText("IN", GATE.x, GATE.y + 3);
 }
 
-function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number) {
+function cookieBiteCenters(x: number, y: number, r: number, count: number) {
+  const bites: { bx: number; by: number; br: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const ang = (i * 2.399963) % (Math.PI * 2);
+    const br = 10 + (i % 4) * 2.2;
+    bites.push({
+      bx: x + Math.cos(ang) * (r - 1),
+      by: y + Math.sin(ang) * (r - 1),
+      br,
+    });
+  }
+  return bites;
+}
+
+function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number, biteFlash = 0) {
   const x = COOKIE.x;
   const y = COOKIE.y;
-  // vault pad
-  ctx.fillStyle = "#e8a04a";
+  const r = 36;
+  const missing = Math.max(0, max - hp);
+  // One visible bite per damage point (capped so the cookie still reads)
+  const biteCount = Math.min(16, missing);
+  const bites = cookieBiteCenters(x, y, r, biteCount);
+
+  ctx.save();
+  if (biteFlash > 0) {
+    const shake = biteFlash * 5;
+    ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  }
+
+  // Cookie body with circular bites cut out (evenodd)
   ctx.beginPath();
-  ctx.arc(x, y, 36, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  for (const b of bites) {
+    ctx.moveTo(b.bx + b.br, b.by);
+    ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2);
+  }
+  ctx.fillStyle = biteFlash > 0.2 ? "#f0b050" : "#e8a04a";
+  ctx.fill("evenodd");
+
+  // Bite crust edges
+  ctx.strokeStyle = "#a86828";
+  ctx.lineWidth = 2.5;
+  for (const b of bites) {
+    ctx.beginPath();
+    ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Outer rim (full circle still helps silhouette)
   ctx.strokeStyle = "#c4782a";
   ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.stroke();
+
+  // Chocolate chips — skip any that fell into a bite
   ctx.fillStyle = "#6a3a18";
-  [[-10, -8], [8, -6], [-4, 10], [12, 8], [0, 0]].forEach(([cx, cy]) => {
+  const chips: [number, number][] = [
+    [-10, -8],
+    [8, -6],
+    [-4, 10],
+    [12, 8],
+    [0, 0],
+    [-14, 4],
+    [6, 12],
+  ];
+  for (const [cx, cy] of chips) {
+    const px = x + cx;
+    const py = y + cy;
+    const eaten = bites.some((b) => Math.hypot(px - b.bx, py - b.by) < b.br + 2);
+    if (eaten) continue;
+    if (Math.hypot(cx, cy) > r - 6) continue;
     ctx.beginPath();
-    ctx.arc(x + cx, y + cy, 4, 0, Math.PI * 2);
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
     ctx.fill();
-  });
+  }
+
+  // Crumb flecks near recent bites
+  if (biteCount > 0) {
+    ctx.fillStyle = "#d4a060";
+    for (let i = 0; i < Math.min(biteCount, 8); i++) {
+      const b = bites[i];
+      const ang = Math.atan2(b.by - y, b.bx - x);
+      ctx.beginPath();
+      ctx.arc(
+        x + Math.cos(ang) * (r + 10 + (i % 3) * 3),
+        y + Math.sin(ang) * (r + 10 + (i % 3) * 3),
+        2.2,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+  }
+
   ctx.fillStyle = "#fff6e8";
   ctx.font = "800 11px Nunito, sans-serif";
   ctx.textAlign = "center";
@@ -84,6 +162,7 @@ function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number) {
   ctx.fillRect(x - 34, y + 56, 68, 8);
   ctx.fillStyle = pct > 0.3 ? "#6ecf7a" : "#ff6b6b";
   ctx.fillRect(x - 34, y + 56, 68 * pct, 8);
+  ctx.restore();
 }
 
 function friendTokenRadius(f: PlacedFriend): number {
@@ -336,6 +415,7 @@ export interface DrawState {
   walls: Wall[];
   cookieHp: number;
   cookieMax: number;
+  cookieBiteFlash?: number;
   selectedSlot: number | null;
   time: number;
   wave: number;
@@ -351,7 +431,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   thieves(ctx, s.thieves, s.thiefPos);
   shots(ctx, s.shots);
   booms(ctx, s.booms);
-  cookie(ctx, s.cookieHp, s.cookieMax);
+  cookie(ctx, s.cookieHp, s.cookieMax, s.cookieBiteFlash ?? 0);
   floats(ctx, s.floats);
 
   ctx.fillStyle = "rgba(42,48,64,0.65)";

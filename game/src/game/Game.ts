@@ -49,6 +49,7 @@ export class Game {
   wave = 1;
   cookieHp = 55;
   cookieMax = 55;
+  cookieBiteFlash = 0;
   spawnLeft = 0;
   spawnTimer = 0;
   wavePause = 2;
@@ -193,6 +194,7 @@ export class Game {
     this.wave = 1;
     this.cookieHp = 55;
     this.cookieMax = 55;
+    this.cookieBiteFlash = 0;
     this.spawnLeft = 0;
     this.spawnTimer = 0;
     this.wavePause = 2;
@@ -479,6 +481,7 @@ export class Game {
     this.time += dt;
     if (this.toastTimer > 0) this.toastTimer -= dt;
     if (this.toastCooldown > 0) this.toastCooldown -= dt;
+    if (this.cookieBiteFlash > 0) this.cookieBiteFlash -= dt;
     for (const k of Object.keys(this.spellCool) as (keyof typeof this.spellCool)[]) {
       if (this.spellCool[k] > 0) this.spellCool[k] -= dt;
     }
@@ -540,7 +543,23 @@ export class Game {
       t.progress += ((t.def.speed * slow * block) / 900) * dt;
       if (t.progress >= 1) {
         t.alive = false;
-        this.cookieHp -= t.def.boss ? (isLevelBossWave(this.wave) ? 8 : 4) : 1;
+        const dmg = t.def.boss ? (isLevelBossWave(this.wave) ? 8 : 4) : 1;
+        this.cookieHp -= dmg;
+        this.cookieBiteFlash = 0.55;
+        this.booms.push({
+          kind: "crumb",
+          x: COOKIE.x,
+          y: COOKIE.y,
+          life: 0.7,
+          radius: 40 + dmg * 4,
+        });
+        this.floats.push({
+          x: COOKIE.x,
+          y: COOKIE.y - 40,
+          text: dmg > 1 ? "CHOMP!!" : "NOM!",
+          color: "#c4782a",
+          life: 1,
+        });
         this.onChange();
         if (this.cookieHp <= 0) {
           this.cookieHp = 0;
@@ -683,6 +702,7 @@ export class Game {
       walls: this.walls,
       cookieHp: this.cookieHp,
       cookieMax: this.cookieMax,
+      cookieBiteFlash: Math.max(0, this.cookieBiteFlash),
       selectedSlot: this.selectedSlot,
       time: this.time,
       wave: this.wave,
