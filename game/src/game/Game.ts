@@ -30,6 +30,10 @@ import {
   BEAVER_DAM_COST,
   isDumplingPanda,
   nextDumplingDelay,
+  isEagleBomber,
+  eagleKillPoints,
+  EAGLE_LAND_COST,
+  EAGLE_LAND_DURATION,
   type Boom,
   type Dam,
   type FloatText,
@@ -368,6 +372,7 @@ export class Game {
           x: s.x,
           y: s.y,
           beaverPoints: s.friend!.beaverPoints ?? 0,
+          eaglePoints: s.friend!.eaglePoints ?? 0,
         })),
       dams: this.dams.map((d) => ({
         x: d.x,
@@ -424,6 +429,7 @@ export class Game {
             abilityTimer: def.ability === "foxWall" ? 30 : 0,
             orbitAngle: Math.random() * Math.PI * 2,
             beaverPoints: typeof slot.beaverPoints === "number" ? slot.beaverPoints : 0,
+            eaglePoints: typeof slot.eaglePoints === "number" ? slot.eaglePoints : 0,
             dumplingTimer: isDumplingPanda(def) ? nextDumplingDelay() : undefined,
           },
         };
@@ -779,6 +785,7 @@ export class Game {
         abilityTimer: friend.ability === "foxWall" ? 2 : 0,
         orbitAngle: Math.random() * Math.PI * 2,
         beaverPoints: 0,
+        eaglePoints: 0,
         dumplingTimer: isDumplingPanda(friend) ? nextDumplingDelay() : undefined,
       },
     });
@@ -897,6 +904,7 @@ export class Game {
       }
       this.floats.push({ x, y: y - 24, text: `+${t.def.gold}🪙`, color: "#c4782a", life: 1 });
       this.creditBeaverKill(killerSlotId, t, x, y);
+      this.creditEagleKill(killerSlotId, t, x, y);
     }
   }
 
@@ -918,6 +926,117 @@ export class Game {
       this.toast(`🦫 Dam ready! Tap Build Dam (${BEAVER_DAM_COST}🪵)`, true);
     }
     this.onChange();
+  }
+
+  creditEagleKill(killerSlotId: number | undefined, t: Thief, x: number, y: number) {
+    if (killerSlotId == null) return;
+    const slot = this.slots.find((s) => s.id === killerSlotId);
+    if (!slot?.friend || !isEagleBomber(slot.friend)) return;
+    if (slot.friend.landed) return; // already bombing
+    const pts = eagleKillPoints(t.def);
+    const before = slot.friend.eaglePoints ?? 0;
+    slot.friend.eaglePoints = before + pts;
+    this.floats.push({
+      x,
+      y: y - 38,
+      text: `+${pts}⭐`,
+      color: "#d0a040",
+      life: 1,
+    });
+    if (before < EAGLE_LAND_COST && (slot.friend.eaglePoints ?? 0) >= EAGLE_LAND_COST) {
+      this.toast(`🦅 Land & Bomb ready! (${EAGLE_LAND_COST}⭐)`, true);
+    }
+    this.onChange();
+  }
+
+  selectedEagle(): Slot | null {
+    const slot = this.slotById(this.selectedSlot);
+    if (!slot?.friend || !isEagleBomber(slot.friend)) return null;
+    return slot;
+  }
+
+  canEagleLand(): boolean {
+    const slot = this.selectedEagle();
+    if (!slot?.friend) return false;
+    if (slot.friend.landed) return false;
+    return (slot.friend.eaglePoints ?? 0) >= EAGLE_LAND_COST;
+  }
+
+  activateEagleLand() {
+    const slot = this.selectedEagle();
+    if (!slot?.friend) {
+      this.toast("Select an eagle first", true);
+      return;
+    }
+    if (slot.friend.landed) {
+      this.toast("Already on a Freedom run!", true);
+      return;
+    }
+    const points = slot.friend.eaglePoints ?? 0;
+    if (points < EAGLE_LAND_COST) {
+      this.toast(`Need ${EAGLE_LAND_COST}⭐ (have ${points})`, true);
+      return;
+    }
+    slot.friend.eaglePoints = points - EAGLE_LAND_COST;
+    slot.friend.landed = true;
+    slot.friend.landTimer = EAGLE_LAND_DURATION;
+    slot.friend.bombCooldown = 0.25;
+    slot.friend.speech = { text: "Freedom!", life: 2.8 };
+    this.booms.push({ kind: "bomb", x: slot.x, y: slot.y, life: 0.8, radius: 40 });
+    this.toast(`🦅 ${slot.friend.def.name} lands — FREEDOM!`, true);
+    this.save();
+    this.onChange();
+  }
+
+  dropEagleBomb(slot: Slot) {
+    const f = slot.friend;
+    if (!f || !f.landed) return;
+    const alive = this.thieves.filter((t) => t.alive);
+    if (!alive.length) {
+      // Still drop a bomb on the nearby path for flair
+      const prog = Math.min(0.95, nearestProgress(slot.x, slot.y) + 0.04 + Math.random() * 0.08);
+      const p = pathPoint(prog);
+      this.shots.push({
+        x: slot.x,
+        y: slot.y - 6,
+        tx: p.x,
+        ty: p.y,
+        speed: 340,
+        damage: Math.round(friendDamage(f) * 1.8),
+        color: "#4a4030",
+        targetId: "",
+        bomb: true,
+        ownerSlotId: slot.id,
+      });
+      playShoot("heavy");
+      return;
+    }
+
+    // Prefer closest threats, drop up to 2 bombs
+    const scored = alive
+      .map((t) => {
+        const p = pathPoint(t.progress);
+        return { t, p, d: Math.hypot(p.x - slot.x, p.y - slot.y) };
+      })
+      .sort((a, b) => a.d - b.d);
+    const count = Math.min(2, scored.length);
+    for (let i = 0; i < count; i++) {
+      const { t, p } = scored[i];
+      this.shots.push({
+        x: slot.x + (i === 0 ? -6 : 6),
+        y: slot.y - 8,
+        tx: p.x,
+        ty: p.y,
+        speed: 300 + Math.random() * 50,
+        damage: Math.round(friendDamage(f) * (f.def.id === "thunderroc" ? 2.2 : 1.9)),
+        color: "#4a4030",
+        targetId: t.uid,
+        bomb: true,
+        ownerSlotId: slot.id,
+        weaponRole: weaponRoleFor(f.def),
+      });
+      playShoot("heavy");
+    }
   }
 
   selectedBeaver(): Slot | null {
@@ -1192,9 +1311,29 @@ export class Game {
       const f = slot.friend;
       if (!f) continue;
 
-      // Birds fly in a circle around their nest
-      if (f.def.flies) {
+      // Birds fly in a circle around their nest (unless landed for Freedom bombs)
+      if (f.def.flies && !f.landed) {
         f.orbitAngle += flyerOrbitSpeed(f) * dt;
+      }
+
+      // Eagle land-and-bomb Freedom run
+      if (f.landed) {
+        if (f.speech && f.speech.life > 0) f.speech.life -= dt;
+        if (f.speech && f.speech.life <= 0) f.speech = undefined;
+        f.landTimer = (f.landTimer ?? 0) - dt;
+        f.bombCooldown = (f.bombCooldown ?? 0) - dt;
+        if (f.bombCooldown <= 0) {
+          this.dropEagleBomb(slot);
+          f.bombCooldown = 0.75;
+        }
+        if ((f.landTimer ?? 0) <= 0) {
+          f.landed = false;
+          f.landTimer = 0;
+          f.bombCooldown = 0;
+          f.speech = undefined;
+          this.toast(`🦅 ${f.def.name} takes off again!`, true);
+          this.onChange();
+        }
       }
 
       f.cooldown -= dt;
@@ -1204,7 +1343,8 @@ export class Game {
       const isLegend = f.def.rarity === "legendary" && !isFlyer;
       const maxBurst = 1;
       let burst = 0;
-      const birdPos = isFlyer ? flyerWorldPos(slot.x, slot.y, f) : { x: slot.x, y: slot.y };
+      const birdPos =
+        isFlyer && !f.landed ? flyerWorldPos(slot.x, slot.y, f) : { x: slot.x, y: slot.y };
 
       while (f.cooldown <= 0 && burst < maxBurst) {
         const range = friendRange(f);
@@ -1278,7 +1418,9 @@ export class Game {
       const d = Math.hypot(dx, dy) || 1;
       const step = s.speed * dt;
       if (step >= d) {
-        const t = this.thieves.find((x) => x.uid === s.targetId && x.alive);
+        const t = s.targetId
+          ? this.thieves.find((x) => x.uid === s.targetId && x.alive)
+          : undefined;
         if (t) {
           const p = pathPoint(t.progress);
           let dmg = s.damage;
@@ -1312,8 +1454,31 @@ export class Game {
               }
             }
           }
+          if (s.bomb) {
+            dmg = Math.round(dmg * 1.15);
+            this.booms.push({ kind: "bomb", x: p.x, y: p.y, life: 0.75, radius: 58 });
+            this.floats.push({ x: p.x, y: p.y - 20, text: "💥", color: "#e07030", life: 0.75 });
+            for (const other of this.thieves) {
+              if (!other.alive || other.uid === t.uid) continue;
+              const op = pathPoint(other.progress);
+              if (Math.hypot(op.x - p.x, op.y - p.y) < 78) {
+                this.hurt(other, Math.round(dmg * 0.6), op.x, op.y, false, false, false, s.ownerSlotId);
+              }
+            }
+          }
           const chill = s.weaponRole === "antiSpeed" && !s.floppy && !s.freeze;
           this.hurt(t, dmg, p.x, p.y, !!s.floppy, chill, !!s.freeze, s.ownerSlotId);
+          playHit();
+        } else if (s.bomb) {
+          // Path bomb with no live target — still explode at aim point
+          this.booms.push({ kind: "bomb", x: s.tx, y: s.ty, life: 0.75, radius: 58 });
+          for (const other of this.thieves) {
+            if (!other.alive) continue;
+            const op = pathPoint(other.progress);
+            if (Math.hypot(op.x - s.tx, op.y - s.ty) < 78) {
+              this.hurt(other, Math.round(s.damage * 0.7), op.x, op.y, false, false, false, s.ownerSlotId);
+            }
+          }
           playHit();
         }
         s.speed = -1;

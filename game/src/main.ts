@@ -3,7 +3,7 @@ import { Game } from "./game/Game";
 import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, type FriendDef } from "./game/data";
 import { unlockAudio, setMuted, isMuted } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
-import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST } from "./game/types";
+import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST } from "./game/types";
 import {
   formatScoreDate,
   getSavedPlayerName,
@@ -102,6 +102,9 @@ app.innerHTML = `
         </div>
         <div class="row beaver-dam-row hidden" id="beaver-dam-row">
           <button class="dam-btn" id="build-dam" type="button">Build Dam (5🪵)</button>
+        </div>
+        <div class="row eagle-land-row hidden" id="eagle-land-row">
+          <button class="eagle-btn" id="eagle-land" type="button">Land &amp; Bomb (6⭐)</button>
         </div>
         <div class="row">
           <button id="clear-board" type="button">Clear board</button>
@@ -326,6 +329,11 @@ function refresh() {
         const pts = f.beaverPoints ?? 0;
         extra += ` · ${pts}/${BEAVER_DAM_COST}🪵 dam points`;
       }
+      if (isEagleBomber(f)) {
+        const pts = f.eaglePoints ?? 0;
+        if (f.landed) extra += " · LANDED — dropping bombs!";
+        else extra += ` · ${pts}/${EAGLE_LAND_COST}⭐ Freedom points`;
+      }
       if (f.def.id === "giantpanda" || f.def.id === "redpanda") {
         extra += " · random 🥟 dumplings!";
       }
@@ -388,6 +396,24 @@ function refresh() {
     buildDamBtn.disabled = !game.canBuildDam() || game.gameOver;
   } else {
     beaverRow.classList.add("hidden");
+  }
+
+  const eagleRow = document.querySelector("#eagle-land-row")!;
+  const eagleLandBtn = document.querySelector("#eagle-land") as HTMLButtonElement;
+  const eagleSlot = game.selectedEagle();
+  if (eagleSlot?.friend) {
+    eagleRow.classList.remove("hidden");
+    const pts = eagleSlot.friend.eaglePoints ?? 0;
+    if (eagleSlot.friend.landed) {
+      const left = Math.max(0, Math.ceil(eagleSlot.friend.landTimer ?? 0));
+      eagleLandBtn.textContent = `Bombing… ${left}s`;
+      eagleLandBtn.disabled = true;
+    } else {
+      eagleLandBtn.textContent = `Land & Bomb (${pts}/${EAGLE_LAND_COST}⭐)`;
+      eagleLandBtn.disabled = !game.canEagleLand() || game.gameOver;
+    }
+  } else {
+    eagleRow.classList.add("hidden");
   }
 
   refreshCourses();
@@ -538,6 +564,10 @@ document.querySelector("#sell")!.addEventListener("click", () => game.sellSelect
 document.querySelector("#build-dam")!.addEventListener("click", () => {
   unlockAudio();
   game.buildBeaverDam();
+});
+document.querySelector("#eagle-land")!.addEventListener("click", () => {
+  unlockAudio();
+  game.activateEagleLand();
 });
 document.querySelector("#clear-board")!.addEventListener("click", () => {
   if (confirm("Move all board friends back to the bag?")) game.clearBoard();

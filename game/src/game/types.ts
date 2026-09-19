@@ -27,10 +27,26 @@ export interface PlacedFriend {
   beaverPoints?: number;
   /** Countdown until next random dumpling volley (pandas) */
   dumplingTimer?: number;
+  /** Eagle freedom-run points from kills */
+  eaglePoints?: number;
+  /** Eagle has landed to drop bombs */
+  landed?: boolean;
+  /** Seconds left in land-and-bomb mode */
+  landTimer?: number;
+  /** Cooldown between bomb drops while landed */
+  bombCooldown?: number;
+  /** Comic speech bubble above the friend */
+  speech?: { text: string; life: number };
 }
 
 /** Kill points needed for a beaver to build one dam */
 export const BEAVER_DAM_COST = 5;
+
+/** Kill points needed for an eagle to land and bomb */
+export const EAGLE_LAND_COST = 6;
+
+/** How long the eagle stays landed dropping bombs */
+export const EAGLE_LAND_DURATION = 7.5;
 
 export function isBeaverBuilder(f: PlacedFriend | FriendDef): boolean {
   const id = "def" in f ? f.def.id : f.id;
@@ -46,6 +62,17 @@ export function isDumplingPanda(f: PlacedFriend | FriendDef): boolean {
 export function nextDumplingDelay(): number {
   // Random 3.5–7.5s between dumpling volleys
   return 3.5 + Math.random() * 4;
+}
+
+export function isEagleBomber(f: PlacedFriend | FriendDef): boolean {
+  const id = "def" in f ? f.def.id : f.id;
+  return id === "eagle" || id === "thunderroc";
+}
+
+export function eagleKillPoints(thief: ThiefDef): number {
+  if (thief.boss) return 3;
+  if (thief.kind === "speed") return 2; // eagles love chasing runners
+  return 1;
 }
 
 export function beaverKillPoints(thief: ThiefDef): number {
@@ -112,6 +139,8 @@ export interface Shot {
   ownerSlotId?: number;
   /** Kung Fu Panda dumpling projectile */
   dumpling?: boolean;
+  /** Eagle freedom bomb */
+  bomb?: boolean;
 }
 
 export interface FloatText {
@@ -123,7 +152,7 @@ export interface FloatText {
 }
 
 export interface Boom {
-  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy" | "dam" | "dumpling";
+  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy" | "dam" | "dumpling" | "bomb";
   x: number;
   y: number;
   life: number;

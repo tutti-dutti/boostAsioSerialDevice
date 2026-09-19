@@ -290,6 +290,45 @@ function drawEvolveInfo(
   ctx.textBaseline = "middle";
 }
 
+function drawSpeechBubble(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  text: string,
+) {
+  ctx.font = "800 13px Nunito, sans-serif";
+  const padX = 10;
+  const tw = ctx.measureText(text).width;
+  const boxW = tw + padX * 2;
+  const boxH = 22;
+  let boxX = x - boxW / 2;
+  let boxY = y - 48;
+  if (boxX < 6) boxX = 6;
+  if (boxX + boxW > W - 6) boxX = W - 6 - boxW;
+  if (boxY < 6) boxY = y + 28;
+
+  ctx.fillStyle = "#fffdf6";
+  ctx.strokeStyle = "#2a3040";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.roundRect(boxX, boxY, boxW, boxH, 10);
+  ctx.fill();
+  ctx.stroke();
+  // tail
+  ctx.beginPath();
+  ctx.moveTo(x - 6, boxY + boxH);
+  ctx.lineTo(x, boxY + boxH + 8);
+  ctx.lineTo(x + 6, boxY + boxH);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#2a3040";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, boxX + boxW / 2, boxY + boxH / 2 + 1);
+}
+
 function slots(
   ctx: CanvasRenderingContext2D,
   list: Slot[],
@@ -300,35 +339,44 @@ function slots(
     const on = selected === s.id;
     if (s.friend.def.flies) {
       const f = s.friend;
-      const pos = flyerWorldPos(s.x, s.y, f);
+      const landed = !!f.landed;
+      const pos = landed ? { x: s.x, y: s.y } : flyerWorldPos(s.x, s.y, f);
       // Nest / orbit rings only when this flyer is selected — keeps the board clear
       if (on) {
         const orbitR = flyerOrbitRadius(f);
-        ctx.fillStyle = "rgba(255,210,74,0.25)";
-        ctx.strokeStyle = "#e8a04a";
+        ctx.fillStyle = landed ? "rgba(224, 112, 48, 0.3)" : "rgba(255,210,74,0.25)";
+        ctx.strokeStyle = landed ? "#e07030" : "#e8a04a";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(s.x, s.y, 16, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        ctx.strokeStyle = "rgba(126,200,255,0.55)";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 6]);
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, orbitR, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
+        if (!landed) {
+          ctx.strokeStyle = "rgba(126,200,255,0.55)";
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 6]);
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, orbitR, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
 
-        ctx.strokeStyle = "rgba(255,255,255,0.25)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, orbitR * 0.72, 0, Math.PI * 2);
-        ctx.stroke();
+          ctx.strokeStyle = "rgba(255,255,255,0.25)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, orbitR * 0.72, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
       drawFriendPad(ctx, f, pos.x, pos.y, on);
+      if (f.speech && f.speech.life > 0) {
+        drawSpeechBubble(ctx, pos.x, pos.y, f.speech.text);
+      }
     } else {
       drawFriendPad(ctx, s.friend, s.x, s.y, on);
+      if (s.friend.speech && s.friend.speech.life > 0) {
+        drawSpeechBubble(ctx, s.x, s.y, s.friend.speech.text);
+      }
     }
   }
 }
@@ -460,6 +508,13 @@ function shots(ctx: CanvasRenderingContext2D, list: Shot[]) {
       ctx.fillText("🥟", s.x, s.y);
       continue;
     }
+    if (s.bomb) {
+      ctx.font = "22px serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("💣", s.x, s.y);
+      continue;
+    }
     ctx.fillStyle = s.color;
     const r = s.godBeam ? 7 : s.heavyHit ? 7 : s.freeze || s.floppy ? 6 : 4;
     ctx.beginPath();
@@ -500,6 +555,7 @@ function booms(ctx: CanvasRenderingContext2D, list: Boom[]) {
       wall: "#c4782a",
       dam: "#8a6040",
       dumpling: "#f0c878",
+      bomb: "#e07030",
       beam: "#ff5040",
       freeze: "#9ad4ff",
       heavy: "#c87838",

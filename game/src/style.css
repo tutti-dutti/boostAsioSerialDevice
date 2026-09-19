@@ -459,6 +459,25 @@ button.dam-btn:disabled {
   display: none;
 }
 
+button.eagle-btn {
+  width: 100%;
+  background: linear-gradient(180deg, #ffe08a, #d0a040);
+  border-color: #a07820;
+  color: #3a2810;
+  font-size: 1.05rem;
+  padding: 0.75rem 1rem;
+}
+
+button.eagle-btn:disabled {
+  background: #d0c8b8;
+  border-color: #a09888;
+  color: #6a6050;
+}
+
+.eagle-land-row.hidden {
+  display: none;
+}
+
 button.danger {
   background: #ffd4d0;
   border-color: #d06058;
