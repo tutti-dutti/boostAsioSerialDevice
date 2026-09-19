@@ -56,6 +56,9 @@ app.innerHTML = `
       <section class="panel">
         <h2>Actions</h2>
         <div class="row">
+          <button class="wave-btn" id="start-wave" type="button">Start Wave</button>
+        </div>
+        <div class="row">
           <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
           <button id="sell" type="button">To bag</button>
         </div>
@@ -150,6 +153,13 @@ function refresh() {
 
   (document.querySelector("#summon") as HTMLButtonElement).disabled = game.stars < 1;
   (document.querySelector("#lucky") as HTMLButtonElement).disabled = game.stars < 3;
+  const startBtn = document.querySelector("#start-wave") as HTMLButtonElement;
+  startBtn.disabled = !game.canStartWave();
+  startBtn.textContent = game.canStartWave()
+    ? `Start Wave ${game.wave}`
+    : game.waveInProgress || game.spawnLeft > 0 || game.thieves.some((t) => t.alive)
+      ? `Wave ${game.wave}…`
+      : `Start Wave ${game.wave}`;
 }
 
 game.onChange = refresh;
@@ -187,6 +197,10 @@ document.querySelector("#retry-btn")!.addEventListener("click", () => {
 
 document.querySelector("#summon")!.addEventListener("click", () => game.summon(false));
 document.querySelector("#lucky")!.addEventListener("click", () => game.summon(true));
+document.querySelector("#start-wave")!.addEventListener("click", () => {
+  unlockAudio();
+  game.requestStartWave();
+});
 document.querySelector("#upgrade")!.addEventListener("click", () => game.upgradeSelected());
 document.querySelector("#sell")!.addEventListener("click", () => game.sellSelected());
 document.querySelector("#clear-board")!.addEventListener("click", () => {
@@ -209,7 +223,7 @@ function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   game.update(dt);
-  if (game.toastTimer > 0 || game.gameOver) refresh();
+  if (game.toastTimer > 0 || game.gameOver || game.waveWaiting) refresh();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

@@ -291,6 +291,21 @@ button.green {
   border-color: #58a858;
 }
 
+button.wave-btn {
+  width: 100%;
+  background: linear-gradient(180deg, #7dff9a, #3ecf6a);
+  border-color: #2a9a4a;
+  color: #143820;
+  font-size: 1.1rem;
+  padding: 0.85rem 1rem;
+}
+
+button.wave-btn:disabled {
+  background: #c8d8cc;
+  border-color: #8aa090;
+  color: #4a5a50;
+}
+
 button.danger {
   background: #ffd4d0;
   border-color: #d06058;

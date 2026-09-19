@@ -52,7 +52,10 @@ export class Game {
   cookieBiteFlash = 0;
   spawnLeft = 0;
   spawnTimer = 0;
-  wavePause = 2;
+  /** Player must press Start Wave */
+  waveWaiting = true;
+  waveInProgress = false;
+  wavePause = 0;
   time = 0;
   running = true;
   gameOver = false;
@@ -173,6 +176,12 @@ export class Game {
           orbitAngle: Math.random() * Math.PI * 2,
         };
       });
+      // Always wait for Start Wave after loading a save
+      this.waveWaiting = true;
+      this.waveInProgress = false;
+      this.spawnLeft = 0;
+      this.thieves = [];
+      this.shots = [];
     } catch {
       /* ignore */
     }
@@ -197,7 +206,9 @@ export class Game {
     this.cookieBiteFlash = 0;
     this.spawnLeft = 0;
     this.spawnTimer = 0;
-    this.wavePause = 2;
+    this.waveWaiting = true;
+    this.waveInProgress = false;
+    this.wavePause = 0;
     this.gameOver = false;
     this.running = true;
     this.syncMapForWave(false);
@@ -460,13 +471,40 @@ export class Game {
     this.onChange();
   }
 
+  /** True when the Start Wave button should be enabled */
+  canStartWave() {
+    return (
+      !this.gameOver &&
+      this.waveWaiting &&
+      !this.waveInProgress &&
+      this.spawnLeft <= 0 &&
+      this.thieves.every((t) => !t.alive)
+    );
+  }
+
+  /** Player presses Start Wave */
+  requestStartWave() {
+    if (!this.canStartWave()) {
+      if (this.waveInProgress || this.spawnLeft > 0 || this.thieves.some((t) => t.alive)) {
+        this.toast("Wave already going!", true);
+      }
+      return;
+    }
+    this.startWave();
+    this.onChange();
+  }
+
   startWave() {
+    this.waveWaiting = false;
+    this.waveInProgress = true;
     this.spawnLeft = waveCount(this.wave);
     this.spawnTimer = 0.2;
     this.wavePause = 0;
     if (isLevelBossWave(this.wave)) {
       const boss = levelBossForWave(this.wave);
       this.toast(`⚔️ BOSS FIGHT! ${boss.emoji} ${boss.name}!`, true);
+    } else {
+      this.toast(`Wave ${this.wave} — go!`, true);
     }
   }
 
@@ -529,9 +567,8 @@ export class Game {
       return;
     }
 
-    if (this.wavePause > 0) {
-      this.wavePause -= dt;
-      if (this.wavePause <= 0) this.startWave();
+    if (this.waveWaiting) {
+      // idle — wait for Start Wave button
     } else if (this.spawnLeft > 0) {
       this.spawnTimer -= dt;
       if (this.spawnTimer <= 0) {
@@ -539,13 +576,15 @@ export class Game {
         this.spawnLeft -= 1;
         this.spawnTimer = Math.max(0.45, 1.1 - this.wave * 0.03);
       }
-    } else if (this.thieves.every((t) => !t.alive)) {
+    } else if (this.waveInProgress && this.thieves.every((t) => !t.alive)) {
       this.thieves = [];
+      this.waveInProgress = false;
+      this.waveWaiting = true;
       this.wave += 1;
       this.stars += 1;
       this.gold += 3;
       this.syncMapForWave(true);
-      this.wavePause = 2.5;
+      this.toast(`Wave clear! Ready for wave ${this.wave}`, true);
       this.save();
       this.onChange();
     }
@@ -746,8 +785,9 @@ export class Game {
       selectedSlot: this.selectedSlot,
       time: this.time,
       wave: this.wave,
-      bossFight: isLevelBossWave(this.wave),
+      bossFight: isLevelBossWave(this.wave) && this.waveInProgress,
       deployMode: this.selectedBag != null,
+      waveWaiting: this.waveWaiting,
     });
     if (this.selectedSlot != null) {
       const slot = this.slots[this.selectedSlot];

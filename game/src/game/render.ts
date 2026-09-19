@@ -448,6 +448,7 @@ export interface DrawState {
   wave: number;
   bossFight?: boolean;
   deployMode?: boolean;
+  waveWaiting?: boolean;
 }
 
 export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
@@ -467,6 +468,13 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   ctx.textAlign = "left";
   const map = getActiveMap();
   ctx.fillText(`Wave ${s.wave} · ${map.name}`, 14, 24);
+
+  if (s.waveWaiting && !s.deployMode) {
+    ctx.fillStyle = "rgba(42, 48, 64, 0.8)";
+    ctx.font = "800 18px Nunito, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`Ready — press Start Wave ${s.wave}`, W / 2, H - 16);
+  }
 
   if (s.deployMode) {
     ctx.fillStyle = "rgba(232, 160, 74, 0.92)";
