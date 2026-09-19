@@ -329,12 +329,16 @@ function thieves(
     const p = pos.get(t.uid);
     if (!p) continue;
     const r = t.def.boss ? 18 : 13;
-    ctx.fillStyle = t.def.boss ? "#e8c15a" : "#fff6e8";
+    const kind = t.def.kind ?? "strength";
+    const fill =
+      t.def.boss ? "#e8c15a" : kind === "speed" ? "#dff6ff" : "#ffe8d4";
+    ctx.fillStyle = fill;
     ctx.beginPath();
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(42,48,64,0.4)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle =
+      t.def.boss ? "rgba(42,48,64,0.4)" : kind === "speed" ? "#3aa0c8" : "#c87838";
+    ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.font = `${t.def.boss ? 22 : 18}px serif`;
     ctx.textAlign = "center";
@@ -344,7 +348,7 @@ function thieves(
     const pct = t.hp / t.maxHp;
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(p.x - 12, p.y - r - 10, 24, 5);
-    ctx.fillStyle = "#ff6b6b";
+    ctx.fillStyle = kind === "speed" ? "#4ec4f0" : "#ff6b6b";
     ctx.fillRect(p.x - 12, p.y - r - 10, 24 * pct, 5);
 
     if (t.slowTimer > 0 || t.blockedTimer > 0) {

@@ -34,6 +34,8 @@ export interface ThiefDef {
   speed: number;
   gold: number;
   size: number;
+  /** Speed = fragile/fast; strength = tanky/slow */
+  kind: "speed" | "strength" | "boss";
   boss?: boolean;
 }
 
@@ -88,22 +90,31 @@ export const FRIENDS: FriendDef[] = [
   { id: "redpanda", name: "Red Panda", emoji: "🐼", rarity: "god", color: "#e05030", damage: 95, range: 180, attackSpeed: 1.5, ability: "godBeam", canEvolve: true, evolvesTo: "crimsonoracle" },
 ];
 
-/** Stronger thieves */
+/** Speed thieves — low HP, high speed. Strength thieves — high HP, low speed. */
+export const SPEED_THIEVES: ThiefDef[] = [
+  { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 38, speed: 64, gold: 2, size: 13, kind: "speed" },
+  { id: "skunk", name: "Skunk", emoji: "🦨", hp: 62, speed: 74, gold: 3, size: 14, kind: "speed" },
+  { id: "swiftrat", name: "Swift Rat", emoji: "🐀", hp: 88, speed: 88, gold: 4, size: 14, kind: "speed" },
+];
+
+export const STRENGTH_THIEVES: ThiefDef[] = [
+  { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 150, speed: 32, gold: 3, size: 16, kind: "strength" },
+  { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 240, speed: 26, gold: 5, size: 18, kind: "strength" },
+  { id: "boar", name: "Cookie Boar", emoji: "🐗", hp: 360, speed: 22, gold: 8, size: 21, kind: "strength" },
+];
+
 export const THIEVES: ThiefDef[] = [
-  { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 55, speed: 48, gold: 2, size: 14 },
-  { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 110, speed: 42, gold: 3, size: 16 },
-  { id: "skunk", name: "Skunk", emoji: "🦨", hp: 95, speed: 52, gold: 3, size: 15 },
-  { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 180, speed: 36, gold: 5, size: 18 },
-  { id: "boar", name: "Cookie Boar", emoji: "🐗", hp: 280, speed: 32, gold: 8, size: 20 },
-  { id: "boss", name: "King Raccoon", emoji: "👑", hp: 900, speed: 28, gold: 30, size: 28, boss: true },
+  ...SPEED_THIEVES,
+  ...STRENGTH_THIEVES,
+  { id: "boss", name: "King Raccoon", emoji: "👑", hp: 900, speed: 28, gold: 30, size: 28, kind: "boss", boss: true },
 ];
 
 /** End-of-map bosses (fought on waves 30, 60, 90, …) */
 export const LEVEL_BOSSES: ThiefDef[] = [
-  { id: "boss_forest", name: "King Raccoon", emoji: "👑", hp: 1400, speed: 24, gold: 60, size: 34, boss: true },
-  { id: "boss_river", name: "Tide Thief", emoji: "🌊", hp: 1600, speed: 27, gold: 70, size: 34, boss: true },
-  { id: "boss_meadow", name: "Meadow Tyrant", emoji: "🐗", hp: 1850, speed: 22, gold: 80, size: 36, boss: true },
-  { id: "boss_canyon", name: "Canyon King", emoji: "🦂", hp: 2100, speed: 25, gold: 90, size: 36, boss: true },
+  { id: "boss_forest", name: "King Raccoon", emoji: "👑", hp: 1400, speed: 24, gold: 60, size: 34, kind: "boss", boss: true },
+  { id: "boss_river", name: "Tide Thief", emoji: "🌊", hp: 1600, speed: 27, gold: 70, size: 34, kind: "boss", boss: true },
+  { id: "boss_meadow", name: "Meadow Tyrant", emoji: "🐗", hp: 1850, speed: 22, gold: 80, size: 36, kind: "boss", boss: true },
+  { id: "boss_canyon", name: "Canyon King", emoji: "🦂", hp: 2100, speed: 25, gold: 90, size: 36, kind: "boss", boss: true },
 ];
 
 /** True on the last wave of each map (30, 60, 90, …) */
@@ -167,31 +178,51 @@ export function waveInLevel(wave: number): number {
 }
 
 /**
- * Weighted pick in [minIdx, maxIdx]. favorWeak 0..1 biases toward the low end
- * so early waves stay winnable while still allowing occasional tougher spawns.
+ * Weighted pick in a pool. favorWeak 0..1 biases toward earlier (weaker) entries.
  */
-function weightedThiefIndex(minIdx: number, maxIdx: number, favorWeak: number): number {
-  if (maxIdx <= minIdx) return minIdx;
+function weightedFromPool(pool: ThiefDef[], maxIndex: number, favorWeak: number): ThiefDef {
+  const hi = Math.max(0, Math.min(maxIndex, pool.length - 1));
+  if (hi <= 0) return pool[0];
   const bias = Math.max(0.05, Math.min(1, favorWeak));
   const weights: number[] = [];
-  const span = maxIdx - minIdx;
-  for (let i = 0; i <= span; i++) {
-    // Stronger exponential weight on weaker indices when favorWeak is high
-    weights.push(Math.pow(1 + bias * 4, span - i));
+  for (let i = 0; i <= hi; i++) {
+    weights.push(Math.pow(1 + bias * 4, hi - i));
   }
   const total = weights.reduce((a, b) => a + b, 0);
   let roll = Math.random() * total;
   for (let i = 0; i < weights.length; i++) {
     roll -= weights[i];
-    if (roll <= 0) return minIdx + i;
+    if (roll <= 0) return pool[i];
   }
-  return minIdx;
+  return pool[0];
+}
+
+/** How far into a role pool this wave unlocks (0..2) */
+function roleUnlockIndex(tier: number, local: number): number {
+  if (tier === 0) {
+    if (local <= 8) return 0;
+    if (local <= 16) return 1;
+    return 2;
+  }
+  if (local <= 4) return Math.min(2, tier > 1 ? 1 : 0);
+  if (local <= 12) return Math.min(2, 1 + Math.min(1, tier));
+  return 2;
+}
+
+/** Chance a spawn is strength (vs speed) — waves mix both roles */
+function strengthChance(tier: number, local: number): number {
+  if (tier === 0) {
+    if (local <= 5) return 0.08; // almost all speed early
+    if (local <= 12) return 0.35;
+    return 0.48;
+  }
+  return Math.min(0.62, 0.4 + tier * 0.05 + local * 0.008);
 }
 
 /**
  * Pick a thief for this wave.
- * Early level is heavily weighted toward weak bugs; higher levels open harder
- * but still bias toward the weaker end of their unlocked pool.
+ * Waves combine speed (fragile/fast) and strength (tanky/slow) targets.
+ * Early level still weights toward weak speed bugs so players can win.
  */
 export function thiefForWave(wave: number): ThiefDef {
   if (isLevelBossWave(wave)) return levelBossForWave(wave);
@@ -199,48 +230,18 @@ export function thiefForWave(wave: number): ThiefDef {
   const tier = mapTierForWave(wave);
   const local = waveInLevel(wave);
 
-  // Soft mini-boss: full King only later; early checkpoints use a snack pig
+  // Soft mini-boss: early Snack Pig (strength), later King Raccoon
   if (wave > 0 && wave % 10 === 0) {
-    if (tier === 0 && local <= 10) return THIEVES[3];
-    return THIEVES[5];
+    if (tier === 0 && local <= 10) return STRENGTH_THIEVES[1];
+    return THIEVES.find((t) => t.id === "boss")!;
   }
 
-  // Unlock window for this point in the level
-  let minIdx: number;
-  let maxIdx: number;
-  let favorWeak: number;
+  const wantStrength = Math.random() < strengthChance(tier, local);
+  const pool = wantStrength ? STRENGTH_THIEVES : SPEED_THIEVES;
+  const unlock = roleUnlockIndex(tier, local);
+  const favorWeak = tier === 0 ? Math.max(0.45, 0.95 - local * 0.025) : Math.max(0.3, 0.7 - tier * 0.08);
 
-  if (tier === 0) {
-    // Level 1 — very gentle, almost always crumb bugs at first
-    if (local <= 4) return THIEVES[0];
-    if (local <= 8) {
-      minIdx = 0;
-      maxIdx = 1;
-      favorWeak = 0.95;
-    } else if (local <= 14) {
-      minIdx = 0;
-      maxIdx = 2;
-      favorWeak = 0.85;
-    } else if (local <= 22) {
-      minIdx = 0;
-      maxIdx = 3;
-      favorWeak = 0.7;
-    } else {
-      minIdx = 1;
-      maxIdx = 4;
-      favorWeak = 0.55;
-    }
-  } else {
-    // Higher levels: harder floor, but still weighted so packs are beatable
-    minIdx = Math.min(3, tier);
-    maxIdx = minIdx;
-    if (local >= 3) maxIdx = Math.min(4, Math.max(maxIdx, minIdx + 1));
-    if (local >= 8) maxIdx = Math.min(4, Math.max(maxIdx, minIdx + 2));
-    if (local >= 16) maxIdx = 4;
-    favorWeak = Math.max(0.35, 0.75 - tier * 0.08 - local * 0.01);
-  }
-
-  return THIEVES[weightedThiefIndex(minIdx, maxIdx, favorWeak)];
+  return weightedFromPool(pool, unlock, favorWeak);
 }
 
 export function waveCount(wave: number): number {
