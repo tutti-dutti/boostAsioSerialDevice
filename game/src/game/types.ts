@@ -72,8 +72,7 @@ export interface Wall {
 }
 
 export function friendDamage(f: PlacedFriend): number {
-  const tier =
-    f.def.rarity === "god" ? 1.15 : f.def.rarity === "legendary" ? 1.05 : 1;
+  const tier = f.def.rarity === "god" ? 1.15 : 1;
   return Math.round(f.def.damage * (1 + (f.level - 1) * 0.35) * tier);
 }
 

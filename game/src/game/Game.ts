@@ -449,14 +449,20 @@ export class Game {
       }
       if (best) {
         const p = pathPoint(best.progress);
-        const kind =
-          f.def.ability === "godBeam" ? "god" : f.def.ability === "floppyFin" ? "floppy" : "normal";
+        const isLegend = f.def.rarity === "legendary";
+        const kind = isLegend
+          ? "minigun"
+          : f.def.ability === "godBeam"
+            ? "god"
+            : f.def.ability === "floppyFin"
+              ? "floppy"
+              : "normal";
         this.shots.push({
           x: slot.x,
           y: slot.y,
           tx: p.x,
           ty: p.y,
-          speed: f.def.ability === "godBeam" ? 420 : 320,
+          speed: isLegend ? 720 : f.def.ability === "godBeam" ? 420 : 320,
           damage: friendDamage(f),
           color: f.def.color,
           targetId: best.uid,

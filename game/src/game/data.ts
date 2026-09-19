@@ -45,12 +45,12 @@ export const FRIENDS: FriendDef[] = [
   { id: "fox", name: "Fox", emoji: "🦊", rarity: "rare", color: "#e87840", damage: 15, range: 105, attackSpeed: 1.15, ability: "foxWall" },
   { id: "fish", name: "Fish", emoji: "🐟", rarity: "rare", color: "#5eb8e0", damage: 12, range: 100, attackSpeed: 1.25, ability: "floppyFin", canEvolve: true },
 
-  // —— Legendary ——
-  { id: "otter", name: "Otter", emoji: "🦦", rarity: "legendary", color: "#b08050", damage: 38, range: 125, attackSpeed: 1.3, ability: "none" },
-  { id: "brownbear", name: "Brown Bear", emoji: "🐻", rarity: "legendary", color: "#8a5030", damage: 48, range: 115, attackSpeed: 0.85, ability: "none" },
-  { id: "polarbear", name: "Polar Bear", emoji: "🐻‍❄️", rarity: "legendary", color: "#e8f0f8", damage: 45, range: 120, attackSpeed: 0.9, ability: "none" },
-  { id: "eagle", name: "Bald Eagle", emoji: "🦅", rarity: "legendary", color: "#d0a040", damage: 42, range: 160, attackSpeed: 1.4, ability: "none" },
-  { id: "shark", name: "Shark", emoji: "🦈", rarity: "legendary", color: "#6080a0", damage: 55, range: 135, attackSpeed: 1.1, ability: "floppyFin", canEvolve: true },
+  // —— Legendary (minigun beasts: 50 dmg, insanely fast fire) ——
+  { id: "otter", name: "Otter", emoji: "🦦", rarity: "legendary", color: "#b08050", damage: 50, range: 125, attackSpeed: 16, ability: "none" },
+  { id: "brownbear", name: "Brown Bear", emoji: "🐻", rarity: "legendary", color: "#8a5030", damage: 50, range: 115, attackSpeed: 16, ability: "none" },
+  { id: "polarbear", name: "Polar Bear", emoji: "🐻‍❄️", rarity: "legendary", color: "#e8f0f8", damage: 50, range: 120, attackSpeed: 16, ability: "none" },
+  { id: "eagle", name: "Bald Eagle", emoji: "🦅", rarity: "legendary", color: "#d0a040", damage: 50, range: 160, attackSpeed: 16, ability: "none" },
+  { id: "shark", name: "Shark", emoji: "🦈", rarity: "legendary", color: "#6080a0", damage: 50, range: 135, attackSpeed: 16, ability: "floppyFin", canEvolve: true },
 
   // —— GOD tier ——
   { id: "redpanda", name: "Red Panda", emoji: "🐼", rarity: "god", color: "#e05030", damage: 95, range: 180, attackSpeed: 1.5, ability: "godBeam" },

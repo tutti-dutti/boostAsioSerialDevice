@@ -95,13 +95,21 @@ function noiseBurst(dur: number, gain = 0.15, filterFreq = 2000) {
 }
 
 /** Fun laser / pew when a friend shoots */
-export function playShoot(kind: "normal" | "floppy" | "god" = "normal") {
+export function playShoot(kind: "normal" | "floppy" | "god" | "minigun" = "normal") {
   if (muted) return;
   const now = performance.now();
   // throttle so many towers don't explode the speakers
-  if (now - lastShootAt < 40) return;
+  const gap = kind === "minigun" ? 28 : 40;
+  if (now - lastShootAt < gap) return;
   lastShootAt = now;
 
+  if (kind === "minigun") {
+    // rapid clicky minigun chatter
+    const base = 900 + Math.random() * 400;
+    tone(base, 0.035, "square", 0.09, base * 0.45);
+    noiseBurst(0.025, 0.06, 2800);
+    return;
+  }
   if (kind === "god") {
     tone(660, 0.12, "sawtooth", 0.16, 180);
     tone(990, 0.1, "square", 0.08, 220);
