@@ -14,6 +14,10 @@ export interface DifficultyTuning {
   count: number;
   /** Gold-from-kills multiplier */
   gold: number;
+  /** Wave spawn interval multiplier (<1 = faster spawns) */
+  spawnPace: number;
+  /** Cookie damage taken when a thief arrives */
+  cookieDmg: number;
   startGold: number;
   startStars: number;
   cookieHp: number;
@@ -30,6 +34,8 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyTuning> = {
     speed: 0.9,
     count: 0.8,
     gold: 1.15,
+    spawnPace: 1.1,
+    cookieDmg: 1,
     startGold: 28,
     startStars: 7,
     cookieHp: 70,
@@ -38,15 +44,17 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyTuning> = {
   hard: {
     id: "hard",
     label: "Hard",
-    blurb: "Tougher packs — for a real challenge",
-    hp: 1.38,
-    speed: 1.12,
-    count: 1.22,
-    gold: 0.92,
-    startGold: 16,
-    startStars: 4,
-    cookieHp: 45,
-    scoreWeight: 1.35,
+    blurb: "Brutal packs — thick, fast, and hungry",
+    hp: 2.05,
+    speed: 1.32,
+    count: 1.55,
+    gold: 0.68,
+    spawnPace: 0.72,
+    cookieDmg: 1.75,
+    startGold: 10,
+    startStars: 3,
+    cookieHp: 32,
+    scoreWeight: 1.55,
   },
 };
 

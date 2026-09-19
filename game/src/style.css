@@ -417,6 +417,52 @@ body {
   font-size: 0.92rem;
 }
 
+.stat-gold {
+  background: #fff0c8;
+  border-color: #c4782a;
+  color: #8a4a10;
+}
+
+.gold-bar {
+  width: min(1000px, 100%);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem 0.85rem;
+  background: rgba(255, 248, 238, 0.92);
+  border: 3px solid rgba(196, 120, 42, 0.4);
+  border-radius: 12px;
+  padding: 0.4rem 0.75rem;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.gold-balance {
+  color: #8a4a10;
+}
+
+.gold-needed {
+  color: var(--muted);
+}
+
+.gold-needed.can-afford,
+.gold-upgrade-line.can-afford {
+  color: #2a7848;
+}
+
+.gold-needed.cant-afford,
+.gold-upgrade-line.cant-afford {
+  color: #a83828;
+}
+
+.gold-upgrade-line {
+  width: 100%;
+  margin: 0.15rem 0 0.35rem;
+  font-weight: 800;
+}
+
 .stage-wrap {
   position: relative;
   width: min(1000px, 100%);
@@ -1222,6 +1268,19 @@ button.danger {
     font-size: 0.68rem;
     padding: 0.16rem 0.4rem;
     border-width: 2px;
+  }
+
+  .gold-bar {
+    gap: 0.25rem 0.5rem;
+    padding: 0.28rem 0.5rem;
+    font-size: 0.72rem;
+    border-width: 2px;
+    border-radius: 8px;
+  }
+
+  .gold-upgrade-line {
+    font-size: 0.7rem;
+    margin: 0.1rem 0 0.25rem;
   }
 
   .stage-wrap {

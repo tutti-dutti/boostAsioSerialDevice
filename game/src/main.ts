@@ -57,6 +57,10 @@ app.innerHTML = `
     </header>
 
     <div class="stats" id="stats"></div>
+    <div class="gold-bar" id="gold-bar" aria-live="polite">
+      <span class="gold-balance" id="gold-balance">Gold: 0🪙</span>
+      <span class="gold-needed" id="gold-needed">Select a friend to see upgrade cost</span>
+    </div>
 
     <div class="stage-wrap">
       <canvas id="stage"></canvas>
@@ -108,6 +112,7 @@ app.innerHTML = `
           <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
           <button id="sell" type="button">To bag</button>
         </div>
+        <p class="gold-upgrade-line hint" id="gold-upgrade-line">Gold 0🪙 · Select a friend for upgrade cost</p>
         <div class="row beaver-dam-row hidden" id="beaver-dam-row">
           <button class="dam-btn" id="build-dam" type="button">Build Dam (5🪵)</button>
         </div>
@@ -180,6 +185,10 @@ const selectHint = document.querySelector("#select-hint")!;
 const evolveLineageEl = document.querySelector("#evolve-lineage")!;
 const evolveFromEl = document.querySelector("#evolve-from")!;
 const evolveIntoEl = document.querySelector("#evolve-into")!;
+const goldBalanceEl = document.querySelector("#gold-balance")!;
+const goldNeededEl = document.querySelector("#gold-needed")!;
+const goldUpgradeLine = document.querySelector("#gold-upgrade-line")!;
+const upgradeBtn = document.querySelector<HTMLButtonElement>("#upgrade")!;
 const homeCourseChips = document.querySelector("#home-course-chips")!;
 const playCourseChips = document.querySelector("#play-course-chips")!;
 const homeModeChips = document.querySelector("#home-mode-chips")!;
@@ -306,13 +315,46 @@ function refreshCourses() {
 
 function refresh() {
   stats.innerHTML = `
-    <div class="stat">🪙 ${game.gold}</div>
+    <div class="stat stat-gold">🪙 Gold ${game.gold}</div>
     <div class="stat">⭐ ${game.stars}</div>
     <div class="stat">Wave ${game.wave}</div>
     <div class="stat mode-stat mode-stat-${game.difficulty}">${game.difficultyLabel}</div>
     <div class="stat">🗺️ ${getActiveMap().name}${game.courseRandom ? " 🎲" : ""}</div>
     <div class="stat">🍪 ${game.cookieHp}/${game.cookieMax}</div>
   `;
+
+  goldBalanceEl.textContent = `Gold: ${game.gold}🪙`;
+
+  let upgradeCostAmt: number | null = null;
+  const selected = game.selectedSlot != null ? game.slots.find((s) => s.id === game.selectedSlot) : null;
+  if (selected?.friend) {
+    upgradeCostAmt = upgradeCost(selected.friend);
+  }
+
+  if (upgradeCostAmt != null) {
+    const need = upgradeCostAmt;
+    const have = game.gold;
+    const short = Math.max(0, need - have);
+    goldNeededEl.textContent =
+      short > 0 ? `Upgrade needs ${need}🪙 · need ${short} more` : `Upgrade needs ${need}🪙 · ready!`;
+    goldNeededEl.classList.toggle("can-afford", short === 0);
+    goldNeededEl.classList.toggle("cant-afford", short > 0);
+    goldUpgradeLine.textContent =
+      short > 0
+        ? `Gold ${have}🪙 · Upgrade costs ${need}🪙 (${short} short)`
+        : `Gold ${have}🪙 · Upgrade costs ${need}🪙 (enough!)`;
+    goldUpgradeLine.classList.toggle("can-afford", short === 0);
+    goldUpgradeLine.classList.toggle("cant-afford", short > 0);
+    upgradeBtn.textContent = `Upgrade ${need}🪙`;
+    upgradeBtn.disabled = short > 0;
+  } else {
+    goldNeededEl.textContent = "Select a friend to see upgrade cost";
+    goldNeededEl.classList.remove("can-afford", "cant-afford");
+    goldUpgradeLine.textContent = `Gold ${game.gold}🪙 · Select a friend for upgrade cost`;
+    goldUpgradeLine.classList.remove("can-afford", "cant-afford");
+    upgradeBtn.textContent = "Upgrade / Evolve";
+    upgradeBtn.disabled = false;
+  }
 
   if (!game.bag.length) {
     bag.innerHTML = `<span class="empty-inv">Press Summon to get friends</span>`;
@@ -372,7 +414,7 @@ function refresh() {
       if (f.def.id === "giantpanda" || f.def.id === "redpanda") {
         extra += " · random 🥟 dumplings!";
       }
-      selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
+      selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — Gold ${game.gold}🪙 · Upgrade ${upgradeCost(f)}🪙${extra}`;
       showEvolveLineage(f.def);
     } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
       const f = game.bag[game.selectedBag];

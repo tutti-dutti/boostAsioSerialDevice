@@ -632,7 +632,7 @@ export class Game {
     }
     const cost = upgradeCost(slot.friend);
     if (this.gold < cost) {
-      this.toast("Need more gold", true);
+      this.toast(`Need ${cost}🪙 (have ${this.gold}🪙)`, true);
       return;
     }
     this.gold -= cost;
@@ -1367,7 +1367,10 @@ export class Game {
       if (this.spawnTimer <= 0) {
         this.spawnThief();
         this.spawnLeft -= 1;
-        this.spawnTimer = Math.max(0.45, 1.1 - this.wave * 0.03);
+        this.spawnTimer = Math.max(
+          0.28,
+          (1.1 - this.wave * 0.03) * difficultyTuning(this.difficulty).spawnPace,
+        );
       }
     } else if (this.waveInProgress && this.thieves.every((t) => !t.alive)) {
       this.thieves = [];
@@ -1497,7 +1500,8 @@ export class Game {
       t.progress = next;
       if (t.progress >= 1) {
         t.alive = false;
-        const dmg = t.def.boss ? (isLevelBossWave(this.wave) ? 8 : 4) : 1;
+        const baseDmg = t.def.boss ? (isLevelBossWave(this.wave) ? 8 : 4) : 1;
+        const dmg = Math.max(1, Math.round(baseDmg * difficultyTuning(this.difficulty).cookieDmg));
         this.cookieHp -= dmg;
         this.chompCookie(dmg);
         playCookieMunch(dmg > 1);
