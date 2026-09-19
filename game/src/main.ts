@@ -46,7 +46,10 @@ app.innerHTML = `
           <button class="pink" id="lucky" type="button">Lucky (3⭐)</button>
         </div>
         <div class="inventory" id="bag"></div>
-        <p class="hint">Tap a friend, then tap a circle. Top-down view!</p>
+        <div class="row">
+          <button class="danger" id="delete-unit" type="button">Delete unit</button>
+        </div>
+        <p class="hint">Tap a friend, then tap a circle — or Delete to remove extras.</p>
       </section>
 
       <section class="panel">
@@ -54,6 +57,9 @@ app.innerHTML = `
         <div class="row">
           <button class="green" id="upgrade" type="button">Upgrade / Evolve</button>
           <button id="sell" type="button">To bag</button>
+        </div>
+        <div class="row">
+          <button id="clear-board" type="button">Clear board</button>
         </div>
         <div class="row">
           <button class="spell" id="crumb" type="button">Crumb (5🪙)</button>
@@ -126,8 +132,11 @@ function refresh() {
     if (f.def.rarity === "mythical") extra = " · MYTHICAL form!";
     if (f.def.rarity === "god") extra = " · GOD TIER!";
     selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
+  } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
+    const f = game.bag[game.selectedBag];
+    selectHint.textContent = `${f.emoji} ${f.name} in bag — tap a circle to place, or Delete to remove`;
   } else {
-    selectHint.textContent = "Upgrade any friend for a 50% chance to go MYTHICAL!";
+    selectHint.textContent = "Clear board moves everyone to the bag. Delete removes extras forever.";
   }
 
   toast.textContent = game.toastText;
@@ -175,6 +184,12 @@ document.querySelector("#summon")!.addEventListener("click", () => game.summon(f
 document.querySelector("#lucky")!.addEventListener("click", () => game.summon(true));
 document.querySelector("#upgrade")!.addEventListener("click", () => game.upgradeSelected());
 document.querySelector("#sell")!.addEventListener("click", () => game.sellSelected());
+document.querySelector("#clear-board")!.addEventListener("click", () => {
+  if (confirm("Move all board friends back to the bag?")) game.clearBoard();
+});
+document.querySelector("#delete-unit")!.addEventListener("click", () => {
+  if (confirm("Delete this friend forever?")) game.deleteSelected();
+});
 document.querySelector("#crumb")!.addEventListener("click", () => game.cast("crumb"));
 document.querySelector("#frost")!.addEventListener("click", () => game.cast("frost"));
 document.querySelector("#zap")!.addEventListener("click", () => game.cast("zap"));

@@ -279,6 +279,12 @@ button.green {
   border-color: #58a858;
 }
 
+button.danger {
+  background: #ffd4d0;
+  border-color: #d06058;
+  color: #6a2820;
+}
+
 .inventory {
   display: flex;
   flex-wrap: wrap;

@@ -268,6 +268,54 @@ export class Game {
     this.onChange();
   }
 
+  /** Pull every placed friend back into the bag */
+  clearBoard() {
+    let n = 0;
+    for (const slot of this.slots) {
+      if (!slot.friend) continue;
+      this.bag.push(slot.friend.def);
+      slot.friend = null;
+      n += 1;
+    }
+    this.selectedSlot = null;
+    if (!n) {
+      this.toast("Board is already empty", true);
+      return;
+    }
+    this.toast(`Cleared ${n} friend${n === 1 ? "" : "s"} to bag`, true);
+    this.save();
+    this.onChange();
+  }
+
+  /** Permanently remove selected bag unit or selected board unit */
+  deleteSelected() {
+    if (this.selectedBag != null) {
+      const f = this.bag[this.selectedBag];
+      if (!f) return;
+      this.bag.splice(this.selectedBag, 1);
+      this.selectedBag = null;
+      this.toast(`Deleted ${f.emoji} ${f.name}`, true);
+      this.save();
+      this.onChange();
+      return;
+    }
+    if (this.selectedSlot != null) {
+      const slot = this.slots[this.selectedSlot];
+      if (!slot?.friend) {
+        this.toast("Pick a friend in the bag or on the board first", true);
+        return;
+      }
+      const name = `${slot.friend.def.emoji} ${slot.friend.def.name}`;
+      slot.friend = null;
+      this.selectedSlot = null;
+      this.toast(`Deleted ${name}`, true);
+      this.save();
+      this.onChange();
+      return;
+    }
+    this.toast("Pick a friend in the bag or on the board first", true);
+  }
+
   cast(kind: "crumb" | "frost" | "zap") {
     const costs = { crumb: 5, frost: 4, zap: 6 };
     if (this.spellCool[kind] > 0) return;
