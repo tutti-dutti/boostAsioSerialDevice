@@ -326,8 +326,9 @@ function renderCourseChips(container: Element, opts: { requireIdle: boolean }) {
   container.innerHTML = courses
     .map(
       (c) => `
-    <button class="course-chip ${!game.courseRandom && game.courseIndex === c.index ? "selected" : ""}"
-      data-course="${c.index}" type="button" ${locked ? "disabled" : ""}>
+    <button class="course-chip ${game.courseIndex === c.index ? "selected" : ""}"
+      data-course="${c.index}" type="button" ${locked ? "disabled" : ""}
+      aria-pressed="${game.courseIndex === c.index ? "true" : "false"}">
       ${c.name}
     </button>`,
     )

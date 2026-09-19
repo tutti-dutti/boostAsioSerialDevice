@@ -355,15 +355,20 @@ export class Game {
     );
   }
 
-  /** Pick a specific course theme (only between waves) */
+  /** Pick a specific course theme (only between waves; home screen always allowed) */
   selectCourse(index: number, opts: { random?: boolean; announce?: boolean } = {}) {
-    if (this.slots.length > 0 && !this.canChangeCourse()) {
-      this.toast("Finish the wave first", true);
-      return;
-    }
     const courses = listCourses();
     if (!courses.length) return;
     const next = ((Math.floor(index) % courses.length) + courses.length) % courses.length;
+
+    // Home / idle: always accept the pick so the chip can highlight.
+    // Mid-wave on the play screen: block layout swap until the wave ends.
+    if (this.running && this.slots.length > 0 && !this.canChangeCourse()) {
+      this.toast("Finish the wave first", true);
+      this.onChange();
+      return;
+    }
+
     const same = next === this.courseIndex && this.courseRandom === !!opts.random;
     this.courseRandom = !!opts.random;
     this.courseIndex = next;

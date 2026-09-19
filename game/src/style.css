@@ -202,11 +202,18 @@ body {
 .course-chip.selected {
   background: #ffe08a;
   border-color: #c4782a;
+  box-shadow: 0 0 0 3px rgba(196, 120, 42, 0.35);
+  transform: scale(1.04);
+  z-index: 1;
 }
 
 .course-chip:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.course-chip:disabled.selected {
+  opacity: 0.85;
 }
 
 .course-random {
