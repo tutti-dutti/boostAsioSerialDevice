@@ -321,6 +321,7 @@ function refresh() {
       if (f.def.ability === "godBeam") extra += " · God Beam";
       if (f.def.ability === "freeze") extra += " · FREEZE";
       if (f.def.ability === "heavyHit") extra += " · HEAVY HIT";
+      if (f.def.ability === "poisonFart") extra += " · poison FARTs!";
       extra += ` · ${weaponRoleLabel(weaponRoleFor(f.def))}`;
       if (f.def.id === "giantpanda") extra += " · MEGA Giant Panda!";
       else if (f.def.rarity === "mythical") extra += " · MYTHICAL form!";

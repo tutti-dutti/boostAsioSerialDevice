@@ -2,7 +2,7 @@ import { WAVES_PER_MAP, getActiveCourseIndex, mapTierForWave } from "./path";
 
 export type Rarity = "common" | "rare" | "legendary" | "mythical" | "god";
 
-export type AbilityId = "none" | "floppyFin" | "foxWall" | "godBeam" | "freeze" | "heavyHit";
+export type AbilityId = "none" | "floppyFin" | "foxWall" | "godBeam" | "freeze" | "heavyHit" | "poisonFart";
 
 /** How this friend specializes against thief archetypes */
 export type WeaponRole = "antiSpeed" | "antiStrength" | "balanced";
@@ -73,6 +73,8 @@ export const FRIENDS: FriendDef[] = [
   { id: "penguin", name: "Penguin", emoji: "🐧", rarity: "common", color: "#90c8e8", damage: 5, range: 88, attackSpeed: 1.15, ability: "freeze", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "emperorpenguin" },
   // Heavy specialist — cracks strength tanks
   { id: "mole", name: "Mole", emoji: "🦡", rarity: "common", color: "#8a7060", damage: 11, range: 78, attackSpeed: 0.85, ability: "heavyHit", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "titanmole" },
+  // Poison specialist — farts a toxic cloud
+  { id: "skunk", name: "Skunk", emoji: "🦨", rarity: "common", color: "#6a6870", damage: 5, range: 85, attackSpeed: 1.1, ability: "poisonFart", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "stinklord" },
 
   // —— Tier two ——
   { id: "owl", name: "Owl", emoji: "🦉", rarity: "rare", color: "#8a7050", damage: 3, range: 110, attackSpeed: 2.4, ability: "none", flies: true, weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "nightoracle" },
@@ -101,6 +103,7 @@ export const FRIENDS: FriendDef[] = [
   { id: "shadowmouse", name: "Shadow Mouse", emoji: "🖤", rarity: "mythical", color: "#504060", damage: 24, range: 130, attackSpeed: 2.0, ability: "none", weaponRole: "antiSpeed", evolvedForm: true },
   { id: "emperorpenguin", name: "Emperor Penguin", emoji: "🧊", rarity: "mythical", color: "#70b8e0", damage: 22, range: 140, attackSpeed: 1.35, ability: "freeze", weaponRole: "antiSpeed", evolvedForm: true },
   { id: "titanmole", name: "Titan Mole", emoji: "⛏️", rarity: "mythical", color: "#6a5040", damage: 48, range: 125, attackSpeed: 0.75, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true },
+  { id: "stinklord", name: "Stink Lord", emoji: "☁️", rarity: "mythical", color: "#5a7060", damage: 18, range: 130, attackSpeed: 1.2, ability: "poisonFart", weaponRole: "antiSpeed", evolvedForm: true },
   { id: "frostseal", name: "Frost Seal", emoji: "❄️", rarity: "mythical", color: "#c0e8ff", damage: 36, range: 150, attackSpeed: 1.25, ability: "freeze", weaponRole: "antiSpeed", evolvedForm: true },
   { id: "megamoose", name: "Mega Moose", emoji: "🦌", rarity: "mythical", color: "#804820", damage: 70, range: 140, attackSpeed: 0.65, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true, scale: 1.2 },
   { id: "nightoracle", name: "Night Oracle", emoji: "🔮", rarity: "mythical", color: "#6a40a0", damage: 10, range: 170, attackSpeed: 2.8, ability: "none", flies: true, weaponRole: "antiSpeed", evolvedForm: true },
@@ -123,7 +126,7 @@ export const FRIENDS: FriendDef[] = [
 /** Speed thieves — fragile & fast. Strength thieves — tanky & slow. */
 export const SPEED_THIEVES: ThiefDef[] = [
   { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 28, speed: 72, gold: 2, size: 12, kind: "speed" },
-  { id: "skunk", name: "Skunk", emoji: "🦨", hp: 44, speed: 84, gold: 3, size: 13, kind: "speed" },
+  { id: "raiderskunk", name: "Skunk", emoji: "🦨", hp: 44, speed: 84, gold: 3, size: 13, kind: "speed" },
   { id: "swiftrat", name: "Swift Rat", emoji: "🐀", hp: 60, speed: 98, gold: 4, size: 13, kind: "speed" },
 ];
 
@@ -366,7 +369,7 @@ export function rarityLabel(r: Rarity): string {
 /** Resolve weapon specialty (defaults from traits if unset) */
 export function weaponRoleFor(def: FriendDef): WeaponRole {
   if (def.weaponRole) return def.weaponRole;
-  if (def.ability === "freeze" || def.flies || def.ability === "floppyFin" || def.ability === "foxWall") {
+  if (def.ability === "freeze" || def.flies || def.ability === "floppyFin" || def.ability === "foxWall" || def.ability === "poisonFart") {
     return "antiSpeed";
   }
   if (def.ability === "heavyHit" || def.damage >= 50 || def.attackSpeed <= 0.5) return "antiStrength";

@@ -37,6 +37,7 @@ import {
   type Boom,
   type Dam,
   type FloatText,
+  type PoisonCloud,
   type Shot,
   type Slot,
   type Thief,
@@ -45,6 +46,7 @@ import {
 
 const SAVE_KEY = "cookie-guard-save-v2";
 const MAX_DAMS = 3;
+const SKUNK_FART_INTERVAL = 5.5;
 
 export class Game {
   canvas: HTMLCanvasElement;
@@ -71,6 +73,7 @@ export class Game {
   booms: Boom[] = [];
   walls: Wall[] = [];
   dams: Dam[] = [];
+  poisonClouds: PoisonCloud[] = [];
   gold = 20;
   stars = 5;
   wave = 1;
@@ -254,6 +257,7 @@ export class Game {
     if (overflow.length) this.bag.push(...overflow);
     this.walls = [];
     this.dams = [];
+    this.poisonClouds = [];
     this.shots = [];
     this.selectedSlot = null;
     this.draggingSlot = null;
@@ -426,7 +430,8 @@ export class Game {
             level: slot.level || 1,
             cooldown: 0,
             slotId: id,
-            abilityTimer: def.ability === "foxWall" ? 30 : 0,
+            abilityTimer:
+              def.ability === "foxWall" ? 30 : def.ability === "poisonFart" ? SKUNK_FART_INTERVAL * 0.5 : 0,
             orbitAngle: Math.random() * Math.PI * 2,
             beaverPoints: typeof slot.beaverPoints === "number" ? slot.beaverPoints : 0,
             eaglePoints: typeof slot.eaglePoints === "number" ? slot.eaglePoints : 0,
@@ -475,6 +480,7 @@ export class Game {
     this.booms = [];
     this.walls = [];
     this.dams = [];
+    this.poisonClouds = [];
     this.gold = 20;
     this.stars = 5;
     this.wave = 1;
@@ -533,7 +539,8 @@ export class Game {
       if (evolved) {
         slot.friend.def = evolved;
         slot.friend.level = Math.max(1, slot.friend.level);
-        slot.friend.abilityTimer = evolved.ability === "foxWall" ? 30 : 0;
+        slot.friend.abilityTimer =
+          evolved.ability === "foxWall" ? 30 : evolved.ability === "poisonFart" ? SKUNK_FART_INTERVAL * 0.5 : 0;
         if (isDumplingPanda(slot.friend)) {
           slot.friend.dumplingTimer = nextDumplingDelay() * 0.4;
         }
@@ -782,7 +789,8 @@ export class Game {
         level: 1,
         cooldown: 0,
         slotId: id,
-        abilityTimer: friend.ability === "foxWall" ? 2 : 0,
+        abilityTimer:
+          friend.ability === "foxWall" ? 2 : friend.ability === "poisonFart" ? SKUNK_FART_INTERVAL * 0.4 : 0,
         orbitAngle: Math.random() * Math.PI * 2,
         beaverPoints: 0,
         eaglePoints: 0,
@@ -865,6 +873,9 @@ export class Game {
       slowTimer: 0,
       freezeTimer: 0,
       blockedTimer: 0,
+      poisonTimer: 0,
+      poisonDps: 0,
+      poisonAcc: 0,
       alive: true,
     });
   }
@@ -1093,6 +1104,49 @@ export class Game {
     this.booms.push({ kind: "wall", x: p.x, y: p.y, life: 0.8, radius: 40 });
   }
 
+  /** Skunk lets one rip — lingering poison cloud on the path */
+  skunkFart(slot: Slot) {
+    const f = slot.friend;
+    if (!f) return;
+    const prog = Math.min(0.94, nearestProgress(slot.x, slot.y) + 0.05);
+    const p = pathPoint(prog);
+    // Aim a bit toward the densest nearby threat if any
+    let x = p.x;
+    let y = p.y;
+    let best: Thief | null = null;
+    let bestD = 140;
+    for (const t of this.thieves) {
+      if (!t.alive) continue;
+      const tp = pathPoint(t.progress);
+      const d = Math.hypot(tp.x - slot.x, tp.y - slot.y);
+      if (d < bestD) {
+        best = t;
+        bestD = d;
+      }
+    }
+    if (best) {
+      const tp = pathPoint(best.progress);
+      x = tp.x;
+      y = tp.y;
+    }
+    const radius = f.def.id === "stinklord" ? 78 : 62;
+    const dps = Math.round(friendDamage(f) * (f.def.id === "stinklord" ? 0.85 : 0.65));
+    const life = f.def.id === "stinklord" ? 5.5 : 4.2;
+    this.poisonClouds.push({
+      x,
+      y,
+      radius,
+      life,
+      maxLife: life,
+      dps: Math.max(4, dps),
+      ownerSlotId: slot.id,
+    });
+    this.booms.push({ kind: "fart", x, y, life: 0.85, radius: radius * 0.7 });
+    f.speech = { text: Math.random() < 0.5 ? "Phew!" : "Toot!", life: 1.6 };
+    this.floats.push({ x, y: y - 20, text: "💨", color: "#5a8060", life: 0.9 });
+    if (Math.random() < 0.35) this.toast(`${f.def.emoji} Toxic cloud!`, true);
+  }
+
   /** Kung Fu Panda style — randomly hurl dumplings at thieves */
   throwDumplings(slot: Slot) {
     const f = slot.friend;
@@ -1206,6 +1260,33 @@ export class Game {
       }
     }
 
+    // Skunk poison farts
+    for (const slot of this.slots) {
+      const f = slot.friend;
+      if (!f || f.def.ability !== "poisonFart") continue;
+      f.abilityTimer -= dt;
+      if (f.abilityTimer <= 0) {
+        this.skunkFart(slot);
+        f.abilityTimer = SKUNK_FART_INTERVAL;
+      }
+    }
+
+    // Poison clouds linger + apply DoT
+    for (const cloud of this.poisonClouds) cloud.life -= dt;
+    this.poisonClouds = this.poisonClouds.filter((c) => c.life > 0);
+    for (const cloud of this.poisonClouds) {
+      for (const t of this.thieves) {
+        if (!t.alive) continue;
+        const p = pathPoint(t.progress);
+        if (Math.hypot(p.x - cloud.x, p.y - cloud.y) <= cloud.radius) {
+          t.poisonTimer = Math.max(t.poisonTimer, 2.4);
+          t.poisonDps = Math.max(t.poisonDps, cloud.dps);
+          t.poisonOwnerSlotId = cloud.ownerSlotId;
+          t.slowTimer = Math.max(t.slowTimer, 0.35);
+        }
+      }
+    }
+
     // Pandas randomly throw dumpling volleys (Kung Fu Panda style)
     for (const slot of this.slots) {
       const f = slot.friend;
@@ -1229,6 +1310,21 @@ export class Game {
       if (t.slowTimer > 0) t.slowTimer -= dt;
       if (t.freezeTimer > 0) t.freezeTimer -= dt;
       if (t.blockedTimer > 0) t.blockedTimer -= dt;
+      if (t.poisonTimer > 0) {
+        t.poisonTimer -= dt;
+        t.poisonAcc += dt;
+        if (t.poisonAcc >= 0.4) {
+          const tick = Math.max(1, Math.round(t.poisonDps * t.poisonAcc));
+          t.poisonAcc = 0;
+          const p = pathPoint(t.progress);
+          this.hurt(t, tick, p.x, p.y, false, false, false, t.poisonOwnerSlotId);
+        }
+        if (t.poisonTimer <= 0) {
+          t.poisonDps = 0;
+          t.poisonAcc = 0;
+          t.poisonOwnerSlotId = undefined;
+        }
+      }
 
       // hit a fox wall?
       for (const w of this.walls) {
@@ -1334,6 +1430,9 @@ export class Game {
           this.toast(`🦅 ${f.def.name} takes off again!`, true);
           this.onChange();
         }
+      } else if (f.speech && f.speech.life > 0) {
+        f.speech.life -= dt;
+        if (f.speech.life <= 0) f.speech = undefined;
       }
 
       f.cooldown -= dt;
@@ -1527,6 +1626,7 @@ export class Game {
       booms: this.booms,
       walls: this.walls,
       dams: this.dams,
+      poisonClouds: this.poisonClouds,
       cookieHp: this.cookieHp,
       cookieMax: this.cookieMax,
       cookieBiteFlash: Math.max(0, this.cookieBiteFlash),

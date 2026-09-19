@@ -1,6 +1,6 @@
 import { COOKIE, GATE, PATH, W, H, getActiveMap } from "./path";
 import { evolveLineage, friendDisplayScale, friendFootprintRadius } from "./data";
-import type { Boom, Dam, FloatText, PlacedFriend, Shot, Slot, Thief, Wall } from "./types";
+import type { Boom, Dam, FloatText, PlacedFriend, PoisonCloud, Shot, Slot, Thief, Wall } from "./types";
 import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
 function grass(ctx: CanvasRenderingContext2D) {
@@ -444,6 +444,15 @@ function thieves(
       ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
       ctx.stroke();
     }
+    if (t.poisonTimer > 0) {
+      ctx.strokeStyle = "#5a9060";
+      ctx.lineWidth = 2.5;
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r + 7, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
   }
 }
 
@@ -496,6 +505,32 @@ function dams(ctx: CanvasRenderingContext2D, list: Dam[]) {
     ctx.fillRect(d.x - 22, d.y + 18, 44, 6);
     ctx.fillStyle = hpPct > 0.35 ? "#7ecf6a" : "#e07050";
     ctx.fillRect(d.x - 22, d.y + 18, 44 * hpPct, 6);
+  }
+}
+
+function poisonClouds(ctx: CanvasRenderingContext2D, list: PoisonCloud[], time: number) {
+  for (const c of list) {
+    const fade = Math.min(1, c.life / Math.min(1.2, c.maxLife));
+    const pulse = 0.85 + Math.sin(time * 4 + c.x * 0.01) * 0.08;
+    ctx.globalAlpha = 0.22 * fade;
+    ctx.fillStyle = "#5a9060";
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, c.radius * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.35 * fade;
+    ctx.strokeStyle = "#3a7048";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, c.radius * 0.92, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = Math.min(1, fade + 0.2);
+    ctx.font = "22px serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("💨", c.x, c.y);
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -556,6 +591,7 @@ function booms(ctx: CanvasRenderingContext2D, list: Boom[]) {
       dam: "#8a6040",
       dumpling: "#f0c878",
       bomb: "#e07030",
+      fart: "#5a9060",
       beam: "#ff5040",
       freeze: "#9ad4ff",
       heavy: "#c87838",
@@ -593,6 +629,7 @@ export interface DrawState {
   booms: Boom[];
   walls: Wall[];
   dams?: Dam[];
+  poisonClouds?: PoisonCloud[];
   cookieHp: number;
   cookieMax: number;
   cookieBiteFlash?: number;
@@ -613,6 +650,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   gate(ctx);
   walls(ctx, s.walls);
   dams(ctx, s.dams || []);
+  poisonClouds(ctx, s.poisonClouds || [], s.time);
   slots(ctx, s.slots, s.selectedSlot);
   deployGhost(ctx, s.deployGhost, !!s.deployMode);
   thieves(ctx, s.thieves, s.thiefPos);

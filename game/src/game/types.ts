@@ -118,6 +118,14 @@ export interface Thief {
   /** Near-stop from freeze weapons (stronger than chill) */
   freezeTimer: number;
   blockedTimer: number;
+  /** Poison DoT remaining duration */
+  poisonTimer: number;
+  /** Poison damage per second while poisoned */
+  poisonDps: number;
+  /** Accrues toward the next poison damage float tick */
+  poisonAcc: number;
+  /** Slot that applied the current poison (kill credit) */
+  poisonOwnerSlotId?: number;
   alive: boolean;
 }
 
@@ -152,7 +160,7 @@ export interface FloatText {
 }
 
 export interface Boom {
-  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy" | "dam" | "dumpling" | "bomb";
+  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy" | "dam" | "dumpling" | "bomb" | "fart";
   x: number;
   y: number;
   life: number;
@@ -175,6 +183,17 @@ export interface Dam {
   progress: number;
   hp: number;
   maxHp: number;
+  ownerSlotId: number;
+}
+
+/** Skunk fart poison cloud lingering on the board */
+export interface PoisonCloud {
+  x: number;
+  y: number;
+  radius: number;
+  life: number;
+  maxLife: number;
+  dps: number;
   ownerSlotId: number;
 }
 
