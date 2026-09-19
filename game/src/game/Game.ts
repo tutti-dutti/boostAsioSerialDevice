@@ -612,7 +612,9 @@ export class Game {
     }
     this.stars -= cost;
     const friend = pickFriend(lucky);
-    this.bag.push(friend);
+    this.bag.unshift(friend);
+    // Keep any equipped bag selection pointed at the same friend
+    if (this.selectedBag != null) this.selectedBag += 1;
     const tag =
       friend.rarity === "god"
         ? "GOD!"
