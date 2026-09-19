@@ -55,6 +55,8 @@ export interface Thief {
   maxHp: number;
   progress: number;
   slowTimer: number;
+  /** Near-stop from freeze weapons (stronger than chill) */
+  freezeTimer: number;
   blockedTimer: number;
   alive: boolean;
 }
@@ -70,6 +72,8 @@ export interface Shot {
   targetId: string;
   floppy?: boolean;
   godBeam?: boolean;
+  freeze?: boolean;
+  heavyHit?: boolean;
   weaponRole?: WeaponRole;
 }
 
@@ -82,7 +86,7 @@ export interface FloatText {
 }
 
 export interface Boom {
-  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam";
+  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy";
   x: number;
   y: number;
   life: number;
@@ -116,6 +120,11 @@ export function damageVsThief(f: PlacedFriend, thief: ThiefDef): number {
     if (kind === "strength") dmg *= 1.6;
     else if (kind === "speed") dmg *= 0.78;
   }
+  // Heavy hitters punch well above their weight vs tanks
+  if (f.def.ability === "heavyHit" && kind === "strength") dmg *= 1.35;
+  if (f.def.ability === "heavyHit" && kind === "speed") dmg *= 0.9;
+  // Freeze units trade raw damage for control
+  if (f.def.ability === "freeze" && kind === "speed") dmg *= 1.15;
   return Math.max(1, Math.round(dmg));
 }
 

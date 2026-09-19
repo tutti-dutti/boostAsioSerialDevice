@@ -2,7 +2,7 @@ import { WAVES_PER_MAP, getActiveCourseIndex, mapTierForWave } from "./path";
 
 export type Rarity = "common" | "rare" | "legendary" | "mythical" | "god";
 
-export type AbilityId = "none" | "floppyFin" | "foxWall" | "godBeam";
+export type AbilityId = "none" | "floppyFin" | "foxWall" | "godBeam" | "freeze" | "heavyHit";
 
 /** How this friend specializes against thief archetypes */
 export type WeaponRole = "antiSpeed" | "antiStrength" | "balanced";
@@ -47,52 +47,62 @@ export interface ThiefDef {
 /** Base animals + mythical evolutions */
 export const FRIENDS: FriendDef[] = [
   // —— Basic ——
-  // Birds: fastest fire, still low damage
-  { id: "hummingbird", name: "Hummingbird", emoji: "🐦", rarity: "common", color: "#7ecf9a", damage: 2, range: 95, attackSpeed: 2.8, ability: "none", flies: true, canEvolve: true, evolvesTo: "phoenixlet" },
-  { id: "bunny", name: "Bunny", emoji: "🐰", rarity: "common", color: "#f0e0d0", damage: 6, range: 90, attackSpeed: 1.2, ability: "none", canEvolve: true, evolvesTo: "moonhare" },
-  { id: "squirrel", name: "Squirrel", emoji: "🐿️", rarity: "common", color: "#c48848", damage: 7, range: 88, attackSpeed: 1.3, ability: "none", canEvolve: true, evolvesTo: "stormsquirrel" },
-  { id: "hedgehog", name: "Hedgehog", emoji: "🦔", rarity: "common", color: "#a08060", damage: 8, range: 80, attackSpeed: 0.95, ability: "none", canEvolve: true, evolvesTo: "spikeking" },
-  { id: "chipmunk", name: "Chipmunk", emoji: "🐹", rarity: "common", color: "#d0a060", damage: 6, range: 92, attackSpeed: 1.4, ability: "none", canEvolve: true, evolvesTo: "jewelmunk" },
-  { id: "mouse", name: "Forest Mouse", emoji: "🐭", rarity: "common", color: "#c0b0a0", damage: 5, range: 86, attackSpeed: 1.5, ability: "none", canEvolve: true, evolvesTo: "shadowmouse" },
+  // Birds: fastest fire, still low damage — chase speed
+  { id: "hummingbird", name: "Hummingbird", emoji: "🐦", rarity: "common", color: "#7ecf9a", damage: 2, range: 95, attackSpeed: 2.8, ability: "none", flies: true, weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "phoenixlet" },
+  { id: "bunny", name: "Bunny", emoji: "🐰", rarity: "common", color: "#f0e0d0", damage: 6, range: 90, attackSpeed: 1.2, ability: "none", weaponRole: "balanced", canEvolve: true, evolvesTo: "moonhare" },
+  { id: "squirrel", name: "Squirrel", emoji: "🐿️", rarity: "common", color: "#c48848", damage: 7, range: 88, attackSpeed: 1.3, ability: "none", weaponRole: "balanced", canEvolve: true, evolvesTo: "stormsquirrel" },
+  { id: "hedgehog", name: "Hedgehog", emoji: "🦔", rarity: "common", color: "#a08060", damage: 10, range: 80, attackSpeed: 0.9, ability: "heavyHit", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "spikeking" },
+  { id: "chipmunk", name: "Chipmunk", emoji: "🐹", rarity: "common", color: "#d0a060", damage: 6, range: 92, attackSpeed: 1.4, ability: "none", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "jewelmunk" },
+  { id: "mouse", name: "Forest Mouse", emoji: "🐭", rarity: "common", color: "#c0b0a0", damage: 5, range: 86, attackSpeed: 1.5, ability: "none", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "shadowmouse" },
+  // Freeze specialist — stops speed runners
+  { id: "penguin", name: "Penguin", emoji: "🐧", rarity: "common", color: "#90c8e8", damage: 5, range: 88, attackSpeed: 1.15, ability: "freeze", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "emperorpenguin" },
+  // Heavy specialist — cracks strength tanks
+  { id: "mole", name: "Mole", emoji: "🦡", rarity: "common", color: "#8a7060", damage: 11, range: 78, attackSpeed: 0.85, ability: "heavyHit", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "titanmole" },
 
   // —— Tier two ——
-  { id: "owl", name: "Owl", emoji: "🦉", rarity: "rare", color: "#8a7050", damage: 3, range: 110, attackSpeed: 2.4, ability: "none", flies: true, canEvolve: true, evolvesTo: "nightoracle" },
-  { id: "deer", name: "Deer", emoji: "🦌", rarity: "rare", color: "#c89858", damage: 16, range: 110, attackSpeed: 1.05, ability: "none", canEvolve: true, evolvesTo: "starcervid" },
-  { id: "beaver", name: "Beaver", emoji: "🦫", rarity: "rare", color: "#8a6040", damage: 18, range: 100, attackSpeed: 0.9, ability: "none", canEvolve: true, evolvesTo: "giantpanda" },
-  { id: "wolf", name: "Wolf", emoji: "🐺", rarity: "rare", color: "#808898", damage: 20, range: 115, attackSpeed: 1.2, ability: "none", canEvolve: true, evolvesTo: "werewolf", evolveChance: 0.01 },
-  { id: "fox", name: "Fox", emoji: "🦊", rarity: "rare", color: "#e87840", damage: 15, range: 105, attackSpeed: 1.15, ability: "foxWall", canEvolve: true, evolvesTo: "kitsune" },
-  { id: "fish", name: "Fish", emoji: "🐟", rarity: "rare", color: "#5eb8e0", damage: 12, range: 100, attackSpeed: 1.25, ability: "floppyFin", canEvolve: true, evolvesTo: "tidalkoi" },
+  { id: "owl", name: "Owl", emoji: "🦉", rarity: "rare", color: "#8a7050", damage: 3, range: 110, attackSpeed: 2.4, ability: "none", flies: true, weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "nightoracle" },
+  { id: "deer", name: "Deer", emoji: "🦌", rarity: "rare", color: "#c89858", damage: 16, range: 110, attackSpeed: 1.05, ability: "none", weaponRole: "balanced", canEvolve: true, evolvesTo: "starcervid" },
+  { id: "beaver", name: "Beaver", emoji: "🦫", rarity: "rare", color: "#8a6040", damage: 18, range: 100, attackSpeed: 0.9, ability: "heavyHit", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "giantpanda" },
+  { id: "wolf", name: "Wolf", emoji: "🐺", rarity: "rare", color: "#808898", damage: 20, range: 115, attackSpeed: 1.2, ability: "none", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "werewolf", evolveChance: 0.01 },
+  { id: "fox", name: "Fox", emoji: "🦊", rarity: "rare", color: "#e87840", damage: 15, range: 105, attackSpeed: 1.15, ability: "foxWall", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "kitsune" },
+  { id: "fish", name: "Fish", emoji: "🐟", rarity: "rare", color: "#5eb8e0", damage: 12, range: 100, attackSpeed: 1.25, ability: "floppyFin", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "tidalkoi" },
+  { id: "seal", name: "Seal", emoji: "🦭", rarity: "rare", color: "#a8d0e8", damage: 14, range: 108, attackSpeed: 1.1, ability: "freeze", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "frostseal" },
+  { id: "moose", name: "Moose", emoji: "🫎", rarity: "rare", color: "#a07040", damage: 26, range: 105, attackSpeed: 0.7, ability: "heavyHit", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "megamoose" },
 
   // —— Legendary ——
-  { id: "otter", name: "Otter", emoji: "🦦", rarity: "legendary", color: "#b08050", damage: 22, range: 115, attackSpeed: 1.05, ability: "none", canEvolve: true, evolvesTo: "riverspirit" },
-  // Bears: slow shots, huge damage
-  { id: "brownbear", name: "Brown Bear", emoji: "🐻", rarity: "legendary", color: "#8a5030", damage: 85, range: 110, attackSpeed: 0.4, ability: "none", canEvolve: true, evolvesTo: "ursaking" },
-  { id: "polarbear", name: "Polar Bear", emoji: "🐻‍❄️", rarity: "legendary", color: "#e8f0f8", damage: 90, range: 115, attackSpeed: 0.38, ability: "none", canEvolve: true, evolvesTo: "frostursine" },
-  { id: "eagle", name: "Bald Eagle", emoji: "🦅", rarity: "legendary", color: "#d0a040", damage: 3, range: 130, attackSpeed: 2.2, ability: "none", flies: true, canEvolve: true, evolvesTo: "thunderroc" },
-  { id: "shark", name: "Shark", emoji: "🦈", rarity: "legendary", color: "#6080a0", damage: 28, range: 130, attackSpeed: 1.0, ability: "floppyFin", canEvolve: true, evolvesTo: "megalodon" },
+  { id: "otter", name: "Otter", emoji: "🦦", rarity: "legendary", color: "#b08050", damage: 22, range: 115, attackSpeed: 1.05, ability: "none", weaponRole: "balanced", canEvolve: true, evolvesTo: "riverspirit" },
+  // Bears: freeze / heavy roles
+  { id: "brownbear", name: "Brown Bear", emoji: "🐻", rarity: "legendary", color: "#8a5030", damage: 85, range: 110, attackSpeed: 0.4, ability: "heavyHit", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "ursaking" },
+  { id: "polarbear", name: "Polar Bear", emoji: "🐻‍❄️", rarity: "legendary", color: "#e8f0f8", damage: 70, range: 115, attackSpeed: 0.42, ability: "freeze", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "frostursine" },
+  { id: "eagle", name: "Bald Eagle", emoji: "🦅", rarity: "legendary", color: "#d0a040", damage: 3, range: 130, attackSpeed: 2.2, ability: "none", flies: true, weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "thunderroc" },
+  { id: "shark", name: "Shark", emoji: "🦈", rarity: "legendary", color: "#6080a0", damage: 28, range: 130, attackSpeed: 1.0, ability: "floppyFin", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "megalodon" },
 
   // —— Mythical evolutions (bigger/stronger, evolve-only) ——
-  { id: "phoenixlet", name: "Phoenixlet", emoji: "🔥", rarity: "mythical", color: "#ff7040", damage: 8, range: 150, attackSpeed: 3.2, ability: "none", flies: true, evolvedForm: true },
-  { id: "moonhare", name: "Moon Hare", emoji: "🌙", rarity: "mythical", color: "#d0e0ff", damage: 28, range: 130, attackSpeed: 1.5, ability: "none", evolvedForm: true },
-  { id: "stormsquirrel", name: "Storm Squirrel", emoji: "⚡", rarity: "mythical", color: "#f0d040", damage: 30, range: 125, attackSpeed: 1.7, ability: "none", evolvedForm: true },
-  { id: "spikeking", name: "Spike King", emoji: "🛡️", rarity: "mythical", color: "#a09070", damage: 36, range: 120, attackSpeed: 1.1, ability: "none", evolvedForm: true },
-  { id: "jewelmunk", name: "Jewelmunk", emoji: "💎", rarity: "mythical", color: "#70e0ff", damage: 26, range: 135, attackSpeed: 1.8, ability: "none", evolvedForm: true },
-  { id: "shadowmouse", name: "Shadow Mouse", emoji: "🖤", rarity: "mythical", color: "#504060", damage: 24, range: 130, attackSpeed: 2.0, ability: "none", evolvedForm: true },
-  { id: "nightoracle", name: "Night Oracle", emoji: "🔮", rarity: "mythical", color: "#6a40a0", damage: 10, range: 170, attackSpeed: 2.8, ability: "none", flies: true, evolvedForm: true },
-  { id: "starcervid", name: "Star Cervid", emoji: "✨", rarity: "mythical", color: "#ffe08a", damage: 42, range: 145, attackSpeed: 1.35, ability: "none", evolvedForm: true },
-  { id: "giantpanda", name: "Giant Panda", emoji: "🐼", rarity: "mythical", color: "#f0f0f0", damage: 95, range: 165, attackSpeed: 0.85, ability: "none", evolvedForm: true, scale: 2.15 },
-  { id: "werewolf", name: "Werewolf", emoji: "🐺", rarity: "mythical", color: "#4a3048", damage: 58, range: 155, attackSpeed: 1.5, ability: "none", evolvedForm: true },
-  { id: "kitsune", name: "Kitsune", emoji: "🦊", rarity: "mythical", color: "#ff9040", damage: 40, range: 140, attackSpeed: 1.5, ability: "foxWall", evolvedForm: true },
-  { id: "tidalkoi", name: "Tidal Koi", emoji: "🐠", rarity: "mythical", color: "#30c0e8", damage: 38, range: 145, attackSpeed: 1.55, ability: "floppyFin", evolvedForm: true },
-  { id: "riverspirit", name: "River Spirit", emoji: "🌊", rarity: "mythical", color: "#40c0e0", damage: 45, range: 150, attackSpeed: 1.4, ability: "none", evolvedForm: true },
-  { id: "ursaking", name: "Ursa King", emoji: "👑", rarity: "mythical", color: "#6a3020", damage: 160, range: 140, attackSpeed: 0.45, ability: "none", evolvedForm: true },
-  { id: "frostursine", name: "Frost Ursine", emoji: "❄️", rarity: "mythical", color: "#b0e0ff", damage: 150, range: 145, attackSpeed: 0.42, ability: "none", evolvedForm: true },
-  { id: "thunderroc", name: "Thunder Roc", emoji: "🌩️", rarity: "mythical", color: "#e8c040", damage: 12, range: 190, attackSpeed: 2.6, ability: "none", flies: true, evolvedForm: true },
-  { id: "megalodon", name: "Megalodon", emoji: "🐋", rarity: "mythical", color: "#204060", damage: 95, range: 190, attackSpeed: 1.15, ability: "floppyFin", evolvedForm: true },
-  { id: "crimsonoracle", name: "Crimson Oracle", emoji: "☄️", rarity: "mythical", color: "#ff3020", damage: 140, range: 210, attackSpeed: 1.7, ability: "godBeam", evolvedForm: true },
+  { id: "phoenixlet", name: "Phoenixlet", emoji: "🔥", rarity: "mythical", color: "#ff7040", damage: 8, range: 150, attackSpeed: 3.2, ability: "none", flies: true, weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "moonhare", name: "Moon Hare", emoji: "🌙", rarity: "mythical", color: "#d0e0ff", damage: 28, range: 130, attackSpeed: 1.5, ability: "none", weaponRole: "balanced", evolvedForm: true },
+  { id: "stormsquirrel", name: "Storm Squirrel", emoji: "⚡", rarity: "mythical", color: "#f0d040", damage: 30, range: 125, attackSpeed: 1.7, ability: "none", weaponRole: "balanced", evolvedForm: true },
+  { id: "spikeking", name: "Spike King", emoji: "🛡️", rarity: "mythical", color: "#a09070", damage: 42, range: 120, attackSpeed: 1.0, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true },
+  { id: "jewelmunk", name: "Jewelmunk", emoji: "💎", rarity: "mythical", color: "#70e0ff", damage: 26, range: 135, attackSpeed: 1.8, ability: "none", weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "shadowmouse", name: "Shadow Mouse", emoji: "🖤", rarity: "mythical", color: "#504060", damage: 24, range: 130, attackSpeed: 2.0, ability: "none", weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "emperorpenguin", name: "Emperor Penguin", emoji: "🧊", rarity: "mythical", color: "#70b8e0", damage: 22, range: 140, attackSpeed: 1.35, ability: "freeze", weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "titanmole", name: "Titan Mole", emoji: "⛏️", rarity: "mythical", color: "#6a5040", damage: 48, range: 125, attackSpeed: 0.75, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true },
+  { id: "frostseal", name: "Frost Seal", emoji: "❄️", rarity: "mythical", color: "#c0e8ff", damage: 36, range: 150, attackSpeed: 1.25, ability: "freeze", weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "megamoose", name: "Mega Moose", emoji: "🦌", rarity: "mythical", color: "#804820", damage: 70, range: 140, attackSpeed: 0.65, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true, scale: 1.6 },
+  { id: "nightoracle", name: "Night Oracle", emoji: "🔮", rarity: "mythical", color: "#6a40a0", damage: 10, range: 170, attackSpeed: 2.8, ability: "none", flies: true, weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "starcervid", name: "Star Cervid", emoji: "✨", rarity: "mythical", color: "#ffe08a", damage: 42, range: 145, attackSpeed: 1.35, ability: "none", weaponRole: "balanced", evolvedForm: true },
+  { id: "giantpanda", name: "Giant Panda", emoji: "🐼", rarity: "mythical", color: "#f0f0f0", damage: 95, range: 165, attackSpeed: 0.85, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true, scale: 2.15 },
+  { id: "werewolf", name: "Werewolf", emoji: "🐺", rarity: "mythical", color: "#4a3048", damage: 58, range: 155, attackSpeed: 1.5, ability: "none", weaponRole: "antiStrength", evolvedForm: true },
+  { id: "kitsune", name: "Kitsune", emoji: "🦊", rarity: "mythical", color: "#ff9040", damage: 40, range: 140, attackSpeed: 1.5, ability: "foxWall", weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "tidalkoi", name: "Tidal Koi", emoji: "🐠", rarity: "mythical", color: "#30c0e8", damage: 38, range: 145, attackSpeed: 1.55, ability: "floppyFin", weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "riverspirit", name: "River Spirit", emoji: "🌊", rarity: "mythical", color: "#40c0e0", damage: 45, range: 150, attackSpeed: 1.4, ability: "none", weaponRole: "balanced", evolvedForm: true },
+  { id: "ursaking", name: "Ursa King", emoji: "👑", rarity: "mythical", color: "#6a3020", damage: 160, range: 140, attackSpeed: 0.45, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true },
+  { id: "frostursine", name: "Frost Ursine", emoji: "❄️", rarity: "mythical", color: "#b0e0ff", damage: 120, range: 145, attackSpeed: 0.45, ability: "freeze", weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "thunderroc", name: "Thunder Roc", emoji: "🌩️", rarity: "mythical", color: "#e8c040", damage: 12, range: 190, attackSpeed: 2.6, ability: "none", flies: true, weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "megalodon", name: "Megalodon", emoji: "🐋", rarity: "mythical", color: "#204060", damage: 95, range: 190, attackSpeed: 1.15, ability: "floppyFin", weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "crimsonoracle", name: "Crimson Oracle", emoji: "☄️", rarity: "mythical", color: "#ff3020", damage: 140, range: 210, attackSpeed: 1.7, ability: "godBeam", weaponRole: "antiStrength", evolvedForm: true },
 
   // —— GOD ——
-  { id: "redpanda", name: "Red Panda", emoji: "🐼", rarity: "god", color: "#e05030", damage: 95, range: 180, attackSpeed: 1.5, ability: "godBeam", canEvolve: true, evolvesTo: "crimsonoracle" },
+  { id: "redpanda", name: "Red Panda", emoji: "🐼", rarity: "god", color: "#e05030", damage: 95, range: 180, attackSpeed: 1.5, ability: "godBeam", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "crimsonoracle" },
 ];
 
 /** Speed thieves — fragile & fast. Strength thieves — tanky & slow. */
@@ -307,19 +317,29 @@ export function rarityLabel(r: Rarity): string {
 /** Resolve weapon specialty (defaults from traits if unset) */
 export function weaponRoleFor(def: FriendDef): WeaponRole {
   if (def.weaponRole) return def.weaponRole;
-  if (def.flies || def.ability === "floppyFin" || def.ability === "foxWall") return "antiSpeed";
-  if (def.damage >= 50 || def.attackSpeed <= 0.5) return "antiStrength";
-  // Ground specialists without extreme stats
+  if (def.ability === "freeze" || def.flies || def.ability === "floppyFin" || def.ability === "foxWall") {
+    return "antiSpeed";
+  }
+  if (def.ability === "heavyHit" || def.damage >= 50 || def.attackSpeed <= 0.5) return "antiStrength";
   if (
     def.id === "hedgehog" ||
     def.id === "beaver" ||
     def.id === "wolf" ||
     def.id === "spikeking" ||
-    def.id === "werewolf"
+    def.id === "werewolf" ||
+    def.id === "mole" ||
+    def.id === "moose"
   ) {
     return "antiStrength";
   }
-  if (def.id === "chipmunk" || def.id === "mouse" || def.id === "jewelmunk" || def.id === "shadowmouse") {
+  if (
+    def.id === "chipmunk" ||
+    def.id === "mouse" ||
+    def.id === "jewelmunk" ||
+    def.id === "shadowmouse" ||
+    def.id === "penguin" ||
+    def.id === "seal"
+  ) {
     return "antiSpeed";
   }
   return "balanced";

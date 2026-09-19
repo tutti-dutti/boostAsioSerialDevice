@@ -351,9 +351,9 @@ function thieves(
     ctx.fillStyle = kind === "speed" ? "#4ec4f0" : "#ff6b6b";
     ctx.fillRect(p.x - 12, p.y - r - 10, 24 * pct, 5);
 
-    if (t.slowTimer > 0 || t.blockedTimer > 0) {
-      ctx.strokeStyle = t.blockedTimer > 0 ? "#c4782a" : "#5b8cff";
-      ctx.lineWidth = 2;
+    if (t.slowTimer > 0 || t.blockedTimer > 0 || t.freezeTimer > 0) {
+      ctx.strokeStyle = t.freezeTimer > 0 ? "#9ad4ff" : t.blockedTimer > 0 ? "#c4782a" : "#5b8cff";
+      ctx.lineWidth = t.freezeTimer > 0 ? 3 : 2;
       ctx.beginPath();
       ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
       ctx.stroke();
@@ -383,13 +383,23 @@ function walls(ctx: CanvasRenderingContext2D, list: Wall[]) {
 function shots(ctx: CanvasRenderingContext2D, list: Shot[]) {
   for (const s of list) {
     ctx.fillStyle = s.color;
-    const r = s.godBeam ? 7 : s.floppy ? 6 : 4;
+    const r = s.godBeam ? 7 : s.heavyHit ? 7 : s.freeze || s.floppy ? 6 : 4;
     ctx.beginPath();
     ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
     ctx.fill();
     if (s.floppy) {
       ctx.strokeStyle = "#7ec8f0";
       ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    if (s.freeze) {
+      ctx.strokeStyle = "#9ad4ff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    if (s.heavyHit) {
+      ctx.strokeStyle = "#c87838";
+      ctx.lineWidth = 2.5;
       ctx.stroke();
     }
     if (s.godBeam) {
@@ -411,6 +421,8 @@ function booms(ctx: CanvasRenderingContext2D, list: Boom[]) {
       floppy: "#5eb8e0",
       wall: "#c4782a",
       beam: "#ff5040",
+      freeze: "#9ad4ff",
+      heavy: "#c87838",
     };
     ctx.strokeStyle = colors[b.kind] || "#fff";
     ctx.fillStyle = ctx.strokeStyle;

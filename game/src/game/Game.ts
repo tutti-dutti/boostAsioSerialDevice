@@ -602,15 +602,20 @@ export class Game {
       maxHp: hp,
       progress: 0,
       slowTimer: 0,
+      freezeTimer: 0,
       blockedTimer: 0,
       alive: true,
     });
   }
 
-  hurt(t: Thief, dmg: number, x: number, y: number, floppy = false, chill = false) {
+  hurt(t: Thief, dmg: number, x: number, y: number, floppy = false, chill = false, freeze = false) {
     t.hp -= dmg;
-    this.floats.push({ x, y: y - 10, text: `-${dmg}`, color: "#ff6b6b", life: 0.8 });
-    if (floppy) {
+    this.floats.push({ x, y: y - 10, text: `-${dmg}`, color: freeze ? "#7ec8ff" : "#ff6b6b", life: 0.8 });
+    if (freeze) {
+      const dur = t.def.kind === "speed" ? 2.2 : 1.0;
+      t.freezeTimer = Math.max(t.freezeTimer, dur);
+      this.booms.push({ kind: "freeze", x, y, life: 0.55, radius: 32 });
+    } else if (floppy) {
       t.slowTimer = Math.max(t.slowTimer, 1.8);
       this.booms.push({ kind: "floppy", x, y, life: 0.5, radius: 28 });
     } else if (chill) {
@@ -692,6 +697,7 @@ export class Game {
     for (const t of this.thieves) {
       if (!t.alive) continue;
       if (t.slowTimer > 0) t.slowTimer -= dt;
+      if (t.freezeTimer > 0) t.freezeTimer -= dt;
       if (t.blockedTimer > 0) t.blockedTimer -= dt;
 
       // hit a wall?
@@ -701,7 +707,8 @@ export class Game {
         }
       }
 
-      const slow = t.slowTimer > 0 ? 0.45 : 1;
+      const frozen = t.freezeTimer > 0;
+      const slow = frozen ? 0.1 : t.slowTimer > 0 ? 0.45 : 1;
       const block = t.blockedTimer > 0 ? 0.15 : 1;
       t.progress += ((t.def.speed * slow * block) / 900) * dt;
       if (t.progress >= 1) {
@@ -791,18 +798,24 @@ export class Game {
               ? "god"
               : f.def.ability === "floppyFin"
                 ? "floppy"
-                : "normal";
+                : f.def.ability === "freeze"
+                  ? "freeze"
+                  : f.def.ability === "heavyHit"
+                    ? "heavy"
+                    : "normal";
         this.shots.push({
           x: birdPos.x,
           y: birdPos.y,
           tx: p.x,
           ty: p.y,
-          speed: isFlyer ? 480 : isLegend ? 420 : f.def.ability === "godBeam" ? 420 : 320,
+          speed: isFlyer ? 480 : isLegend ? 420 : f.def.ability === "godBeam" ? 420 : f.def.ability === "heavyHit" ? 280 : 320,
           damage: damageVsThief(f, best.def),
           color: f.def.color,
           targetId: best.uid,
           floppy: f.def.ability === "floppyFin",
           godBeam: f.def.ability === "godBeam",
+          freeze: f.def.ability === "freeze",
+          heavyHit: f.def.ability === "heavyHit",
           weaponRole: role,
         });
         playShoot(kind);
@@ -835,8 +848,12 @@ export class Game {
               }
             }
           }
-          const chill = s.weaponRole === "antiSpeed" && !s.floppy;
-          this.hurt(t, dmg, p.x, p.y, !!s.floppy, chill);
+          if (s.heavyHit) {
+            dmg = Math.round(dmg * (t.def.kind === "strength" ? 1.25 : 1.05));
+            this.booms.push({ kind: "heavy", x: p.x, y: p.y, life: 0.45, radius: 36 });
+          }
+          const chill = s.weaponRole === "antiSpeed" && !s.floppy && !s.freeze;
+          this.hurt(t, dmg, p.x, p.y, !!s.floppy, chill, !!s.freeze);
           playHit();
         }
         s.speed = -1;

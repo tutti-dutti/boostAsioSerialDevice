@@ -56,7 +56,7 @@ app.innerHTML = `
         <div class="row">
           <button class="danger" id="delete-unit" type="button">Delete unit</button>
         </div>
-        <p class="hint">Tap a friend once to equip, then tap a + spot to deploy. Birds/fish chase Speed; bears crack Strength.</p>
+        <p class="hint">Tap a friend once to equip, then tap a + spot to deploy. Freeze (🐧🦭) stops Speed; Heavy Hit (🦡🫎🐻) cracks Strength.</p>
       </section>
 
       <section class="panel">
@@ -172,6 +172,8 @@ function refresh() {
     if (f.def.ability === "floppyFin") extra += " · Floppy Fin";
     if (f.def.ability === "foxWall") extra += " · builds walls";
     if (f.def.ability === "godBeam") extra += " · God Beam";
+    if (f.def.ability === "freeze") extra += " · FREEZE";
+    if (f.def.ability === "heavyHit") extra += " · HEAVY HIT";
     extra += ` · ${weaponRoleLabel(weaponRoleFor(f.def))}`;
     if (f.def.canEvolve && f.def.evolvesTo) {
       const pct = Math.round(evolveChanceFor(f.def) * 1000) / 10;

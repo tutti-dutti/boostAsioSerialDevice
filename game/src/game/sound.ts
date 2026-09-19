@@ -95,7 +95,9 @@ function noiseBurst(dur: number, gain = 0.15, filterFreq = 2000) {
 }
 
 /** Fun laser / pew when a friend shoots */
-export function playShoot(kind: "normal" | "floppy" | "god" | "minigun" | "laser" = "normal") {
+export function playShoot(
+  kind: "normal" | "floppy" | "god" | "minigun" | "laser" | "freeze" | "heavy" = "normal",
+) {
   if (muted) return;
   const now = performance.now();
   // throttle so many towers don't explode the speakers
@@ -135,6 +137,22 @@ export function playShoot(kind: "normal" | "floppy" | "god" | "minigun" | "laser
     tone(520, 0.15, "triangle", 0.16, 140);
     tone(360, 0.12, "sine", 0.1, 100);
     tone(780, 0.08, "square", 0.05, 200);
+    return;
+  }
+
+  if (kind === "freeze") {
+    // icy chime
+    tone(980, 0.12, "sine", 0.12, 420);
+    tone(1480, 0.1, "triangle", 0.08, 600);
+    tone(620, 0.08, "sine", 0.06, 200);
+    return;
+  }
+
+  if (kind === "heavy") {
+    // thudding impact
+    tone(140, 0.14, "sawtooth", 0.16, 60);
+    tone(90, 0.12, "square", 0.1, 40);
+    noiseBurst(0.06, 0.12, 900);
     return;
   }
 
