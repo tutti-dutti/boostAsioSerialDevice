@@ -242,8 +242,19 @@ export class Game {
         slot.friend.def = evolved;
         slot.friend.level = Math.max(1, slot.friend.level);
         slot.friend.abilityTimer = evolved.ability === "foxWall" ? 30 : 0;
-        this.toast(`${evolved.emoji} MYTHICAL! ${evolved.name}!!!`, true);
-        this.booms.push({ kind: "beam", x: slot.x, y: slot.y, life: 1.2, radius: 60 });
+        this.toast(
+          evolved.id === "giantpanda"
+            ? `${evolved.emoji} MEGA GIANT PANDA!!!`
+            : `${evolved.emoji} MYTHICAL! ${evolved.name}!!!`,
+          true,
+        );
+        this.booms.push({
+          kind: "beam",
+          x: slot.x,
+          y: slot.y,
+          life: evolved.id === "giantpanda" ? 1.6 : 1.2,
+          radius: evolved.id === "giantpanda" ? 90 : 60,
+        });
         this.save();
         this.onChange();
         return;

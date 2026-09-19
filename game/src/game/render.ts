@@ -87,9 +87,10 @@ function cookie(ctx: CanvasRenderingContext2D, hp: number, max: number) {
 }
 
 function friendTokenRadius(f: PlacedFriend): number {
-  if (f.def.rarity === "god") return 32;
-  if (f.def.rarity === "mythical") return 30;
-  return 24;
+  const scale = f.def.scale ?? 1;
+  if (f.def.rarity === "god") return Math.round(32 * scale);
+  if (f.def.rarity === "mythical") return Math.round(30 * scale);
+  return Math.round(24 * scale);
 }
 
 function drawFriendPad(
@@ -100,7 +101,8 @@ function drawFriendPad(
   selected: boolean,
 ) {
   const r = friendTokenRadius(f);
-  // round top-down token (mythical / god forms are bigger)
+  const scale = f.def.scale ?? 1;
+  // round top-down token (mythical / god / mega forms are bigger)
   ctx.fillStyle = f.def.color;
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -117,11 +119,18 @@ function drawFriendPad(
     ctx.arc(x, y, r + 5, 0, Math.PI * 2);
     ctx.stroke();
   } else if (f.def.rarity === "mythical") {
-    ctx.strokeStyle = "#c060ff";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = scale >= 1.8 ? "#ffd24a" : "#c060ff";
+    ctx.lineWidth = scale >= 1.8 ? 4 : 3;
     ctx.beginPath();
     ctx.arc(x, y, r + 5, 0, Math.PI * 2);
     ctx.stroke();
+    if (scale >= 1.8) {
+      ctx.strokeStyle = "rgba(255,210,74,0.45)";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 12, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   } else if (f.def.rarity === "legendary") {
     ctx.strokeStyle = "#e8c15a";
     ctx.lineWidth = 2.5;
@@ -130,7 +139,7 @@ function drawFriendPad(
     ctx.stroke();
   }
 
-  const emojiSize = f.def.rarity === "mythical" || f.def.rarity === "god" ? 34 : 26;
+  const emojiSize = Math.round((f.def.rarity === "mythical" || f.def.rarity === "god" ? 34 : 26) * scale);
   ctx.font = `${emojiSize}px serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
