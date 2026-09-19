@@ -10,7 +10,7 @@ import {
   levelBossForWave,
   type FriendDef,
 } from "./data";
-import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress, mapIndexForWave, setActiveMap } from "./path";
+import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveMapForWave } from "./path";
 import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell } from "./sound";
 import {
@@ -35,7 +35,7 @@ export class Game {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   slots: Slot[] = [];
-  mapIndex = 0;
+  mapTier = 0;
   bag: FriendDef[] = [];
   selectedBag: number | null = null;
   selectedSlot: number | null = null;
@@ -66,18 +66,18 @@ export class Game {
     this.ctx = canvas.getContext("2d")!;
     canvas.width = W;
     canvas.height = H;
-    this.applyMap(0, false);
+    this.applyMapForWave(1, false);
     this.load();
     this.syncMapForWave(false);
     this.grantIdleGold();
     this.canvas.addEventListener("pointerdown", (e) => this.onClick(e));
   }
 
-  /** Rebuild pads for a map; optionally keep friends by slot index */
-  applyMap(index: number, announce: boolean) {
+  /** Rebuild pads for the wave's map; optionally keep friends by slot index */
+  applyMapForWave(wave: number, announce: boolean) {
     const prevFriends = this.slots.map((s) => s.friend);
-    const map = setActiveMap(index);
-    this.mapIndex = index;
+    const map = setActiveMapForWave(wave);
+    this.mapTier = mapTierForWave(wave);
     this.slots = SLOT_SPOTS.map((p, i) => ({
       id: i,
       x: p.x,
@@ -100,15 +100,16 @@ export class Game {
     this.shots = [];
     this.selectedSlot = null;
     if (announce) {
-      this.toast(`🗺️ New map: ${map.name}!`, true);
+      const hard = this.mapTier > 0 ? " (harder!)" : "";
+      this.toast(`🗺️ New map: ${map.name}${hard}`, true);
     }
   }
 
   syncMapForWave(announce: boolean) {
-    const next = mapIndexForWave(this.wave);
-    if (next !== this.mapIndex || this.slots.length === 0) {
-      const changed = this.slots.length > 0 && next !== this.mapIndex;
-      this.applyMap(next, announce && changed);
+    const next = mapTierForWave(this.wave);
+    if (next !== this.mapTier || this.slots.length === 0) {
+      const changed = this.slots.length > 0 && next !== this.mapTier;
+      this.applyMapForWave(this.wave, announce && changed);
     }
   }
 

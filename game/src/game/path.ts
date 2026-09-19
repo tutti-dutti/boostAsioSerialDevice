@@ -20,8 +20,8 @@ export interface ArenaMap {
 }
 
 /** Pack lots of pads along both sides of a path (plus any seed spots). */
-function densifySlots(path: Vec2[], seed: Vec2[] = []): Vec2[] {
-  const minGap = 46;
+function densifySlots(path: Vec2[], seed: Vec2[] = [], complexity = 0): Vec2[] {
+  const minGap = Math.max(36, 46 - complexity * 2);
   const out: Vec2[] = [];
 
   const tooClose = (p: Vec2) => out.some((q) => Math.hypot(p.x - q.x, p.y - q.y) < minGap);
@@ -36,11 +36,16 @@ function densifySlots(path: Vec2[], seed: Vec2[] = []): Vec2[] {
   for (const s of seed) add(s);
 
   const offsets = [52, 88, 124];
+  if (complexity >= 1) offsets.push(158);
+  if (complexity >= 3) offsets.unshift(38);
+  if (complexity >= 5) offsets.push(180);
+
+  const stepSize = Math.max(36, 48 - complexity * 2);
   for (let i = 1; i < path.length; i++) {
     const a = path[i - 1];
     const b = path[i];
     const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-    const steps = Math.max(2, Math.ceil(len / 48));
+    const steps = Math.max(2, Math.ceil(len / stepSize));
     const nx = -(b.y - a.y) / len;
     const ny = (b.x - a.x) / len;
     for (let s = 0; s <= steps; s++) {
@@ -56,11 +61,57 @@ function densifySlots(path: Vec2[], seed: Vec2[] = []): Vec2[] {
   return out;
 }
 
-function withDenseSlots(map: ArenaMap): ArenaMap {
-  return { ...map, slots: densifySlots(map.path, map.slots) };
+function clamp(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v));
 }
 
-/** Distinct maps that rotate every 30 waves */
+/** Add switchbacks so higher tiers get twistier, longer paths */
+function complexifyPath(base: Vec2[], complexity: number): Vec2[] {
+  if (complexity <= 0) return base.map((p) => ({ ...p }));
+  let path = base.map((p) => ({ ...p }));
+  const rounds = Math.min(complexity, 7);
+  for (let r = 0; r < rounds; r++) {
+    const next: Vec2[] = [{ ...path[0] }];
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1];
+      const b = path[i];
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      if (len > 85) {
+        const nx = -(b.y - a.y) / len;
+        const ny = (b.x - a.x) / len;
+        const amp = clamp(26 + r * 9, 26, 72) * (r % 2 === 0 ? 1 : -1);
+        const mid = {
+          x: clamp((a.x + b.x) / 2 + nx * amp, 40, W - 40),
+          y: clamp((a.y + b.y) / 2 + ny * amp, 40, H - 40),
+        };
+        if (complexity >= 2 && r >= 1) {
+          next.push(
+            {
+              x: clamp(a.x + (b.x - a.x) * 0.3 + nx * amp * 0.55, 40, W - 40),
+              y: clamp(a.y + (b.y - a.y) * 0.3 + ny * amp * 0.55, 40, H - 40),
+            },
+            mid,
+            {
+              x: clamp(a.x + (b.x - a.x) * 0.7 - nx * amp * 0.55, 40, W - 40),
+              y: clamp(a.y + (b.y - a.y) * 0.7 - ny * amp * 0.55, 40, H - 40),
+            },
+          );
+        } else {
+          next.push(mid);
+        }
+      }
+      next.push({ ...b });
+    }
+    path = next;
+  }
+  return path;
+}
+
+function withDenseSlots(map: ArenaMap): ArenaMap {
+  return { ...map, slots: densifySlots(map.path, map.slots, 0) };
+}
+
+/** Distinct base themes that rotate every 30 waves (then grow more complex) */
 const MAP_DEFS: ArenaMap[] = [
   {
     id: "forest",
@@ -286,15 +337,37 @@ const MAP_DEFS: ArenaMap[] = [
 
 export const MAPS: ArenaMap[] = MAP_DEFS.map(withDenseSlots);
 
+/** How many map rotations have happened (0 at waves 1–30, 1 at 31–60, …) */
+export function mapTierForWave(wave: number): number {
+  return Math.floor(Math.max(0, wave - 1) / WAVES_PER_MAP);
+}
+
+/** Theme cycle index (Forest → River → Meadow → Canyon → …) */
 export function mapIndexForWave(wave: number): number {
-  return Math.floor(Math.max(0, wave - 1) / WAVES_PER_MAP) % MAPS.length;
+  return mapTierForWave(wave) % MAP_DEFS.length;
+}
+
+export function buildMapForWave(wave: number): ArenaMap {
+  const tier = mapTierForWave(wave);
+  const theme = MAP_DEFS[tier % MAP_DEFS.length];
+  const path = complexifyPath(theme.path, tier);
+  const stars = "★".repeat(Math.min(tier, 5));
+  return {
+    ...theme,
+    id: `${theme.id}_t${tier}`,
+    name: tier === 0 ? theme.name : `${theme.name} ${stars}${tier > 5 ? `+${tier - 5}` : ""}`.trim(),
+    path,
+    slots: densifySlots(path, theme.slots, tier),
+    gate: { ...path[0] },
+    cookie: { ...path[path.length - 1] },
+  };
 }
 
 export function mapForWave(wave: number): ArenaMap {
-  return MAPS[mapIndexForWave(wave)];
+  return buildMapForWave(wave);
 }
 
-let active = MAPS[0];
+let active = buildMapForWave(1);
 let CUM = [0];
 let PATH_LEN = 0;
 
@@ -321,8 +394,12 @@ export function getActiveMap(): ArenaMap {
 }
 
 export function setActiveMap(index: number): ArenaMap {
-  const i = ((index % MAPS.length) + MAPS.length) % MAPS.length;
-  active = MAPS[i];
+  // Back-compat: treat index as a tier into the theme cycle at complexity 0..n
+  return setActiveMapForWave(index * WAVES_PER_MAP + 1);
+}
+
+export function setActiveMapForWave(wave: number): ArenaMap {
+  active = buildMapForWave(wave);
   PATH = active.path;
   SLOT_SPOTS = active.slots;
   COOKIE = active.cookie;
@@ -351,8 +428,9 @@ export function pathPoint(t: number): Vec2 {
 export function nearestProgress(x: number, y: number): number {
   let best = 0;
   let bestD = Infinity;
-  for (let i = 0; i <= 40; i++) {
-    const t = i / 40;
+  const samples = Math.min(80, 40 + Math.floor(PATH.length / 2));
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
     const p = pathPoint(t);
     const d = Math.hypot(p.x - x, p.y - y);
     if (d < bestD) {
