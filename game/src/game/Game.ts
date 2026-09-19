@@ -6,6 +6,7 @@ import {
   thiefForWave,
   waveCount,
   waveHpScale,
+  waveSpeedScale,
   isLevelBossWave,
   levelBossForWave,
   type FriendDef,
@@ -585,8 +586,10 @@ export class Game {
   }
 
   spawnThief() {
-    const def = thiefForWave(this.wave);
+    const base = thiefForWave(this.wave);
     const scale = waveHpScale(this.wave);
+    const spd = waveSpeedScale(this.wave);
+    const def = { ...base, speed: Math.round(base.speed * spd) };
     const hp = Math.round(def.hp * scale);
     this.thieves.push({
       uid: uid("t"),

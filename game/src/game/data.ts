@@ -1,4 +1,4 @@
-import { WAVES_PER_MAP, getActiveCourseIndex } from "./path";
+import { WAVES_PER_MAP, getActiveCourseIndex, mapTierForWave } from "./path";
 
 export type Rarity = "common" | "rare" | "legendary" | "mythical" | "god";
 
@@ -161,25 +161,64 @@ export function tryEvolve(current: FriendDef): FriendDef | null {
 
 export const SUMMON_COST = 1;
 
+/** Wave number within the current map level (1..WAVES_PER_MAP) */
+export function waveInLevel(wave: number): number {
+  return ((Math.max(1, wave) - 1) % WAVES_PER_MAP) + 1;
+}
+
+/**
+ * Pick a thief for this wave.
+ * Higher map levels unlock tougher targets from the first wave of that level.
+ */
 export function thiefForWave(wave: number): ThiefDef {
   if (isLevelBossWave(wave)) return levelBossForWave(wave);
   if (wave > 0 && wave % 10 === 0) return THIEVES[5];
-  if (wave >= 20) return THIEVES[1 + Math.floor(Math.random() * 4)];
-  if (wave >= 12) return THIEVES[Math.floor(Math.random() * 4)];
-  if (wave >= 6) return THIEVES[Math.floor(Math.random() * 3)];
-  if (wave >= 3) return THIEVES[Math.floor(Math.random() * 2)];
-  return THIEVES[0];
+
+  const tier = mapTierForWave(wave);
+  const local = waveInLevel(wave);
+
+  // Floor rises each map level so level 2+ never opens on the weakest bugs
+  const startFloor = Math.min(3, tier);
+  let maxIdx = startFloor;
+  if (local >= 3) maxIdx = Math.min(4, Math.max(maxIdx, startFloor + 1));
+  if (local >= 6) maxIdx = Math.min(4, Math.max(maxIdx, startFloor + 2));
+  if (local >= 12) maxIdx = Math.min(4, maxIdx + 1);
+  if (local >= 20) maxIdx = 4;
+
+  const minIdx = startFloor;
+  const span = Math.max(0, maxIdx - minIdx);
+  return THIEVES[minIdx + Math.floor(Math.random() * (span + 1))];
 }
 
 export function waveCount(wave: number): number {
   if (isLevelBossWave(wave)) return 1; // solo boss fight
-  return Math.min(12, 3 + Math.floor(wave / 2));
+  const tier = mapTierForWave(wave);
+  const local = waveInLevel(wave);
+  // More thieves as the level progresses, and denser packs on higher levels
+  return Math.min(16, 3 + Math.floor(local / 2) + tier * 2);
 }
 
+/**
+ * HP multiplier. Each new map level starts above the previous level's opening,
+ * then ramps within the level.
+ */
 export function waveHpScale(wave: number): number {
-  const base = 1.4 + (wave - 1) * 0.22 + Math.floor(wave / 10) * 0.55;
-  if (isLevelBossWave(wave)) return base * 2.1;
+  const tier = mapTierForWave(wave);
+  const local = waveInLevel(wave);
+  // Level 1 stays approachable; higher levels open tougher
+  const tierFloor = tier === 0 ? 1.0 : 1.2 + tier * 0.8;
+  const localRamp =
+    (local - 1) * (0.12 + tier * 0.035) + Math.floor(local / 10) * (0.35 + tier * 0.18);
+  const base = tierFloor + localRamp;
+  if (isLevelBossWave(wave)) return base * (2.0 + tier * 0.2);
   return base;
+}
+
+/** Mild speed bump on higher map levels so packs feel more threatening */
+export function waveSpeedScale(wave: number): number {
+  const tier = mapTierForWave(wave);
+  const local = waveInLevel(wave);
+  return 1 + tier * 0.06 + (local - 1) * 0.004;
 }
 
 export function rarityLabel(r: Rarity): string {
