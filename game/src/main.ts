@@ -1,6 +1,6 @@
 import "./style.css";
 import { Game } from "./game/Game";
-import { rarityLabel } from "./game/data";
+import { rarityLabel, evolveChanceFor } from "./game/data";
 import { unlockAudio, setMuted, isMuted } from "./game/sound";
 import { upgradeCost } from "./game/types";
 
@@ -115,7 +115,12 @@ function refresh() {
     if (f.def.ability === "floppyFin") extra += " · Floppy Fin";
     if (f.def.ability === "foxWall") extra += " · builds walls";
     if (f.def.ability === "godBeam") extra += " · God Beam";
-    if (f.def.canEvolve && f.def.evolvesTo) extra += " · 50% mythical evolve!";
+    if (f.def.canEvolve && f.def.evolvesTo) {
+      const pct = Math.round(evolveChanceFor(f.def) * 1000) / 10;
+      const label = Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
+      const target = f.def.evolvesTo === "werewolf" ? "Werewolf" : "mythical";
+      extra += ` · ${label}% → ${target}!`;
+    }
     if (f.def.rarity === "mythical") extra = " · MYTHICAL form!";
     if (f.def.rarity === "god") extra = " · GOD TIER!";
     selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — ${upgradeCost(f)}🪙${extra}`;
