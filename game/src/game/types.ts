@@ -1,4 +1,5 @@
-import type { FriendDef, ThiefDef } from "./data";
+import type { FriendDef, ThiefDef, WeaponRole } from "./data";
+import { weaponRoleFor } from "./data";
 
 export interface Vec2 {
   x: number;
@@ -20,6 +21,91 @@ export interface PlacedFriend {
   slotId: number;
   /** Fox wall ability timer */
   abilityTimer: number;
+  /** Bird orbit angle around the pad (radians) */
+  orbitAngle: number;
+  /** Beaver dam points earned from kills */
+  beaverPoints?: number;
+  /** Countdown until next random dumpling volley (pandas) */
+  dumplingTimer?: number;
+  /** Eagle freedom-run points from kills */
+  eaglePoints?: number;
+  /** Eagle has landed to drop bombs */
+  landed?: boolean;
+  /** Seconds left in land-and-bomb mode */
+  landTimer?: number;
+  /** Cooldown between bomb drops while landed */
+  bombCooldown?: number;
+  /** Comic speech bubble above the friend */
+  speech?: { text: string; life: number };
+}
+
+/** Kill points needed for a beaver to build one dam */
+export const BEAVER_DAM_COST = 5;
+
+/** Kill points needed for an eagle to land and bomb */
+export const EAGLE_LAND_COST = 6;
+
+/** How long the eagle stays landed dropping bombs */
+export const EAGLE_LAND_DURATION = 7.5;
+
+export function isBeaverBuilder(f: PlacedFriend | FriendDef): boolean {
+  const id = "def" in f ? f.def.id : f.id;
+  return id === "beaver" || id === "giantpanda";
+}
+
+/** Kung Fu Panda–style dumpling throwers */
+export function isDumplingPanda(f: PlacedFriend | FriendDef): boolean {
+  const id = "def" in f ? f.def.id : f.id;
+  return id === "giantpanda" || id === "redpanda";
+}
+
+export function nextDumplingDelay(): number {
+  // Random 3.5–7.5s between dumpling volleys
+  return 3.5 + Math.random() * 4;
+}
+
+export function isEagleBomber(f: PlacedFriend | FriendDef): boolean {
+  const id = "def" in f ? f.def.id : f.id;
+  return id === "eagle" || id === "thunderroc";
+}
+
+export function eagleKillPoints(thief: ThiefDef): number {
+  if (thief.boss) return 3;
+  if (thief.kind === "speed") return 2; // eagles love chasing runners
+  return 1;
+}
+
+export function beaverKillPoints(thief: ThiefDef): number {
+  if (thief.boss) return 3;
+  if (thief.kind === "strength") return 2;
+  return 1;
+}
+
+export function beaverDamMaxHp(level: number): number {
+  return 36 + Math.max(1, level) * 10;
+}
+
+/** Orbit radius = shoot radius for flyers */
+export function flyerOrbitRadius(f: PlacedFriend): number {
+  return friendRange(f);
+}
+
+export function flyerWorldPos(slotX: number, slotY: number, f: PlacedFriend): { x: number; y: number } {
+  const r = flyerOrbitRadius(f) * 0.72; // fly on a ring inside the shoot circle
+  return {
+    x: slotX + Math.cos(f.orbitAngle) * r,
+    y: slotY + Math.sin(f.orbitAngle) * r,
+  };
+}
+
+/** How fast birds circle (radians / second) */
+export function flyerOrbitSpeed(f: PlacedFriend): number {
+  if (f.def.id === "hummingbird") return 2.4;
+  if (f.def.id === "phoenixlet") return 2.2;
+  if (f.def.id === "eagle") return 1.5;
+  if (f.def.id === "thunderroc") return 1.35;
+  if (f.def.id === "nightoracle") return 1.6;
+  return 1.8; // owl
 }
 
 export interface Thief {
@@ -29,6 +115,8 @@ export interface Thief {
   maxHp: number;
   progress: number;
   slowTimer: number;
+  /** Near-stop from freeze weapons (stronger than chill) */
+  freezeTimer: number;
   blockedTimer: number;
   alive: boolean;
 }
@@ -44,6 +132,15 @@ export interface Shot {
   targetId: string;
   floppy?: boolean;
   godBeam?: boolean;
+  freeze?: boolean;
+  heavyHit?: boolean;
+  weaponRole?: WeaponRole;
+  /** Slot that fired this shot (for kill credit) */
+  ownerSlotId?: number;
+  /** Kung Fu Panda dumpling projectile */
+  dumpling?: boolean;
+  /** Eagle freedom bomb */
+  bomb?: boolean;
 }
 
 export interface FloatText {
@@ -55,7 +152,7 @@ export interface FloatText {
 }
 
 export interface Boom {
-  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam";
+  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy" | "dam" | "dumpling" | "bomb";
   x: number;
   y: number;
   life: number;
@@ -71,10 +168,40 @@ export interface Wall {
   progress: number;
 }
 
+/** Beaver dam on the path — blocks thieves until smashed */
+export interface Dam {
+  x: number;
+  y: number;
+  progress: number;
+  hp: number;
+  maxHp: number;
+  ownerSlotId: number;
+}
+
 export function friendDamage(f: PlacedFriend): number {
   const tier =
-    f.def.rarity === "god" ? 1.15 : f.def.rarity === "legendary" ? 1.05 : 1;
+    f.def.rarity === "god" ? 1.15 : f.def.rarity === "mythical" ? 1.1 : 1;
   return Math.round(f.def.damage * (1 + (f.level - 1) * 0.35) * tier);
+}
+
+/** Damage after speed/strength weapon counters */
+export function damageVsThief(f: PlacedFriend, thief: ThiefDef): number {
+  let dmg = friendDamage(f);
+  const role = weaponRoleFor(f.def);
+  const kind = thief.kind ?? "strength";
+  if (role === "antiSpeed") {
+    if (kind === "speed") dmg *= 1.55;
+    else if (kind === "strength") dmg *= 0.82;
+  } else if (role === "antiStrength") {
+    if (kind === "strength") dmg *= 1.6;
+    else if (kind === "speed") dmg *= 0.78;
+  }
+  // Heavy hitters punch well above their weight vs tanks
+  if (f.def.ability === "heavyHit" && kind === "strength") dmg *= 1.35;
+  if (f.def.ability === "heavyHit" && kind === "speed") dmg *= 0.9;
+  // Freeze units trade raw damage for control
+  if (f.def.ability === "freeze" && kind === "speed") dmg *= 1.15;
+  return Math.max(1, Math.round(dmg));
 }
 
 export function friendRange(f: PlacedFriend): number {
@@ -85,11 +212,13 @@ export function upgradeCost(f: PlacedFriend): number {
   const mult =
     f.def.rarity === "god"
       ? 4
-      : f.def.rarity === "legendary"
-        ? 2.2
-        : f.def.rarity === "rare"
-          ? 1.35
-          : 1;
+      : f.def.rarity === "mythical"
+        ? 3
+        : f.def.rarity === "legendary"
+          ? 2.2
+          : f.def.rarity === "rare"
+            ? 1.35
+            : 1;
   return Math.round(6 * Math.pow(1.5, f.level - 1) * mult);
 }
 
