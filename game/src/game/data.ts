@@ -121,13 +121,12 @@ export function pickFriend(lucky = false): FriendDef {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-/** 0.5% chance to evolve into mythical / next form on upgrade */
-export const EVOLVE_CHANCE_PERCENT = 0.5;
+/** 50% chance (0.5) to evolve into mythical / next form on upgrade */
+export const EVOLVE_CHANCE = 0.5;
 
 export function tryEvolve(current: FriendDef): FriendDef | null {
   if (!current.canEvolve || !current.evolvesTo) return null;
-  const roll = Math.random() * 100;
-  if (roll >= EVOLVE_CHANCE_PERCENT) return null;
+  if (Math.random() >= EVOLVE_CHANCE) return null;
   return FRIENDS.find((f) => f.id === current.evolvesTo) ?? null;
 }
 
