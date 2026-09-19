@@ -545,6 +545,18 @@ button.pause-btn.is-paused {
   color: #103048;
 }
 
+.wave-pause-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.wave-pause-row .wave-btn,
+.wave-pause-row .pause-btn {
+  width: auto;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 button.dam-btn {
   width: 100%;
   background: linear-gradient(180deg, #d4b078, #a87840);
@@ -1238,11 +1250,11 @@ button.danger {
   }
 
   button {
-    font-size: 0.7rem;
-    padding: 0.28rem 0.4rem;
-    border-radius: 8px;
+    font-size: 0.64rem;
+    padding: 0.22rem 0.32rem;
+    border-radius: 7px;
     border-width: 2px;
-    min-height: 2rem;
+    min-height: 1.75rem;
     flex: 1 1 auto;
   }
 
@@ -1250,31 +1262,40 @@ button.danger {
   button.pink,
   button.green,
   button.danger {
+    font-size: 0.66rem;
+    padding: 0.24rem 0.34rem;
+    min-height: 1.8rem;
+  }
+
+  /* Start Wave + Pause share one compact row on phones */
+  .wave-pause-row {
+    gap: 0.28rem;
+  }
+
+  button.wave-btn,
+  button.pause-btn {
+    width: auto;
+    flex: 1 1 0;
     font-size: 0.72rem;
-    padding: 0.3rem 0.42rem;
-    min-height: 2.05rem;
+    padding: 0.28rem 0.4rem;
+    min-height: 1.85rem;
+    line-height: 1.15;
   }
 
-  button.wave-btn {
-    font-size: 0.82rem;
-    padding: 0.38rem 0.5rem;
-    min-height: 2.2rem;
-  }
-
-  button.pause-btn,
   button.dam-btn,
   button.eagle-btn {
-    font-size: 0.78rem;
-    padding: 0.34rem 0.48rem;
-    min-height: 2.1rem;
+    font-size: 0.68rem;
+    padding: 0.26rem 0.36rem;
+    min-height: 1.8rem;
+    width: 100%;
   }
 
   button.spell {
     flex: 1 1 auto;
-    min-width: calc(33% - 0.22rem);
-    padding: 0.26rem 0.3rem;
-    font-size: 0.64rem;
-    min-height: 1.95rem;
+    min-width: calc(33% - 0.2rem);
+    padding: 0.2rem 0.26rem;
+    font-size: 0.6rem;
+    min-height: 1.7rem;
   }
 
   .inv-item {
@@ -1405,36 +1426,37 @@ button.danger {
   }
 
   button {
-    font-size: 0.64rem;
-    padding: 0.22rem 0.32rem;
-    min-height: 1.8rem;
+    font-size: 0.6rem;
+    padding: 0.18rem 0.28rem;
+    min-height: 1.6rem;
   }
 
   button.big,
   button.pink,
   button.green,
   button.danger {
+    font-size: 0.62rem;
+    min-height: 1.65rem;
+  }
+
+  button.wave-btn,
+  button.pause-btn {
     font-size: 0.66rem;
-    min-height: 1.85rem;
+    padding: 0.22rem 0.3rem;
+    min-height: 1.7rem;
   }
 
-  button.wave-btn {
-    font-size: 0.74rem;
-    padding: 0.3rem 0.4rem;
-    min-height: 2rem;
-  }
-
-  button.pause-btn,
   button.dam-btn,
   button.eagle-btn {
-    font-size: 0.7rem;
-    min-height: 1.9rem;
+    font-size: 0.62rem;
+    padding: 0.2rem 0.28rem;
+    min-height: 1.65rem;
   }
 
   button.spell {
-    font-size: 0.6rem;
-    min-width: calc(50% - 0.18rem);
-    min-height: 1.75rem;
+    font-size: 0.56rem;
+    min-width: calc(50% - 0.16rem);
+    min-height: 1.55rem;
   }
 
   .inv-item {

@@ -95,10 +95,8 @@ app.innerHTML = `
 
       <section class="panel">
         <h2>Actions</h2>
-        <div class="row">
+        <div class="row wave-pause-row">
           <button class="wave-btn" id="start-wave" type="button">Start Wave</button>
-        </div>
-        <div class="row">
           <button class="pause-btn" id="pause-action" type="button">Pause</button>
         </div>
         <div class="course-panel">
