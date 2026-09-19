@@ -105,7 +105,7 @@ app.innerHTML = `
           <button class="spell" id="frost" type="button">Frost (4🪙)</button>
           <button class="spell" id="zap" type="button">Zap (6🪙)</button>
         </div>
-        <p class="hint" id="select-hint">Upgrade to try a 50% mythical evolve!</p>
+        <p class="hint" id="select-hint">Upgrade to try a 5% mythical evolve!</p>
         <div class="row">
           <button id="new-game" type="button">New game</button>
         </div>

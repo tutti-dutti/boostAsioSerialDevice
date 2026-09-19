@@ -422,7 +422,7 @@ export class Game {
     }
     this.gold -= cost;
 
-    // Evolution roll on every upgrade (50% → mythical form)
+    // Evolution roll on every upgrade (5% → evolved form for every animal)
     if (slot.friend.def.canEvolve) {
       const evolved = tryEvolve(slot.friend.def);
       if (evolved) {

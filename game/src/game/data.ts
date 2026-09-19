@@ -22,7 +22,7 @@ export interface FriendDef {
   canEvolve?: boolean;
   /** Target mythical / next form id */
   evolvesTo?: string;
-  /** Override global evolve chance (0–1). e.g. 0.01 = 1% */
+  /** Override unused — global EVOLVE_CHANCE is flat 5% for every animal */
   evolveChance?: number;
   flies?: boolean;
   /** Evolved forms are summon-blocked */
@@ -63,7 +63,7 @@ export const FRIENDS: FriendDef[] = [
   { id: "owl", name: "Owl", emoji: "🦉", rarity: "rare", color: "#8a7050", damage: 3, range: 110, attackSpeed: 2.4, ability: "none", flies: true, weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "nightoracle" },
   { id: "deer", name: "Deer", emoji: "🦌", rarity: "rare", color: "#c89858", damage: 16, range: 110, attackSpeed: 1.05, ability: "none", weaponRole: "balanced", canEvolve: true, evolvesTo: "starcervid" },
   { id: "beaver", name: "Beaver", emoji: "🦫", rarity: "rare", color: "#8a6040", damage: 18, range: 100, attackSpeed: 0.9, ability: "heavyHit", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "giantpanda" },
-  { id: "wolf", name: "Wolf", emoji: "🐺", rarity: "rare", color: "#808898", damage: 20, range: 115, attackSpeed: 1.2, ability: "none", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "werewolf", evolveChance: 0.01 },
+  { id: "wolf", name: "Wolf", emoji: "🐺", rarity: "rare", color: "#808898", damage: 20, range: 115, attackSpeed: 1.2, ability: "none", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "werewolf" },
   { id: "fox", name: "Fox", emoji: "🦊", rarity: "rare", color: "#e87840", damage: 15, range: 105, attackSpeed: 1.15, ability: "foxWall", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "kitsune" },
   { id: "fish", name: "Fish", emoji: "🐟", rarity: "rare", color: "#5eb8e0", damage: 12, range: 100, attackSpeed: 1.25, ability: "floppyFin", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "tidalkoi" },
   { id: "seal", name: "Seal", emoji: "🦭", rarity: "rare", color: "#a8d0e8", damage: 14, range: 108, attackSpeed: 1.1, ability: "freeze", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "frostseal" },
@@ -172,11 +172,11 @@ export function pickFriend(lucky = false): FriendDef {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-/** Default 50% chance (0.5) to evolve; friends may override with evolveChance */
-export const EVOLVE_CHANCE = 0.5;
+/** Flat 5% chance (5 out of 100) to evolve on every upgrade for every animal */
+export const EVOLVE_CHANCE = 0.05;
 
-export function evolveChanceFor(current: FriendDef): number {
-  return current.evolveChance ?? EVOLVE_CHANCE;
+export function evolveChanceFor(_current: FriendDef): number {
+  return EVOLVE_CHANCE;
 }
 
 export function tryEvolve(current: FriendDef): FriendDef | null {
