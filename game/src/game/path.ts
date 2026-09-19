@@ -24,18 +24,43 @@ export const PATH: Vec2[] = [
 
 /** Round pads beside the path (top-down placement spots) */
 export const SLOT_SPOTS: Vec2[] = [
-  { x: 140, y: 100 },
+  // near gate / first drop
+  { x: 140, y: 60 },
+  { x: 140, y: 140 },
+  { x: 40, y: 100 },
+  { x: 40, y: 220 },
+  // first corner across
   { x: 150, y: 220 },
-  { x: 290, y: 220 },
+  { x: 220, y: 100 },
+  { x: 290, y: 160 },
+  { x: 290, y: 240 },
+  // mid vertical / lower bend
+  { x: 160, y: 300 },
   { x: 290, y: 360 },
+  { x: 350, y: 240 },
+  { x: 350, y: 360 },
+  // climb toward upper lane
   { x: 470, y: 360 },
-  { x: 470, y: 220 },
+  { x: 470, y: 280 },
+  { x: 470, y: 180 },
   { x: 470, y: 60 },
+  { x: 540, y: 180 },
+  // upper right lane
+  { x: 560, y: 60 },
   { x: 690, y: 60 },
-  { x: 690, y: 200 },
+  { x: 690, y: 180 },
+  { x: 560, y: 280 },
+  // lower right bend
+  { x: 690, y: 300 },
   { x: 690, y: 420 },
+  { x: 760, y: 280 },
+  { x: 760, y: 420 },
+  // final approach to cookie
   { x: 890, y: 420 },
   { x: 890, y: 300 },
+  { x: 890, y: 160 },
+  { x: 820, y: 140 },
+  { x: 960, y: 300 },
 ];
 
 export const COOKIE = { x: 920, y: 220 };
