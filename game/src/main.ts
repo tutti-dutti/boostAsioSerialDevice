@@ -124,10 +124,6 @@ app.innerHTML = `
             <span class="evolve-value" id="evolve-into">—</span>
           </div>
         </div>
-        <div class="course-panel">
-          <div class="course-chips" id="play-course-chips"></div>
-          <button class="course-random" id="play-random-course" type="button">🎲 Random</button>
-        </div>
         <div class="manage-row">
           <button id="new-game" type="button">New game</button>
         </div>
@@ -189,7 +185,6 @@ const evolveIntoEl = document.querySelector("#evolve-into")!;
 const goldUpgradeLine = document.querySelector("#gold-upgrade-line")!;
 const upgradeBtn = document.querySelector<HTMLButtonElement>("#upgrade")!;
 const homeCourseChips = document.querySelector("#home-course-chips")!;
-const playCourseChips = document.querySelector("#play-course-chips")!;
 const homeModeChips = document.querySelector("#home-mode-chips")!;
 const homeModeBlurb = document.querySelector("#home-mode-blurb")!;
 const homeScoresList = document.querySelector("#home-scores-list")!;
@@ -321,14 +316,13 @@ homeModeChips.querySelectorAll<HTMLButtonElement>(".mode-chip").forEach((btn) =>
   });
 });
 
-function renderCourseChips(container: Element, opts: { requireIdle: boolean }) {
+function renderCourseChips(container: Element) {
   const courses = listCourses();
-  const locked = opts.requireIdle && !game.canChangeCourse();
   container.innerHTML = courses
     .map(
       (c) => `
     <button class="course-chip ${game.courseIndex === c.index ? "selected" : ""}"
-      data-course="${c.index}" type="button" ${locked ? "disabled" : ""}
+      data-course="${c.index}" type="button"
       aria-pressed="${game.courseIndex === c.index ? "true" : "false"}">
       ${c.name}
     </button>`,
@@ -344,13 +338,9 @@ function renderCourseChips(container: Element, opts: { requireIdle: boolean }) {
 }
 
 function refreshCourses() {
-  renderCourseChips(homeCourseChips, { requireIdle: false });
-  renderCourseChips(playCourseChips, { requireIdle: true });
+  renderCourseChips(homeCourseChips);
   const homeRandom = document.querySelector("#home-random-course") as HTMLButtonElement;
-  const playRandom = document.querySelector("#play-random-course") as HTMLButtonElement;
   homeRandom.classList.toggle("selected", game.courseRandom);
-  playRandom.classList.toggle("selected", game.courseRandom);
-  playRandom.disabled = !game.canChangeCourse();
 }
 
 function refresh() {
@@ -690,10 +680,6 @@ document.querySelector("#home-random-course")!.addEventListener("click", () => {
   unlockAudio();
   game.randomizeCourse();
   refreshCourses();
-});
-document.querySelector("#play-random-course")!.addEventListener("click", () => {
-  unlockAudio();
-  game.randomizeCourse();
 });
 
 document.querySelector("#upgrade")!.addEventListener("click", () => game.upgradeSelected());
