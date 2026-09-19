@@ -1163,209 +1163,295 @@ button.danger {
 /* —— Phone: compact controls that still tap cleanly —— */
 @media (max-width: 767px) {
   .play-screen {
-    gap: 0.35rem;
-    padding: max(0.35rem, env(safe-area-inset-top)) max(0.4rem, env(safe-area-inset-right))
-      max(0.75rem, env(safe-area-inset-bottom)) max(0.4rem, env(safe-area-inset-left));
+    gap: 0.28rem;
+    padding: max(0.28rem, env(safe-area-inset-top)) max(0.32rem, env(safe-area-inset-right))
+      max(0.55rem, env(safe-area-inset-bottom)) max(0.32rem, env(safe-area-inset-left));
   }
 
   .top-bar {
-    gap: 0.3rem;
+    gap: 0.22rem;
     align-items: flex-start;
   }
 
   .brand-small {
-    font-size: 1.05rem;
-    max-width: 42%;
-    line-height: 1.15;
+    font-size: 0.95rem;
+    max-width: 40%;
+    line-height: 1.12;
   }
 
   .brand-by {
     display: block;
     margin-left: 0;
-    font-size: 0.55em;
+    font-size: 0.52em;
   }
 
   .top-actions {
-    gap: 0.25rem;
+    gap: 0.2rem;
     flex-wrap: wrap;
     justify-content: flex-end;
-    max-width: 58%;
+    max-width: 60%;
   }
 
   .home-link {
-    font-size: 0.72rem;
-    padding: 0.28rem 0.5rem;
-    min-height: 2rem;
+    font-size: 0.65rem;
+    padding: 0.2rem 0.4rem;
+    min-height: 1.75rem;
     border-width: 2px;
   }
 
   .stats {
-    gap: 0.25rem;
+    gap: 0.18rem;
   }
 
   .stat {
-    font-size: 0.75rem;
-    padding: 0.22rem 0.5rem;
+    font-size: 0.68rem;
+    padding: 0.16rem 0.4rem;
     border-width: 2px;
   }
 
   .stage-wrap {
     border-width: 3px;
-    border-radius: 12px;
+    border-radius: 10px;
   }
 
   .hud {
-    gap: 0.35rem;
+    gap: 0.28rem;
   }
 
   .panel {
-    padding: 0.55rem;
-    border-radius: 12px;
+    padding: 0.4rem;
+    border-radius: 10px;
     border-width: 2px;
   }
 
   .panel h2 {
-    font-size: 0.95rem;
-    margin-bottom: 0.35rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
   }
 
   .row {
-    gap: 0.3rem;
-    margin-bottom: 0.3rem;
+    gap: 0.22rem;
+    margin-bottom: 0.22rem;
   }
 
   button {
-    font-size: 0.8rem;
-    padding: 0.4rem 0.55rem;
-    border-radius: 10px;
+    font-size: 0.7rem;
+    padding: 0.28rem 0.4rem;
+    border-radius: 8px;
     border-width: 2px;
-    min-height: 2.35rem;
+    min-height: 2rem;
+    flex: 1 1 auto;
+  }
+
+  button.big,
+  button.pink,
+  button.green,
+  button.danger {
+    font-size: 0.72rem;
+    padding: 0.3rem 0.42rem;
+    min-height: 2.05rem;
   }
 
   button.wave-btn {
-    font-size: 0.95rem;
-    padding: 0.55rem 0.7rem;
-    min-height: 2.65rem;
+    font-size: 0.82rem;
+    padding: 0.38rem 0.5rem;
+    min-height: 2.2rem;
   }
 
   button.pause-btn,
   button.dam-btn,
   button.eagle-btn {
-    font-size: 0.9rem;
-    padding: 0.5rem 0.65rem;
-    min-height: 2.5rem;
+    font-size: 0.78rem;
+    padding: 0.34rem 0.48rem;
+    min-height: 2.1rem;
   }
 
   button.spell {
     flex: 1 1 auto;
-    min-width: calc(33% - 0.3rem);
-    padding: 0.35rem 0.4rem;
-    font-size: 0.72rem;
+    min-width: calc(33% - 0.22rem);
+    padding: 0.26rem 0.3rem;
+    font-size: 0.64rem;
+    min-height: 1.95rem;
   }
 
   .inv-item {
-    min-width: 3.6rem;
-    padding: 0.28rem;
-    font-size: 0.68rem;
-    min-height: 3.35rem;
-    border-radius: 10px;
+    min-width: 3.15rem;
+    padding: 0.2rem;
+    font-size: 0.6rem;
+    min-height: 2.85rem;
+    border-radius: 8px;
     border-width: 2px;
   }
 
   .inv-item .emoji {
-    font-size: 1.15rem;
+    font-size: 1rem;
   }
 
   .course-chip {
-    font-size: 0.72rem;
-    padding: 0.3rem 0.5rem;
-    min-height: 2.1rem;
+    font-size: 0.65rem;
+    padding: 0.24rem 0.42rem;
+    min-height: 1.85rem;
     border-width: 2px;
   }
 
   .mode-chip {
-    font-size: 0.8rem;
-    padding: 0.35rem 0.75rem;
-    min-height: 2.15rem;
-    min-width: 4.75rem;
+    font-size: 0.72rem;
+    padding: 0.28rem 0.6rem;
+    min-height: 1.9rem;
+    min-width: 4.2rem;
     border-width: 2px;
   }
 
   .mode-blurb {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
   }
 
   .course-random {
-    font-size: 0.8rem;
-    padding: 0.4rem 0.7rem;
-    min-height: 2.25rem;
+    font-size: 0.72rem;
+    padding: 0.3rem 0.55rem;
+    min-height: 1.95rem;
     border-width: 2px;
   }
 
   .hint {
-    font-size: 0.78rem;
+    font-size: 0.7rem;
+    line-height: 1.3;
   }
 
   .evolve-lineage {
-    padding: 0.45rem 0.55rem;
-    margin-top: 0.35rem;
+    padding: 0.35rem 0.45rem;
+    margin-top: 0.25rem;
   }
 
   .evolve-label {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
   }
 
   .evolve-value {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
   }
 
   .toast {
-    font-size: 0.85rem;
-    padding: 0.35rem 0.65rem;
+    font-size: 0.78rem;
+    padding: 0.28rem 0.55rem;
     border-width: 2px;
   }
 
   .home-play {
-    font-size: 1.15rem;
-    padding: 0.7rem 1.8rem;
-    min-height: 2.85rem;
+    font-size: 1.05rem;
+    padding: 0.55rem 1.45rem;
+    min-height: 2.45rem;
   }
 
   .home-feedback {
-    font-size: 0.9rem;
-    padding: 0.5rem 1.1rem;
-    min-height: 2.4rem;
+    font-size: 0.8rem;
+    padding: 0.4rem 0.9rem;
+    min-height: 2.1rem;
   }
 
   .feedback-kind {
-    min-height: 2.4rem;
-    font-size: 0.85rem;
+    min-height: 2.1rem;
+    font-size: 0.78rem;
   }
 
   .feedback-actions button {
-    min-height: 2.5rem;
+    min-height: 2.15rem;
+  }
+
+  .overlay-card {
+    padding: 1rem 1.1rem;
+  }
+
+  .overlay-card h2 {
+    font-size: 1.35rem;
+  }
+
+  .overlay-card .big {
+    font-size: 0.9rem;
+    min-height: 2.35rem;
   }
 }
 
 /* Very small phones */
 @media (max-width: 400px) {
   .brand-small {
-    font-size: 0.95rem;
+    font-size: 0.88rem;
+    max-width: 38%;
   }
 
   .home-link {
-    font-size: 0.68rem;
-    padding: 0.24rem 0.42rem;
+    font-size: 0.6rem;
+    padding: 0.16rem 0.32rem;
+    min-height: 1.6rem;
+  }
+
+  .stat {
+    font-size: 0.62rem;
+    padding: 0.12rem 0.32rem;
+  }
+
+  .panel {
+    padding: 0.32rem;
+  }
+
+  .panel h2 {
+    font-size: 0.78rem;
+  }
+
+  button {
+    font-size: 0.64rem;
+    padding: 0.22rem 0.32rem;
+    min-height: 1.8rem;
+  }
+
+  button.big,
+  button.pink,
+  button.green,
+  button.danger {
+    font-size: 0.66rem;
+    min-height: 1.85rem;
+  }
+
+  button.wave-btn {
+    font-size: 0.74rem;
+    padding: 0.3rem 0.4rem;
+    min-height: 2rem;
+  }
+
+  button.pause-btn,
+  button.dam-btn,
+  button.eagle-btn {
+    font-size: 0.7rem;
+    min-height: 1.9rem;
   }
 
   button.spell {
-    font-size: 0.68rem;
-    min-width: calc(50% - 0.25rem);
+    font-size: 0.6rem;
+    min-width: calc(50% - 0.18rem);
+    min-height: 1.75rem;
   }
 
   .inv-item {
-    min-width: 3.25rem;
-    font-size: 0.64rem;
+    min-width: 2.85rem;
+    font-size: 0.55rem;
+    min-height: 2.55rem;
+  }
+
+  .inv-item .emoji {
+    font-size: 0.9rem;
+  }
+
+  .course-chip,
+  .mode-chip,
+  .course-random {
+    font-size: 0.62rem;
+    min-height: 1.7rem;
+  }
+
+  .home-play {
+    font-size: 0.95rem;
+    padding: 0.45rem 1.2rem;
+    min-height: 2.2rem;
   }
 }
 
