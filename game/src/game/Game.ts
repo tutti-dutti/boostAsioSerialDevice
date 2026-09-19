@@ -6,6 +6,8 @@ import {
   thiefForWave,
   waveCount,
   waveHpScale,
+  isLevelBossWave,
+  levelBossForWave,
   type FriendDef,
 } from "./data";
 import { COOKIE, SLOT_SPOTS, W, H, pathPoint, nearestProgress, mapIndexForWave, setActiveMap } from "./path";
@@ -361,6 +363,10 @@ export class Game {
     this.spawnLeft = waveCount(this.wave);
     this.spawnTimer = 0.2;
     this.wavePause = 0;
+    if (isLevelBossWave(this.wave)) {
+      const boss = levelBossForWave(this.wave);
+      this.toast(`⚔️ BOSS FIGHT! ${boss.emoji} ${boss.name}!`, true);
+    }
   }
 
   spawnThief() {
@@ -389,7 +395,14 @@ export class Game {
     if (t.hp <= 0) {
       t.alive = false;
       this.gold += t.def.gold;
-      if (Math.random() < 0.22) this.stars += 1;
+      if (t.def.boss && isLevelBossWave(this.wave)) {
+        this.stars += 5;
+        this.gold += 25;
+        this.toast(`🏆 ${t.def.name} defeated! Map clear!`, true);
+        this.booms.push({ kind: "beam", x, y, life: 1.4, radius: 80 });
+      } else if (Math.random() < 0.22) {
+        this.stars += 1;
+      }
       this.floats.push({ x, y: y - 24, text: `+${t.def.gold}🪙`, color: "#c4782a", life: 1 });
     }
   }
@@ -467,7 +480,7 @@ export class Game {
       t.progress += ((t.def.speed * slow * block) / 900) * dt;
       if (t.progress >= 1) {
         t.alive = false;
-        this.cookieHp -= t.def.boss ? 4 : 1;
+        this.cookieHp -= t.def.boss ? (isLevelBossWave(this.wave) ? 8 : 4) : 1;
         this.onChange();
         if (this.cookieHp <= 0) {
           this.cookieHp = 0;
@@ -613,6 +626,7 @@ export class Game {
       selectedSlot: this.selectedSlot,
       time: this.time,
       wave: this.wave,
+      bossFight: isLevelBossWave(this.wave),
     });
     if (this.selectedSlot != null) {
       const slot = this.slots[this.selectedSlot];

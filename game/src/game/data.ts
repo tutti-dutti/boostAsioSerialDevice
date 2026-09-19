@@ -1,3 +1,5 @@
+import { WAVES_PER_MAP, mapIndexForWave } from "./path";
+
 export type Rarity = "common" | "rare" | "legendary" | "mythical" | "god";
 
 export type AbilityId = "none" | "floppyFin" | "foxWall" | "godBeam";
@@ -94,6 +96,23 @@ export const THIEVES: ThiefDef[] = [
   { id: "boss", name: "King Raccoon", emoji: "👑", hp: 900, speed: 28, gold: 30, size: 28, boss: true },
 ];
 
+/** End-of-map bosses (fought on waves 30, 60, 90, …) */
+export const LEVEL_BOSSES: ThiefDef[] = [
+  { id: "boss_forest", name: "King Raccoon", emoji: "👑", hp: 1400, speed: 24, gold: 60, size: 34, boss: true },
+  { id: "boss_river", name: "Tide Thief", emoji: "🌊", hp: 1600, speed: 27, gold: 70, size: 34, boss: true },
+  { id: "boss_meadow", name: "Meadow Tyrant", emoji: "🐗", hp: 1850, speed: 22, gold: 80, size: 36, boss: true },
+  { id: "boss_canyon", name: "Canyon King", emoji: "🦂", hp: 2100, speed: 25, gold: 90, size: 36, boss: true },
+];
+
+/** True on the last wave of each map (30, 60, 90, …) */
+export function isLevelBossWave(wave: number): boolean {
+  return wave > 0 && wave % WAVES_PER_MAP === 0;
+}
+
+export function levelBossForWave(wave: number): ThiefDef {
+  return LEVEL_BOSSES[mapIndexForWave(wave)];
+}
+
 export function pickFriend(lucky = false): FriendDef {
   const roll = Math.random() * 100;
   const pandaChance = lucky ? 1.5 : 0.5;
@@ -141,6 +160,7 @@ export function tryEvolve(current: FriendDef): FriendDef | null {
 export const SUMMON_COST = 1;
 
 export function thiefForWave(wave: number): ThiefDef {
+  if (isLevelBossWave(wave)) return levelBossForWave(wave);
   if (wave > 0 && wave % 10 === 0) return THIEVES[5];
   if (wave >= 20) return THIEVES[1 + Math.floor(Math.random() * 4)];
   if (wave >= 12) return THIEVES[Math.floor(Math.random() * 4)];
@@ -150,12 +170,14 @@ export function thiefForWave(wave: number): ThiefDef {
 }
 
 export function waveCount(wave: number): number {
+  if (isLevelBossWave(wave)) return 1; // solo boss fight
   return Math.min(12, 3 + Math.floor(wave / 2));
 }
 
 export function waveHpScale(wave: number): number {
-  // Much tougher scaling
-  return 1.4 + (wave - 1) * 0.22 + Math.floor(wave / 10) * 0.55;
+  const base = 1.4 + (wave - 1) * 0.22 + Math.floor(wave / 10) * 0.55;
+  if (isLevelBossWave(wave)) return base * 2.1;
+  return base;
 }
 
 export function rarityLabel(r: Rarity): string {

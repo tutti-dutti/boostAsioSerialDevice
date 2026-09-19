@@ -330,6 +330,7 @@ export interface DrawState {
   selectedSlot: number | null;
   time: number;
   wave: number;
+  bossFight?: boolean;
 }
 
 export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
@@ -349,6 +350,17 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   ctx.textAlign = "left";
   const map = getActiveMap();
   ctx.fillText(`Wave ${s.wave} · ${map.name}`, 14, 24);
+
+  if (s.bossFight) {
+    const pulse = 0.75 + Math.sin(s.time * 5) * 0.25;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = "#c04030";
+    ctx.font = "900 28px Fredoka, Nunito, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("⚔️ BOSS FIGHT ⚔️", W / 2, 48);
+    ctx.restore();
+  }
 }
 
 export function drawRangeHint(ctx: CanvasRenderingContext2D, slot: Slot) {
