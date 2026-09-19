@@ -21,6 +21,7 @@ body,
 #app {
   width: 100%;
   min-height: 100%;
+  min-height: 100dvh;
 }
 
 body {
@@ -28,21 +29,27 @@ body {
   color: var(--ink);
   background: linear-gradient(180deg, #8ed4f5 0%, #b8e8ff 45%, #9ad67a 100%);
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 #app {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* —— Clean home (no ads, no clutter) —— */
 .home {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  padding: 1.5rem;
+  padding: max(1.5rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right))
+    max(1.5rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
   text-align: center;
   position: relative;
   overflow: hidden;
@@ -223,7 +230,8 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.55rem 0.55rem 1.2rem;
+  padding: max(0.55rem, env(safe-area-inset-top)) max(0.55rem, env(safe-area-inset-right))
+    max(1.2rem, env(safe-area-inset-bottom)) max(0.55rem, env(safe-area-inset-left));
 }
 
 .top-bar {
@@ -298,8 +306,11 @@ canvas#stage {
   display: block;
   width: 100%;
   height: auto;
+  aspect-ratio: 1000 / 560;
   cursor: pointer;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .hud {
@@ -346,6 +357,8 @@ button {
   border-radius: 14px;
   cursor: pointer;
   transition: transform 0.12s ease;
+  touch-action: manipulation;
+  min-height: 2.75rem;
 }
 
 button:hover:not(:disabled) {
@@ -657,4 +670,184 @@ button.danger {
 
 .inv-item.rarity-legendary {
   border-color: #e8c15a;
+}
+
+/* —— Tablet / large touch layout —— */
+@media (min-width: 768px) {
+  .top-bar,
+  .stats,
+  .stage-wrap,
+  .hud {
+    width: min(1100px, 100%);
+  }
+
+  .brand-small {
+    font-size: 1.55rem;
+  }
+
+  .home-link {
+    font-size: 1rem;
+    padding: 0.55rem 1rem;
+    min-height: 2.85rem;
+  }
+
+  .stat {
+    font-size: 1.05rem;
+    padding: 0.45rem 0.95rem;
+  }
+
+  .panel {
+    padding: 1rem;
+  }
+
+  .panel h2 {
+    font-size: 1.25rem;
+  }
+
+  button {
+    font-size: 1.05rem;
+    padding: 0.75rem 1.05rem;
+    min-height: 3rem;
+  }
+
+  button.wave-btn {
+    font-size: 1.25rem;
+    padding: 1rem 1.1rem;
+    min-height: 3.4rem;
+  }
+
+  button.pause-btn {
+    font-size: 1.15rem;
+    min-height: 3.2rem;
+  }
+
+  .inv-item {
+    min-width: 5.4rem;
+    padding: 0.55rem;
+    font-size: 0.9rem;
+    min-height: 4.5rem;
+  }
+
+  .inv-item .emoji {
+    font-size: 1.65rem;
+  }
+
+  .course-chip {
+    font-size: 0.95rem;
+    padding: 0.55rem 0.9rem;
+    min-height: 2.75rem;
+  }
+
+  .course-random {
+    font-size: 1.05rem;
+    padding: 0.65rem 1.15rem;
+    min-height: 2.85rem;
+  }
+
+  .home-play {
+    font-size: 1.55rem;
+    padding: 1.05rem 2.8rem;
+    min-height: 3.5rem;
+  }
+
+  .toast {
+    font-size: 1.05rem;
+    padding: 0.55rem 1.1rem;
+  }
+
+  .overlay-card {
+    max-width: 26rem;
+    padding: 1.5rem 1.6rem;
+  }
+
+  .overlay-card h2 {
+    font-size: 1.75rem;
+  }
+
+  .score-save-row input {
+    font-size: 1.1rem;
+    min-height: 3rem;
+    padding: 0.65rem 0.8rem;
+  }
+}
+
+/* Landscape tablet: board left, controls right — fills the screen */
+@media (min-width: 900px) and (orientation: landscape) {
+  .play-screen {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) min(360px, 34vw);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    align-items: stretch;
+    justify-items: stretch;
+    gap: 0.5rem 0.65rem;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    padding: max(0.45rem, env(safe-area-inset-top)) max(0.55rem, env(safe-area-inset-right))
+      max(0.45rem, env(safe-area-inset-bottom)) max(0.55rem, env(safe-area-inset-left));
+  }
+
+  .top-bar,
+  .stats {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .stage-wrap {
+    grid-column: 1;
+    grid-row: 3;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+  }
+
+  canvas#stage {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: 1000 / 560;
+  }
+
+  .hud {
+    grid-column: 2;
+    grid-row: 3;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .hud .panel {
+    flex: 0 0 auto;
+  }
+}
+
+/* Coarse pointer (finger): keep controls easy to hit */
+@media (pointer: coarse) {
+  button,
+  .home-link,
+  .course-chip,
+  .course-random,
+  .inv-item,
+  .home-play {
+    touch-action: manipulation;
+  }
+
+  button {
+    min-height: 3rem;
+  }
+
+  .inv-item {
+    min-height: 4.25rem;
+  }
 }

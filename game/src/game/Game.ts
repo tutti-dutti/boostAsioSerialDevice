@@ -114,6 +114,13 @@ export class Game {
     return canPlaceAt(x, y, { ignoreSlotId, others: this.occupiedPoints(ignoreSlotId) });
   }
 
+  /** Larger pick radius on tablets / touch so fingers can grab units easily */
+  friendHitRadius(e?: PointerEvent): number {
+    if (e?.pointerType === "touch") return 56;
+    if (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches) return 52;
+    return 36;
+  }
+
   hitFriendSlot(x: number, y: number, radius = 36): Slot | null {
     let best: Slot | null = null;
     let bestD = radius;
@@ -556,7 +563,7 @@ export class Game {
     const { x, y } = this.canvasPos(e);
     this.canvas.setPointerCapture(e.pointerId);
 
-    const hit = this.hitFriendSlot(x, y);
+    const hit = this.hitFriendSlot(x, y, this.friendHitRadius(e));
     if (hit && this.selectedBag == null) {
       this.draggingSlot = hit.id;
       this.dragMoved = false;
@@ -592,7 +599,8 @@ export class Game {
     if (this.draggingSlot == null) return;
     const slot = this.slots.find((s) => s.id === this.draggingSlot);
     if (!slot) return;
-    if (this.dragOrigin && Math.hypot(x - this.dragOrigin.x, y - this.dragOrigin.y) > 6) {
+    const dragSlop = e.pointerType === "touch" ? 10 : 6;
+    if (this.dragOrigin && Math.hypot(x - this.dragOrigin.x, y - this.dragOrigin.y) > dragSlop) {
       this.dragMoved = true;
     }
     // Only move onto grass — never onto the path
