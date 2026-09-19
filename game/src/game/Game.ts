@@ -16,6 +16,7 @@ import {
 import { COOKIE, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses, canPlaceAt, pathClearanceFor } from "./path";
 import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell, playCookieMunch } from "./sound";
+import { funnyQuipFor } from "./quips";
 import {
   friendRange,
   flyerOrbitSpeed,
@@ -213,6 +214,15 @@ export class Game {
   slotById(id: number | null): Slot | null {
     if (id == null) return null;
     return this.slots.find((s) => s.id === id) ?? null;
+  }
+
+  /** Funny comic bubble when the player taps a friend */
+  popFunnyBubble(slot: Slot) {
+    const f = slot.friend;
+    if (!f) return;
+    // Don't stomp a mid-Freedom yell
+    if (f.speech?.text === "Freedom!" && (f.speech.life ?? 0) > 1.2) return;
+    f.speech = { text: funnyQuipFor(f.def), life: 2.5 };
   }
 
   /** Switch course layout; keep free-placed friends if still off the path */
@@ -686,6 +696,7 @@ export class Game {
       this.dragMoved = false;
       this.dragOrigin = { x: hit.x, y: hit.y };
       this.selectedSlot = hit.id;
+      this.popFunnyBubble(hit);
       this.onChange();
       return;
     }
