@@ -439,6 +439,12 @@ body {
   color: #8a4a10;
 }
 
+.status-chip.status-pressure {
+  background: #f0e0ff;
+  border-color: #9050c8;
+  color: #5a2080;
+}
+
 .status-meta {
   display: flex;
   flex-wrap: wrap;

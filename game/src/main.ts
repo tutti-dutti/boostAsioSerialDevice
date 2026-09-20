@@ -366,6 +366,11 @@ function refresh() {
     <span class="status-chip">⭐ ${game.stars}</span>
     <span class="status-chip">Wave ${game.wave}</span>
     <span class="status-chip mode-stat mode-stat-${game.difficulty}">${game.difficultyLabel}</span>
+    ${
+      game.mythicalPressure() > 0
+        ? `<span class="status-chip status-pressure">Mythic ×${game.mythicalPressure()} · +${game.mythicalPressure() * 100} HP</span>`
+        : ""
+    }
     <span class="status-chip">🗺️ ${courseName}</span>
     <span class="status-chip">🍪 ${game.cookieHp}/${game.cookieMax}</span>
   `;

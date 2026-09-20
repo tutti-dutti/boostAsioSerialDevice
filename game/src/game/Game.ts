@@ -137,6 +137,38 @@ export class Game {
     return difficultyTuning(this.difficulty).label;
   }
 
+  /** Mythical + god friends on the board or in the bag */
+  countMythicalFriends(): number {
+    let n = 0;
+    for (const f of this.bag) {
+      if (f.rarity === "mythical" || f.rarity === "god") n += 1;
+    }
+    for (const s of this.slots) {
+      const r = s.friend?.def.rarity;
+      if (r === "mythical" || r === "god") n += 1;
+    }
+    return n;
+  }
+
+  /**
+   * Pressure stacks: every 2 mythicals/gods → +1.
+   * Each stack buffs enemy HP by +100 and tightens combat difficulty.
+   */
+  mythicalPressure(): number {
+    return Math.floor(this.countMythicalFriends() / 2);
+  }
+
+  /** Announce when mythical pressure rises (e.g. after evolving) */
+  maybeAnnounceMythicalPressure(prevPressure: number) {
+    const next = this.mythicalPressure();
+    if (next > prevPressure) {
+      this.toast(
+        `⚠️ Mythic pressure ${next} — enemies +${next * 100} HP & harder!`,
+        true,
+      );
+    }
+  }
+
   /** Apply Easy/Hard starting gold, stars, and cookie HP */
   applyStartingResources(overwriteProgress: boolean) {
     const t = difficultyTuning(this.difficulty);
@@ -652,6 +684,7 @@ export class Game {
 
     // Evolution roll on every upgrade (5% → evolved form for every animal)
     if (slot.friend.def.canEvolve) {
+      const pressureBefore = this.mythicalPressure();
       const evolved = tryEvolve(slot.friend.def);
       if (evolved) {
         slot.friend.def = evolved;
@@ -676,6 +709,7 @@ export class Game {
           life: evolved.id === "giantpanda" ? 1.4 : 1.2,
           radius: evolved.id === "giantpanda" ? 55 : 50,
         });
+        this.maybeAnnounceMythicalPressure(pressureBefore);
         this.save();
         this.onChange();
         return;
@@ -1028,15 +1062,21 @@ export class Game {
     const scale = waveHpScale(this.wave);
     const spd = waveSpeedScale(this.wave);
     const diff = difficultyTuning(this.difficulty);
+    const pressure = this.mythicalPressure();
     // Keep archetypes sharp after wave scaling: speed stays fragile, strength stays slow
     const hpMult = base.kind === "speed" ? 0.85 : base.kind === "strength" ? 1.12 : 1;
     const spdMult = base.kind === "speed" ? 1.08 : base.kind === "strength" ? 0.82 : 1;
+    // Every 2 mythicals: +100 HP and a bit more speed (harder fight)
+    const pressureSpeed = 1 + pressure * 0.05;
     const def = {
       ...base,
-      speed: Math.max(10, Math.round(base.speed * spd * spdMult * diff.speed)),
+      speed: Math.max(10, Math.round(base.speed * spd * spdMult * diff.speed * pressureSpeed)),
       gold: Math.max(1, Math.round(base.gold * diff.gold)),
     };
-    const hp = Math.max(1, Math.round(def.hp * scale * hpMult * diff.hp));
+    const hp = Math.max(
+      1,
+      Math.round(def.hp * scale * hpMult * diff.hp) + pressure * 100,
+    );
     this.thieves.push({
       uid: uid("t"),
       def,
@@ -1409,8 +1449,10 @@ export class Game {
         this.spawnThief();
         this.spawnLeft -= 1;
         this.spawnTimer = Math.max(
-          0.28,
-          (1.1 - this.wave * 0.03) * difficultyTuning(this.difficulty).spawnPace,
+          0.22,
+          (1.1 - this.wave * 0.03) *
+            difficultyTuning(this.difficulty).spawnPace *
+            Math.max(0.55, 1 - this.mythicalPressure() * 0.04),
         );
       }
     } else if (this.waveInProgress && this.thieves.every((t) => !t.alive)) {
@@ -1542,7 +1584,14 @@ export class Game {
       if (t.progress >= 1) {
         t.alive = false;
         const baseDmg = t.def.boss ? (isLevelBossWave(this.wave) ? 8 : 4) : 1;
-        const dmg = Math.max(1, Math.round(baseDmg * difficultyTuning(this.difficulty).cookieDmg));
+        const dmg = Math.max(
+          1,
+          Math.round(
+            baseDmg *
+              difficultyTuning(this.difficulty).cookieDmg *
+              (1 + this.mythicalPressure() * 0.06),
+          ),
+        );
         this.cookieHp -= dmg;
         this.chompCookie(dmg);
         playCookieMunch(dmg > 1);
