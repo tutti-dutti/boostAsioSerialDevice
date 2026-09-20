@@ -22,7 +22,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
   <section class="home" id="home">
     <h1 class="home-brand">Cookie Guard <span class="home-by">by James Nguyen</span></h1>
-    <p class="home-line">Protect your giant cookie with animal friends.</p>
+    <p class="home-line">Animal friends</p>
     <div class="course-picker" id="home-courses">
       <p class="course-label">Choose a course</p>
       <div class="course-chips" id="home-course-chips"></div>
