@@ -1,0 +1,38 @@
+name: Deploy to GCP Cloud Run
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "game/**"
+      - ".github/workflows/deploy-gcp.yml"
+      - "scripts/deploy-gcp.sh"
+  workflow_dispatch:
+
+env:
+  GCP_REGION: us-central1
+  SERVICE_NAME: cookie-guard
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Cookie Guard
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ env.GCP_REGION }}
+          GCP_SERVICE_NAME: ${{ env.SERVICE_NAME }}
+        run: bash scripts/deploy-gcp.sh
