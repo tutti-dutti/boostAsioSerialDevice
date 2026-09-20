@@ -393,9 +393,12 @@ body {
 }
 
 .status-banner,
-.action-banner,
-.bottom-dock {
+.action-banner {
   flex: 0 0 auto;
+  width: 100%;
+}
+
+.bottom-dock {
   width: 100%;
 }
 
@@ -532,7 +535,7 @@ body {
 .stage-wrap {
   position: relative;
   width: 100%;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   border: 4px solid rgba(42, 48, 64, 0.12);
   border-radius: 16px;
@@ -561,9 +564,12 @@ canvas#stage {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   gap: 0.4rem;
-  align-items: start;
-  max-height: 34dvh;
+  align-items: stretch;
+  flex: 0 0 30dvh;
+  height: 30dvh;
+  max-height: 30dvh;
   min-height: 0;
+  overflow: hidden;
 }
 
 .friends-panel {
@@ -572,7 +578,8 @@ canvas#stage {
   gap: 0.35rem;
   min-width: 0;
   min-height: 0;
-  max-height: 34dvh;
+  height: 100%;
+  max-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -588,7 +595,7 @@ canvas#stage {
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 0.35rem;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-height: 3rem;
   width: 100%;
 }
@@ -599,7 +606,8 @@ canvas#stage {
   gap: 0.3rem;
   min-width: 0;
   min-height: 0;
-  max-height: 34dvh;
+  height: 100%;
+  max-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -1422,10 +1430,16 @@ button.danger {
     padding: 0.7rem 0.85rem;
   }
 
-  .bottom-dock,
+  .bottom-dock {
+    flex: 0 0 28dvh;
+    height: 28dvh;
+    max-height: 28dvh;
+  }
+
   .friends-panel,
   .manage-panel {
-    max-height: 30dvh;
+    height: 100%;
+    max-height: 100%;
   }
 
   button {
@@ -1508,13 +1522,19 @@ button.danger {
 
   .stage-wrap {
     min-height: 0;
-    flex: 1 1 auto;
+    flex: 1 1 0;
   }
 
-  .bottom-dock,
+  .bottom-dock {
+    flex: 0 0 26dvh;
+    height: 26dvh;
+    max-height: 26dvh;
+  }
+
   .friends-panel,
   .manage-panel {
-    max-height: 26dvh;
+    height: 100%;
+    max-height: 100%;
   }
 }
 
@@ -1608,15 +1628,17 @@ button.danger {
   }
 
   .stage-wrap {
-    flex: 1 1 auto;
-    min-height: 42dvh;
+    flex: 1 1 0;
+    min-height: 0;
     border-width: 2px;
     border-radius: 8px;
   }
 
   .bottom-dock {
     gap: 0.22rem;
-    max-height: 32dvh;
+    flex: 0 0 30dvh;
+    height: 30dvh;
+    max-height: 30dvh;
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   }
 
@@ -1625,12 +1647,14 @@ button.danger {
     padding: 0.22rem 0.28rem;
     border-width: 2px;
     border-radius: 8px;
-    max-height: 32dvh;
+    height: 100%;
+    max-height: 100%;
   }
 
   .manage-panel {
     gap: 0.18rem;
-    max-height: 32dvh;
+    height: 100%;
+    max-height: 100%;
     padding: 0.3rem 0.35rem;
     border-radius: 8px;
     border-width: 2px;
@@ -1778,13 +1802,19 @@ button.danger {
 /* Very small phones */
 @media (max-width: 400px) {
   .stage-wrap {
-    min-height: 46dvh;
+    min-height: 0;
   }
 
-  .bottom-dock,
+  .bottom-dock {
+    flex: 0 0 28dvh;
+    height: 28dvh;
+    max-height: 28dvh;
+  }
+
   .friends-panel,
   .manage-panel {
-    max-height: 30dvh;
+    height: 100%;
+    max-height: 100%;
   }
 
   .home-link {
