@@ -15,18 +15,6 @@ import {
 } from "./game/highscores";
 import { DIFFICULTIES, isDifficulty, type Difficulty } from "./game/difficulty";
 import { submitFeedback, fetchFeedbackList, kindLabel, type FeedbackKind, type FeedbackEntry } from "./game/feedback";
-import {
-  checkMathAnswer,
-  formatMathReward,
-  generateMathQuestion,
-  gradeBlurb,
-  gradeLabel,
-  loadMathGrade,
-  rewardBlurb,
-  saveMathGrade,
-  type MathGrade,
-  type MathQuestion,
-} from "./game/mathChallenge";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -47,16 +35,6 @@ app.innerHTML = `
         <button class="mode-chip mode-hard" data-mode="hard" type="button">Hard</button>
       </div>
       <p class="mode-blurb" id="home-mode-blurb">Softer thieves — learn roles & place freely</p>
-    </div>
-    <div class="mode-picker" id="home-math">
-      <p class="course-label">Math challenge level</p>
-      <div class="mode-chips" id="home-math-chips" role="group" aria-label="Math grade">
-        <button class="mode-chip math-chip" data-grade="4" type="button">4th</button>
-        <button class="mode-chip math-chip" data-grade="5" type="button">5th</button>
-        <button class="mode-chip math-chip" data-grade="6" type="button">6th</button>
-        <button class="mode-chip math-chip" data-grade="7" type="button">7th</button>
-      </div>
-      <p class="mode-blurb" id="home-math-blurb">Multiply, divide, area &amp; simple fractions → mostly Basic friends</p>
     </div>
     <button class="home-play" id="play-btn" type="button">Play</button>
     <button class="home-feedback" id="home-feedback-btn" type="button">Feedback &amp; ideas</button>
@@ -85,7 +63,6 @@ app.innerHTML = `
       <button class="new-game-btn" id="new-game" type="button">New game</button>
       <button class="wave-btn" id="start-wave" type="button">Start Wave</button>
       <button class="pause-btn" id="pause-action" type="button">Pause</button>
-      <button class="math-btn" id="math-challenge" type="button">Math 📚</button>
       <button class="spell" id="crumb" type="button">Crumb 5🪙</button>
       <button class="spell" id="frost" type="button">Frost 4🪙</button>
       <button class="spell" id="zap" type="button">Zap 6🪙</button>
@@ -199,26 +176,6 @@ app.innerHTML = `
       </div>
     </div>
   </div>
-
-  <div class="math-overlay hidden" id="math-overlay" role="dialog" aria-modal="true" aria-labelledby="math-title">
-    <div class="math-card">
-      <h2 id="math-title">Math challenge</h2>
-      <p class="math-meta" id="math-meta">4th grade · Arithmetic</p>
-      <p class="math-reward" id="math-reward">Correct → friend, gold, or stars</p>
-      <p class="math-prompt" id="math-prompt">What is 2 + 2?</p>
-      <label class="math-field">
-        <span>Your answer</span>
-        <input id="math-answer" type="text" inputmode="decimal" autocomplete="off" placeholder="Type a number" />
-      </label>
-      <p class="hint" id="math-status"></p>
-      <div class="math-actions">
-        <button type="button" class="green" id="math-submit">Check answer</button>
-        <button type="button" id="math-skip">Skip</button>
-        <button type="button" id="math-close">Close</button>
-      </div>
-      <p class="math-hint-line hint" id="math-hint-line"></p>
-    </div>
-  </div>
 `;
 
 const home = document.querySelector<HTMLElement>("#home")!;
@@ -260,17 +217,6 @@ const confirmTitle = document.querySelector("#confirm-title")!;
 const confirmMessage = document.querySelector("#confirm-message")!;
 const confirmYesBtn = document.querySelector<HTMLButtonElement>("#confirm-yes")!;
 const confirmNoBtn = document.querySelector<HTMLButtonElement>("#confirm-no")!;
-const homeMathChips = document.querySelector("#home-math-chips")!;
-const homeMathBlurb = document.querySelector("#home-math-blurb")!;
-const mathOverlay = document.querySelector("#math-overlay")!;
-const mathMeta = document.querySelector("#math-meta")!;
-const mathReward = document.querySelector("#math-reward")!;
-const mathPrompt = document.querySelector("#math-prompt")!;
-const mathAnswerInput = document.querySelector<HTMLInputElement>("#math-answer")!;
-const mathStatus = document.querySelector("#math-status")!;
-const mathHintLine = document.querySelector("#math-hint-line")!;
-const mathChallengeBtn = document.querySelector<HTMLButtonElement>("#math-challenge")!;
-
 let scorePromptShown = false;
 let scoreSavedThisRun = false;
 let feedbackKind: FeedbackKind = "feedback";
@@ -278,18 +224,6 @@ let feedbackListFilter: FeedbackKind | "all" = "all";
 let feedbackListLoading = false;
 let pausedForFeedback = false;
 let pausedForConfirm = false;
-let pausedForMath = false;
-let mathGrade: MathGrade = loadMathGrade();
-let currentMath: MathQuestion | null = null;
-let mathCooldownUntil = 0;
-const MATH_COOLDOWN_MS = 20_000;
-/** Wave number we already rolled an between-wave math offer for */
-let mathWaveOfferFor = -1;
-/** Active combat time toward a random mid-wave math popup */
-let mathPlayAccum = 0;
-const MATH_PLAY_INTERVAL = 14;
-const MATH_WAVE_CHANCE = 0.48;
-const MATH_PLAY_CHANCE = 0.24;
 let confirmAction: (() => void) | null = null;
 
 function openConfirm(opts: {
@@ -388,32 +322,12 @@ function refreshModes() {
   homeModeBlurb.textContent = DIFFICULTIES[game.difficulty].blurb;
 }
 
-function refreshMathGrade() {
-  homeMathChips.querySelectorAll<HTMLButtonElement>(".math-chip").forEach((btn) => {
-    const g = Number(btn.dataset.grade) as MathGrade;
-    btn.classList.toggle("selected", mathGrade === g);
-  });
-  homeMathBlurb.textContent = gradeBlurb(mathGrade);
-}
-
 homeModeChips.querySelectorAll<HTMLButtonElement>(".mode-chip").forEach((btn) => {
   btn.addEventListener("click", () => {
     unlockAudio();
     const mode = btn.dataset.mode as Difficulty;
     if (isDifficulty(mode)) game.setDifficulty(mode);
     refreshModes();
-  });
-});
-
-homeMathChips.querySelectorAll<HTMLButtonElement>(".math-chip").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    unlockAudio();
-    const g = Number(btn.dataset.grade);
-    if (g === 4 || g === 5 || g === 6 || g === 7) {
-      mathGrade = g;
-      saveMathGrade(g);
-      refreshMathGrade();
-    }
   });
 });
 
@@ -594,11 +508,6 @@ function refresh() {
   pauseAction.disabled = game.gameOver;
   pauseAction.classList.toggle("is-paused", game.paused);
 
-  const mathLeft = Math.max(0, mathCooldownUntil - Date.now());
-  mathChallengeBtn.disabled = game.gameOver || mathLeft > 0 || !mathOverlay.classList.contains("hidden");
-  mathChallengeBtn.textContent =
-    mathLeft > 0 ? `Math ${Math.ceil(mathLeft / 1000)}s` : "Math 📚";
-
   const beaverRow = document.querySelector("#beaver-dam-row")!;
   const buildDamBtn = document.querySelector("#build-dam") as HTMLButtonElement;
   const beaverSlot = game.selectedBeaver();
@@ -635,7 +544,6 @@ function refresh() {
 game.onChange = refresh;
 refresh();
 refreshModes();
-refreshMathGrade();
 refreshHomeScores();
 
 function showHome() {
@@ -645,7 +553,6 @@ function showHome() {
   playScreen.classList.add("hidden");
   refreshCourses();
   refreshModes();
-  refreshMathGrade();
   refreshHomeScores();
 }
 
@@ -655,8 +562,6 @@ function showPlay() {
   playScreen.classList.remove("hidden");
   game.running = true;
   game.setPaused(false);
-  mathWaveOfferFor = -1;
-  mathPlayAccum = 0;
   game.paint();
   refresh();
 }
@@ -806,8 +711,6 @@ document.querySelector("#retry-btn")!.addEventListener("click", () => {
   unlockAudio();
   scorePromptShown = false;
   scoreSavedThisRun = false;
-  mathWaveOfferFor = -1;
-  mathPlayAccum = 0;
   game.reset();
   over.classList.add("hidden");
 });
@@ -913,134 +816,9 @@ document.querySelector("#new-game")!.addEventListener("click", () => {
     message: "Start over from wave 1? Your current run will be reset.",
     confirmLabel: "Start over",
     onConfirm: () => {
-      mathWaveOfferFor = -1;
-      mathPlayAccum = 0;
       game.reset();
     },
   });
-});
-
-function showMathQuestion(q: MathQuestion) {
-  currentMath = q;
-  mathMeta.textContent = `${gradeLabel(q.grade)} · ${q.topicLabel}`;
-  mathReward.textContent = rewardBlurb(q.grade);
-  mathPrompt.textContent = q.prompt;
-  mathAnswerInput.value = "";
-  mathStatus.textContent = "";
-  mathHintLine.textContent = `Hint: ${q.hint}`;
-  mathHintLine.classList.add("dim");
-}
-
-function mathUiBlocked() {
-  return (
-    !mathOverlay.classList.contains("hidden") ||
-    !confirmOverlay.classList.contains("hidden") ||
-    !feedbackOverlay.classList.contains("hidden")
-  );
-}
-
-/** Open math popup. `auto` = random/system offer (quiet if on cooldown). */
-function openMathChallenge(opts: { auto?: boolean } = {}): boolean {
-  unlockAudio();
-  if (game.gameOver || mathUiBlocked()) return false;
-  const left = mathCooldownUntil - Date.now();
-  if (left > 0) {
-    if (!opts.auto) {
-      game.toast(`Math ready in ${Math.ceil(left / 1000)}s`, true);
-      refresh();
-    }
-    return false;
-  }
-  showMathQuestion(generateMathQuestion(mathGrade));
-  pausedForMath = false;
-  if (game.running && !game.paused && !game.gameOver) {
-    game.setPaused(true);
-    pausedForMath = true;
-  }
-  mathOverlay.classList.remove("hidden");
-  if (opts.auto) {
-    mathStatus.textContent = "Surprise challenge! Solve it for a reward.";
-  }
-  setTimeout(() => mathAnswerInput.focus(), 40);
-  refresh();
-  return true;
-}
-
-/** Random math offers: between waves, and sometimes mid-fight */
-function maybeAutoMathChallenge(dt: number) {
-  if (!game.running || game.gameOver || game.paused || mathUiBlocked()) return;
-  if (Date.now() < mathCooldownUntil) return;
-
-  // Before the next wave (auto-wave countdown just started for this wave number)
-  if (game.waveWaiting && game.autoWaveTimer > 0 && mathWaveOfferFor !== game.wave) {
-    mathWaveOfferFor = game.wave;
-    if (Math.random() < MATH_WAVE_CHANCE) {
-      openMathChallenge({ auto: true });
-      return;
-    }
-  }
-
-  // Sometime during an active wave
-  if (!game.waveWaiting && (game.waveInProgress || game.spawnLeft > 0 || game.thieves.some((t) => t.alive))) {
-    mathPlayAccum += dt;
-    if (mathPlayAccum >= MATH_PLAY_INTERVAL) {
-      mathPlayAccum = 0;
-      if (Math.random() < MATH_PLAY_CHANCE) {
-        openMathChallenge({ auto: true });
-      }
-    }
-  } else {
-    mathPlayAccum = 0;
-  }
-}
-
-function closeMathChallenge() {
-  mathOverlay.classList.add("hidden");
-  currentMath = null;
-  if (pausedForMath && game.paused && !game.gameOver) {
-    game.setPaused(false);
-  }
-  pausedForMath = false;
-  refresh();
-}
-
-function submitMathAnswer() {
-  unlockAudio();
-  if (!currentMath) return;
-  const raw = mathAnswerInput.value;
-  if (!raw.trim()) {
-    mathStatus.textContent = "Type an answer first.";
-    return;
-  }
-  if (checkMathAnswer(currentMath, raw)) {
-    const reward = game.grantMathReward(currentMath.grade, currentMath.hardness);
-    mathCooldownUntil = Date.now() + MATH_COOLDOWN_MS;
-    mathStatus.textContent = `Correct! You earned ${formatMathReward(reward)}.`;
-    setTimeout(() => closeMathChallenge(), 900);
-  } else {
-    mathCooldownUntil = Date.now() + Math.floor(MATH_COOLDOWN_MS * 0.6);
-    mathStatus.textContent = `Not quite — answer was ${currentMath.accept[0] ?? currentMath.answer}. Try again soon!`;
-    mathHintLine.classList.remove("dim");
-    setTimeout(() => closeMathChallenge(), 1400);
-  }
-}
-
-mathChallengeBtn.addEventListener("click", () => openMathChallenge());
-document.querySelector("#math-submit")!.addEventListener("click", submitMathAnswer);
-document.querySelector("#math-skip")!.addEventListener("click", () => {
-  unlockAudio();
-  if (currentMath) showMathQuestion(generateMathQuestion(mathGrade));
-  mathAnswerInput.focus();
-});
-document.querySelector("#math-close")!.addEventListener("click", closeMathChallenge);
-mathOverlay.addEventListener("click", (e) => {
-  if (e.target === mathOverlay) closeMathChallenge();
-});
-mathAnswerInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    submitMathAnswer();
-  }
 });
 
 confirmYesBtn.addEventListener("click", () => closeConfirm(true));
@@ -1050,14 +828,14 @@ confirmOverlay.addEventListener("click", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
-  if (!mathOverlay.classList.contains("hidden")) {
-    e.preventDefault();
-    closeMathChallenge();
-    return;
-  }
   if (!confirmOverlay.classList.contains("hidden")) {
     e.preventDefault();
     closeConfirm(false);
+    return;
+  }
+  if (!feedbackOverlay.classList.contains("hidden")) {
+    e.preventDefault();
+    closeFeedbackMenu();
   }
 });
 
@@ -1074,27 +852,9 @@ function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   game.update(dt);
-  maybeAutoMathChallenge(dt);
   // Never full-refresh every frame for toasts — that rebuilt UI during the summon
   // toast window and ate the first bag tap. Toast visibility is updated lightly.
   if (game.toastTimer > 0 || toast.classList.contains("show")) refreshToastOnly();
-  // Update math cooldown label without a full UI rebuild every frame
-  if (mathCooldownUntil > Date.now() && mathOverlay.classList.contains("hidden")) {
-    const left = Math.ceil((mathCooldownUntil - Date.now()) / 1000);
-    const label = `Math ${left}s`;
-    if (mathChallengeBtn.textContent !== label) {
-      mathChallengeBtn.textContent = label;
-      mathChallengeBtn.disabled = true;
-    }
-  } else if (
-    mathOverlay.classList.contains("hidden") &&
-    mathChallengeBtn.textContent !== "Math 📚" &&
-    mathCooldownUntil <= Date.now() &&
-    !game.gameOver
-  ) {
-    mathChallengeBtn.textContent = "Math 📚";
-    mathChallengeBtn.disabled = false;
-  }
   if (game.gameOver || game.paused) {
     refresh();
   } else if (game.autoWaveTimer > 0) {

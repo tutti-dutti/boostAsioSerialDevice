@@ -490,8 +490,7 @@ body {
 
 .action-banner .wave-btn,
 .action-banner .pause-btn,
-.action-banner .new-game-btn,
-.action-banner .math-btn {
+.action-banner .new-game-btn {
   width: auto;
   flex: 0 0 auto;
   min-width: 6.5rem;
@@ -502,13 +501,6 @@ body {
   background: #efe6d8;
   border-color: #c8b49a;
   color: var(--ink);
-}
-
-.action-banner .math-btn {
-  min-width: 5.2rem;
-  background: #e8f4ff;
-  border-color: #6a9cc8;
-  color: #1e4a6e;
 }
 
 .action-banner .spell {
@@ -1102,113 +1094,6 @@ button.danger {
   min-width: 7rem;
 }
 
-.math-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(36, 48, 64, 0.55);
-}
-
-.math-overlay.hidden {
-  display: none;
-}
-
-.math-card {
-  width: min(26rem, 100%);
-  background: var(--cream);
-  border: 4px solid var(--cookie);
-  border-radius: 20px;
-  padding: 1.2rem 1.3rem 1.1rem;
-  text-align: left;
-  box-shadow: 0 14px 36px rgba(42, 48, 64, 0.22);
-}
-
-.math-card h2 {
-  font-family: var(--display);
-  font-size: 1.5rem;
-  color: var(--cookie-dark);
-  margin-bottom: 0.2rem;
-  text-align: center;
-}
-
-.math-meta {
-  text-align: center;
-  font-weight: 800;
-  color: #3a6a90;
-  margin-bottom: 0.2rem;
-}
-
-.math-reward {
-  text-align: center;
-  font-weight: 700;
-  color: var(--muted);
-  font-size: 0.88rem;
-  margin-bottom: 0.75rem;
-}
-
-.math-prompt {
-  font-weight: 800;
-  font-size: 1.12rem;
-  line-height: 1.4;
-  color: var(--ink);
-  background: #fff;
-  border: 3px solid rgba(42, 48, 64, 0.12);
-  border-radius: 14px;
-  padding: 0.85rem 0.95rem;
-  margin-bottom: 0.75rem;
-}
-
-.math-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  margin-bottom: 0.55rem;
-  font-weight: 800;
-  color: var(--cookie-dark);
-  font-size: 0.88rem;
-}
-
-.math-field input {
-  font-family: var(--font);
-  font-weight: 800;
-  font-size: 1.15rem;
-  border: 3px solid #6a9cc8;
-  border-radius: 12px;
-  padding: 0.65rem 0.8rem;
-  background: #fff;
-  color: var(--ink);
-}
-
-.math-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.35rem;
-}
-
-.math-actions button {
-  flex: 1;
-  min-width: 5.5rem;
-}
-
-.math-hint-line {
-  margin-top: 0.65rem;
-  line-height: 1.35;
-}
-
-.math-hint-line.dim {
-  opacity: 0.55;
-}
-
-.mode-chip.math-chip.selected {
-  background: #d8ecff;
-  border-color: #4a88b8;
-  color: #1e4a6e;
-}
 
 .feedback-card {
   width: min(28rem, 100%);
@@ -1605,8 +1490,7 @@ button.danger {
 
   .action-banner .wave-btn,
   .action-banner .pause-btn,
-  .action-banner .new-game-btn,
-  .action-banner .math-btn {
+  .action-banner .new-game-btn {
     min-width: 0;
     flex: 0 1 auto;
     font-size: 0.68rem;
@@ -1844,8 +1728,7 @@ button.danger {
 
   .action-banner .wave-btn,
   .action-banner .pause-btn,
-  .action-banner .new-game-btn,
-  .action-banner .math-btn {
+  .action-banner .new-game-btn {
     font-size: 0.62rem;
     padding: 0.18rem 0.28rem;
     min-height: 1.6rem;
