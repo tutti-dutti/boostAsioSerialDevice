@@ -1,22 +1,12 @@
-import { SUMMON_COST } from "./data";
+import { START_STARS } from "./data";
 
 const DIFF_KEY = "cookie-guard-difficulty-v1";
 
 export type Difficulty = "easy" | "medium" | "hard";
 
-/**
- * How many normal summons a fresh run can afford before Wave 1.
- * Costs stay in sync with SUMMON_COST (Lucky is 2× that and optional).
- * Wave 1 is only ~2 thieves — cover roles on Easy, stay lean on Hard.
- */
-export const OPENING_SUMMONS: Record<Difficulty, number> = {
-  easy: 3,
-  medium: 2,
-  hard: 1,
-};
-
-export function openingStartStars(d: Difficulty): number {
-  return SUMMON_COST * OPENING_SUMMONS[d];
+/** Fresh runs always start with START_STARS (15 = 3× Summon at 5⭐) */
+export function openingStartStars(_d?: Difficulty): number {
+  return START_STARS;
 }
 
 export interface DifficultyTuning {
@@ -36,7 +26,7 @@ export interface DifficultyTuning {
   /** Cookie damage taken when a thief arrives */
   cookieDmg: number;
   startGold: number;
-  /** Stars at New Game — enough for OPENING_SUMMONS normal summons */
+  /** Stars at New Game — enough for 3 summons before Wave 1 */
   startStars: number;
   cookieHp: number;
   /** High-score weight so tougher modes rank above easier same-wave runs */
@@ -49,7 +39,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyTuning> = {
   easy: {
     id: "easy",
     label: "Easy",
-    blurb: "Softer thieves — summon 3 friends, learn roles & place freely",
+    blurb: "Softer thieves — summon friends, learn roles & place freely",
     hp: 0.88,
     speed: 0.92,
     count: 0.88,
@@ -57,14 +47,14 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyTuning> = {
     spawnPace: 1.08,
     cookieDmg: 1.05,
     startGold: 30,
-    startStars: openingStartStars("easy"), // 45 = 3×15
+    startStars: START_STARS,
     cookieHp: 72,
     scoreWeight: 1,
   },
   medium: {
     id: "medium",
     label: "Medium",
-    blurb: "Fair fight — summon 2 friends, then mix roles to win",
+    blurb: "Fair fight — summon friends, then mix roles to win",
     hp: 1.28,
     speed: 1.05,
     count: 1.08,
@@ -72,14 +62,14 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyTuning> = {
     spawnPace: 0.95,
     cookieDmg: 1.22,
     startGold: 22,
-    startStars: openingStartStars("medium"), // 30 = 2×15
+    startStars: START_STARS,
     cookieHp: 58,
     scoreWeight: 1.25,
   },
   hard: {
     id: "hard",
     label: "Hard",
-    blurb: "Tough packs — summon 1 friend, then earn more between waves",
+    blurb: "Tough packs — summon friends, then earn more between waves",
     hp: 1.75,
     speed: 1.2,
     count: 1.32,
@@ -87,7 +77,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyTuning> = {
     spawnPace: 0.8,
     cookieDmg: 1.5,
     startGold: 14,
-    startStars: openingStartStars("hard"), // 15 = 1×15
+    startStars: START_STARS,
     cookieHp: 42,
     scoreWeight: 1.55,
   },

@@ -268,9 +268,11 @@ export function tryEvolve(current: FriendDef): FriendDef | null {
   return FRIENDS.find((f) => f.id === current.evolvesTo) ?? null;
 }
 
-export const SUMMON_COST = 15;
+export const SUMMON_COST = 5;
 /** Lucky costs exactly 2 normal summons — better rarity odds */
 export const LUCKY_SUMMON_COST = SUMMON_COST * 2;
+/** Stars on New Game — enough for 3 normal summons before Wave 1 */
+export const START_STARS = 15;
 
 /** Wave number within the current map level (1..WAVES_PER_MAP) */
 export function waveInLevel(wave: number): number {
