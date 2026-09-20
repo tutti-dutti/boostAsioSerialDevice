@@ -1839,7 +1839,6 @@ export class Game {
       selectedSlot: this.selectedSlot,
       time: this.time,
       wave: this.wave,
-      difficulty: this.difficultyLabel,
       bossFight: isLevelBossWave(this.wave) && this.waveInProgress,
       deployMode: this.selectedBag != null,
       waveWaiting: this.waveWaiting,

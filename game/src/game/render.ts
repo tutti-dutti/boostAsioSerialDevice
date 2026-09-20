@@ -922,7 +922,6 @@ export interface DrawState {
   selectedSlot: number | null;
   time: number;
   wave: number;
-  difficulty?: string;
   bossFight?: boolean;
   deployMode?: boolean;
   waveWaiting?: boolean;
@@ -946,13 +945,6 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   booms(ctx, s.booms);
   cookie(ctx, s.cookieHp, s.cookieMax, s.cookieBiteFlash ?? 0, s.cookieBites ?? [], s.cookieBitePulse ?? -1);
   floats(ctx, s.floats);
-
-  ctx.fillStyle = "rgba(42,48,64,0.65)";
-  ctx.font = "800 15px Nunito, sans-serif";
-  ctx.textAlign = "left";
-  const map = getActiveMap();
-  const mode = s.difficulty ? ` · ${s.difficulty}` : "";
-  ctx.fillText(`Wave ${s.wave} · ${map.name}${mode}`, 14, 24);
 
   if (s.waveWaiting && !s.deployMode) {
     ctx.fillStyle = "rgba(42, 48, 64, 0.72)";
