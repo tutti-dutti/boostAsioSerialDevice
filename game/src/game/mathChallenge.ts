@@ -28,10 +28,10 @@ export function gradeLabel(g: MathGrade): string {
 }
 
 export function gradeBlurb(g: MathGrade): string {
-  if (g === 4) return "Multiply, divide, area & simple fractions → mostly Basic friends";
-  if (g === 5) return "Decimals, volume, fraction ops → Tier 2 friends more often";
+  if (g === 4) return "Multiply, divide, area & simple fractions → friend, gold, or stars";
+  if (g === 5) return "Decimals, volume, fraction ops → better friend / bigger payouts";
   if (g === 6) return "Ratios, integers, expressions, triangles → stronger rewards";
-  return "Algebra, proportions, circles & angles → Legendary-leaning rewards";
+  return "Algebra, proportions, circles & angles → best friend / gold / star odds";
 }
 
 export function loadMathGrade(): MathGrade {
@@ -153,10 +153,32 @@ export function rewardRarityFor(grade: MathGrade, hardness: 1 | 2 | 3): Rarity {
 }
 
 export function rewardBlurb(grade: MathGrade): string {
-  if (grade === 4) return "Correct → mostly Basic friends";
-  if (grade === 5) return "Correct → often Tier 2 friends";
-  if (grade === 6) return "Correct → Tier 2 / Legendary friends";
-  return "Correct → Legendary friends (rare GOD!)";
+  if (grade === 4) return "Correct → friend, gold, or stars (mostly Basic)";
+  if (grade === 5) return "Correct → friend, gold, or stars (Tier 2 leans)";
+  if (grade === 6) return "Correct → friend, gold, or stars (stronger)";
+  return "Correct → friend, gold, or stars (Legendary leans)";
+}
+
+export type MathRewardKind = "friend" | "gold" | "stars";
+
+export type MathReward =
+  | { kind: "friend"; friend: FriendDef }
+  | { kind: "gold"; amount: number }
+  | { kind: "stars"; amount: number };
+
+/** Gold payout scales with grade + question hardness */
+export function mathGoldAmount(grade: MathGrade, hardness: 1 | 2 | 3): number {
+  const base = 6 + (grade - 4) * 5 + hardness * 4;
+  const bonus = randInt(0, 3 + (grade - 4));
+  return base + bonus;
+}
+
+/** Star payout — harder grades can earn 2–3 */
+export function mathStarAmount(grade: MathGrade, hardness: 1 | 2 | 3): number {
+  const score = (grade - 4) * 2 + hardness;
+  if (score >= 7) return pick([2, 2, 3] as const);
+  if (score >= 4) return pick([1, 2, 2] as const);
+  return 1;
 }
 
 export function pickFriendForMath(grade: MathGrade, hardness: 1 | 2 | 3): FriendDef {
@@ -171,6 +193,35 @@ export function pickFriendForMath(grade: MathGrade, hardness: 1 | 2 | 3): Friend
     return FRIENDS.find((f) => f.rarity === "common" && !f.evolvedForm)!;
   }
   return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
+/** Random reward: new friend, gold, or stars (weights favor friends a bit) */
+export function pickMathReward(grade: MathGrade, hardness: 1 | 2 | 3): MathReward {
+  const roll = Math.random() * 100;
+  if (roll < 42) {
+    return { kind: "friend", friend: pickFriendForMath(grade, hardness) };
+  }
+  if (roll < 74) {
+    return { kind: "gold", amount: mathGoldAmount(grade, hardness) };
+  }
+  return { kind: "stars", amount: mathStarAmount(grade, hardness) };
+}
+
+export function formatMathReward(reward: MathReward): string {
+  if (reward.kind === "friend") {
+    const f = reward.friend;
+    const tag =
+      f.rarity === "god"
+        ? "GOD!"
+        : f.rarity === "legendary"
+          ? "LEGENDARY!"
+          : f.rarity === "rare"
+            ? "Tier 2!"
+            : f.name;
+    return `${f.emoji} ${tag}`;
+  }
+  if (reward.kind === "gold") return `+${reward.amount}🪙 gold`;
+  return `+${reward.amount}⭐ star${reward.amount === 1 ? "" : "s"}`;
 }
 
 function q4(avoidKinds: readonly string[]): MathQuestion {

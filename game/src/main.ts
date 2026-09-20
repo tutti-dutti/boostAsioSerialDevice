@@ -17,6 +17,7 @@ import { DIFFICULTIES, isDifficulty, type Difficulty } from "./game/difficulty";
 import { submitFeedback, fetchFeedbackList, kindLabel, type FeedbackKind, type FeedbackEntry } from "./game/feedback";
 import {
   checkMathAnswer,
+  formatMathReward,
   generateMathQuestion,
   gradeBlurb,
   gradeLabel,
@@ -203,7 +204,7 @@ app.innerHTML = `
     <div class="math-card">
       <h2 id="math-title">Math challenge</h2>
       <p class="math-meta" id="math-meta">4th grade · Arithmetic</p>
-      <p class="math-reward" id="math-reward">Correct → mostly Basic friends</p>
+      <p class="math-reward" id="math-reward">Correct → friend, gold, or stars</p>
       <p class="math-prompt" id="math-prompt">What is 2 + 2?</p>
       <label class="math-field">
         <span>Your answer</span>
@@ -1012,9 +1013,9 @@ function submitMathAnswer() {
     return;
   }
   if (checkMathAnswer(currentMath, raw)) {
-    const friend = game.grantMathFriend(currentMath.grade, currentMath.hardness);
+    const reward = game.grantMathReward(currentMath.grade, currentMath.hardness);
     mathCooldownUntil = Date.now() + MATH_COOLDOWN_MS;
-    mathStatus.textContent = `Correct! You earned ${friend.emoji} ${friend.name} (${rarityLabel(friend.rarity)}).`;
+    mathStatus.textContent = `Correct! You earned ${formatMathReward(reward)}.`;
     setTimeout(() => closeMathChallenge(), 900);
   } else {
     mathCooldownUntil = Date.now() + Math.floor(MATH_COOLDOWN_MS * 0.6);

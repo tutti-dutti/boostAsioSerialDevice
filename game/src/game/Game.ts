@@ -13,7 +13,7 @@ import {
   friendFootprintRadius,
   type FriendDef,
 } from "./data";
-import { pickFriendForMath, type MathGrade } from "./mathChallenge";
+import { pickMathReward, formatMathReward, type MathGrade, type MathReward } from "./mathChallenge";
 import { COOKIE, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses, canPlaceAt, pathClearanceFor } from "./path";
 import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell, playCookieMunch, shootSoundFor, playPoisonFart, playFoxWall } from "./sound";
@@ -639,24 +639,25 @@ export class Game {
     this.onChange();
   }
 
-  /** Reward a friend from a correct math challenge (power scales with grade/hardness) */
-  grantMathFriend(grade: MathGrade, hardness: 1 | 2 | 3): FriendDef {
-    const friend = pickFriendForMath(grade, hardness);
-    this.bag.unshift(friend);
-    this.selectedBag = 0;
-    this.selectedSlot = null;
-    const tag =
-      friend.rarity === "god"
-        ? "GOD!"
-        : friend.rarity === "legendary"
-          ? "LEGENDARY!"
-          : friend.rarity === "rare"
-            ? "Tier 2!"
-            : friend.name;
-    this.toast(`📚 ${friend.emoji} Math win — ${tag}`, true);
+  /**
+   * Reward a correct math challenge: new friend, gold, or stars.
+   * Friend power / payout size scales with grade + hardness.
+   */
+  grantMathReward(grade: MathGrade, hardness: 1 | 2 | 3): MathReward {
+    const reward = pickMathReward(grade, hardness);
+    if (reward.kind === "friend") {
+      this.bag.unshift(reward.friend);
+      this.selectedBag = 0;
+      this.selectedSlot = null;
+    } else if (reward.kind === "gold") {
+      this.gold += reward.amount;
+    } else {
+      this.stars += reward.amount;
+    }
+    this.toast(`📚 Math win — ${formatMathReward(reward)}`, true);
     this.save();
     this.onChange();
-    return friend;
+    return reward;
   }
 
   upgradeSelected() {
