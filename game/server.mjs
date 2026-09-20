@@ -48,6 +48,53 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "cookie-guard", store: "gcs", bucket: BUCKET });
 });
 
+/** Recent feedback / idea notes for the in-game menu */
+app.get("/api/feedback", async (req, res) => {
+  try {
+    const kindFilter =
+      req.query.kind === "idea" || req.query.kind === "feedback" ? req.query.kind : "all";
+    const limit = Math.min(40, Math.max(1, Number(req.query.limit) || 24));
+
+    const [files] = await storage.bucket(BUCKET).getFiles({
+      prefix: PREFIX,
+      autoPaginate: false,
+      maxResults: 120,
+    });
+
+    const sorted = [...files].sort((a, b) => String(b.name).localeCompare(String(a.name)));
+    const entries = [];
+
+    for (const file of sorted) {
+      if (entries.length >= limit * 2) break; // fetch extra before kind filter
+      if (!String(file.name).endsWith(".json")) continue;
+      try {
+        const [buf] = await file.download();
+        const doc = JSON.parse(buf.toString("utf8"));
+        const kind = doc?.kind === "idea" ? "idea" : doc?.kind === "feedback" ? "feedback" : null;
+        if (!kind) continue;
+        if (kindFilter !== "all" && kind !== kindFilter) continue;
+        const message = String(doc.message || "").trim();
+        if (message.length < 1) continue;
+        entries.push({
+          id: String(doc.id || file.name),
+          kind,
+          name: String(doc.name || "Anonymous").slice(0, 40),
+          message: message.slice(0, 2000),
+          at: Number(doc.at) || Date.parse(doc.createdAt) || Date.now(),
+        });
+        if (entries.length >= limit) break;
+      } catch (err) {
+        console.warn("feedback read skip", file.name, err?.message || err);
+      }
+    }
+
+    res.json({ ok: true, entries });
+  } catch (err) {
+    console.error("feedback list failed", err);
+    res.status(500).json({ ok: false, error: "Could not load notes right now.", entries: [] });
+  }
+});
+
 app.post("/api/feedback", async (req, res) => {
   try {
     const ip = clientIp(req);

@@ -1203,7 +1203,11 @@ button.danger {
 }
 
 .feedback-card {
-  width: min(26rem, 100%);
+  width: min(28rem, 100%);
+  max-height: min(92dvh, 52rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--cream);
   border: 4px solid var(--cookie);
   border-radius: 20px;
@@ -1285,6 +1289,116 @@ button.danger {
 .feedback-actions button {
   flex: 1;
   min-width: 7rem;
+}
+
+.feedback-board {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 3px solid rgba(42, 48, 64, 0.1);
+}
+
+.feedback-board-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+}
+
+.feedback-board-title {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  color: var(--cookie-dark);
+  margin: 0;
+}
+
+.feedback-board-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.feedback-filter {
+  min-height: 2rem;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.55rem;
+  background: #fff;
+  border: 2px solid rgba(42, 48, 64, 0.12);
+}
+
+.feedback-filter.selected {
+  background: #ffe08a;
+  border-color: #c4782a;
+}
+
+.feedback-board-meta {
+  margin-bottom: 0.45rem;
+}
+
+.feedback-board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.feedback-note {
+  background: #fff;
+  border: 2px solid rgba(42, 48, 64, 0.1);
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+}
+
+.feedback-note.kind-idea {
+  border-color: rgba(74, 136, 184, 0.35);
+  background: #f3f9ff;
+}
+
+.feedback-note-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.feedback-note-kind {
+  color: var(--cookie-dark);
+}
+
+.feedback-note-when {
+  color: var(--muted);
+}
+
+.feedback-note-msg {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.feedback-note-by {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.feedback-board-empty {
+  margin: 0.35rem 0 0;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
 }
 
 /* —— Tablet / large touch layout —— */

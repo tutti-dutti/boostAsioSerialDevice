@@ -14,7 +14,7 @@ import {
   type HighScore,
 } from "./game/highscores";
 import { DIFFICULTIES, isDifficulty, type Difficulty } from "./game/difficulty";
-import { submitFeedback, type FeedbackKind } from "./game/feedback";
+import { submitFeedback, fetchFeedbackList, kindLabel, type FeedbackKind, type FeedbackEntry } from "./game/feedback";
 import {
   checkMathAnswer,
   generateMathQuestion,
@@ -172,6 +172,19 @@ app.innerHTML = `
         <button type="button" class="green" id="feedback-submit">Submit</button>
         <button type="button" id="feedback-cancel">Close</button>
       </div>
+      <div class="feedback-board" id="feedback-board">
+        <div class="feedback-board-head">
+          <h3 class="feedback-board-title">Current notes</h3>
+          <div class="feedback-board-filters" role="group" aria-label="Show notes">
+            <button type="button" class="feedback-filter selected" data-filter="all">All</button>
+            <button type="button" class="feedback-filter" data-filter="feedback">Feedback</button>
+            <button type="button" class="feedback-filter" data-filter="idea">Ideas</button>
+          </div>
+        </div>
+        <p class="hint feedback-board-meta" id="feedback-board-meta">Loading…</p>
+        <ul class="feedback-board-list" id="feedback-board-list"></ul>
+        <p class="feedback-board-empty hidden" id="feedback-board-empty">No notes yet — be the first!</p>
+      </div>
     </div>
   </div>
 
@@ -238,6 +251,9 @@ const feedbackOverlay = document.querySelector("#feedback-overlay")!;
 const feedbackNameInput = document.querySelector<HTMLInputElement>("#feedback-name")!;
 const feedbackMessageInput = document.querySelector<HTMLTextAreaElement>("#feedback-message")!;
 const feedbackStatus = document.querySelector("#feedback-status")!;
+const feedbackBoardList = document.querySelector("#feedback-board-list")!;
+const feedbackBoardEmpty = document.querySelector("#feedback-board-empty")!;
+const feedbackBoardMeta = document.querySelector("#feedback-board-meta")!;
 const confirmOverlay = document.querySelector("#confirm-overlay")!;
 const confirmTitle = document.querySelector("#confirm-title")!;
 const confirmMessage = document.querySelector("#confirm-message")!;
@@ -257,6 +273,8 @@ const mathChallengeBtn = document.querySelector<HTMLButtonElement>("#math-challe
 let scorePromptShown = false;
 let scoreSavedThisRun = false;
 let feedbackKind: FeedbackKind = "feedback";
+let feedbackListFilter: FeedbackKind | "all" = "all";
+let feedbackListLoading = false;
 let pausedForFeedback = false;
 let pausedForConfirm = false;
 let pausedForMath = false;
@@ -645,6 +663,49 @@ function showPlay() {
 document.querySelector("#play-btn")!.addEventListener("click", showPlay);
 document.querySelector("#back-home")!.addEventListener("click", showHome);
 
+function renderFeedbackBoard(entries: FeedbackEntry[], source: "server" | "local") {
+  feedbackBoardList.innerHTML = entries
+    .map(
+      (e) => `
+    <li class="feedback-note kind-${e.kind}">
+      <div class="feedback-note-top">
+        <span class="feedback-note-kind">${kindLabel(e.kind)}</span>
+        <span class="feedback-note-when">${formatScoreDate(e.at)}</span>
+      </div>
+      <p class="feedback-note-msg">${escapeHtml(e.message)}</p>
+      <p class="feedback-note-by">${escapeHtml(e.name || "Anonymous")}</p>
+    </li>`,
+    )
+    .join("");
+  feedbackBoardEmpty.classList.toggle("hidden", entries.length > 0);
+  feedbackBoardList.classList.toggle("hidden", entries.length === 0);
+  feedbackBoardMeta.textContent =
+    entries.length === 0
+      ? source === "local"
+        ? "Showing your saved notes (offline)."
+        : "No public notes yet."
+      : source === "local"
+        ? `${entries.length} saved on this device`
+        : `${entries.length} recent note${entries.length === 1 ? "" : "s"}`;
+}
+
+async function refreshFeedbackBoard() {
+  if (feedbackListLoading) return;
+  feedbackListLoading = true;
+  feedbackBoardMeta.textContent = "Loading…";
+  document.querySelectorAll<HTMLButtonElement>(".feedback-filter").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.filter === feedbackListFilter);
+  });
+  try {
+    const result = await fetchFeedbackList(feedbackListFilter, 24);
+    renderFeedbackBoard(result.entries, result.source);
+  } catch {
+    feedbackBoardMeta.textContent = "Could not load notes.";
+  } finally {
+    feedbackListLoading = false;
+  }
+}
+
 function openFeedbackMenu() {
   unlockAudio();
   feedbackKind = "feedback";
@@ -660,6 +721,7 @@ function openFeedbackMenu() {
     pausedForFeedback = true;
   }
   feedbackOverlay.classList.remove("hidden");
+  void refreshFeedbackBoard();
   setTimeout(() => feedbackMessageInput.focus(), 40);
   refresh();
 }
@@ -694,6 +756,15 @@ document.querySelectorAll<HTMLButtonElement>(".feedback-kind").forEach((btn) => 
   });
 });
 
+document.querySelectorAll<HTMLButtonElement>(".feedback-filter").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    unlockAudio();
+    const f = btn.dataset.filter;
+    feedbackListFilter = f === "idea" || f === "feedback" ? f : "all";
+    void refreshFeedbackBoard();
+  });
+});
+
 document.querySelector("#feedback-submit")!.addEventListener("click", async () => {
   unlockAudio();
   feedbackStatus.textContent = "Sending…";
@@ -711,7 +782,7 @@ document.querySelector("#feedback-submit")!.addEventListener("click", async () =
     }
     feedbackStatus.textContent = "Saved — thanks for the note!";
     feedbackMessageInput.value = "";
-    setTimeout(() => closeFeedbackMenu(), 900);
+    void refreshFeedbackBoard();
   } finally {
     submitBtn.disabled = false;
   }

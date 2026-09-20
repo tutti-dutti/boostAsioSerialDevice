@@ -45,6 +45,46 @@ export function rememberFeedback(entry: FeedbackEntry) {
   saveFeedbackList(list);
 }
 
+/** Fetch recent notes from the server; falls back to local history. */
+export async function fetchFeedbackList(
+  kind: FeedbackKind | "all" = "all",
+  limit = 24,
+): Promise<{ ok: boolean; entries: FeedbackEntry[]; source: "server" | "local" }> {
+  try {
+    const q = new URLSearchParams({ kind, limit: String(limit) });
+    const res = await fetch(`/api/feedback?${q}`);
+    const data = (await res.json().catch(() => null)) as
+      | { ok?: boolean; entries?: FeedbackEntry[]; error?: string }
+      | null;
+    if (res.ok && data?.ok && Array.isArray(data.entries)) {
+      const entries = data.entries
+        .filter(
+          (e) =>
+            e &&
+            (e.kind === "feedback" || e.kind === "idea") &&
+            typeof e.message === "string" &&
+            e.message.trim().length > 0,
+        )
+        .map((e) => ({
+          kind: e.kind,
+          name: String(e.name || "Anonymous").slice(0, 40),
+          message: e.message.trim().slice(0, 2000),
+          at: Number(e.at) || Date.now(),
+          id: e.id,
+        }));
+      return { ok: true, entries, source: "server" };
+    }
+  } catch {
+    /* fall through to local */
+  }
+
+  let local = loadFeedback();
+  if (kind === "feedback" || kind === "idea") {
+    local = local.filter((e) => e.kind === kind);
+  }
+  return { ok: true, entries: local.slice(0, limit), source: "local" };
+}
+
 /** Save to Firestore via Cloud Run API (also keep a local copy). */
 export async function submitFeedback(input: {
   kind: FeedbackKind;
