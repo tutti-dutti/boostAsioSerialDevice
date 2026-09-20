@@ -128,23 +128,45 @@ export const FRIENDS: FriendDef[] = [
   { id: "redpanda", name: "Red Panda", emoji: "🐼", rarity: "god", color: "#e05030", damage: 70, range: 180, attackSpeed: 1.05, ability: "godBeam", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "crimsonoracle" },
 ];
 
-/** Speed thieves — fragile & fast. Strength thieves — tanky & slow. */
+/** Speed thieves — fragile & fast. Strength thieves — tanky & slow.
+ * Pools are ordered weak → strong; waves unlock further entries over time.
+ */
 export const SPEED_THIEVES: ThiefDef[] = [
   { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 26, speed: 70, gold: 2, size: 12, kind: "speed" },
+  { id: "sugarant", name: "Sugar Ant", emoji: "🐜", hp: 32, speed: 76, gold: 2, size: 11, kind: "speed" },
   { id: "raiderskunk", name: "Skunk", emoji: "🦨", hp: 40, speed: 82, gold: 3, size: 13, kind: "speed" },
+  { id: "sprinklefly", name: "Sprinkle Fly", emoji: "🦟", hp: 36, speed: 88, gold: 3, size: 11, kind: "speed" },
   { id: "swiftrat", name: "Swift Rat", emoji: "🐀", hp: 55, speed: 96, gold: 4, size: 13, kind: "speed" },
+  { id: "jellyjay", name: "Jelly Jay", emoji: "🐤", hp: 48, speed: 102, gold: 4, size: 12, kind: "speed" },
+  { id: "frostingfox", name: "Frosting Fox", emoji: "🦊", hp: 62, speed: 108, gold: 5, size: 14, kind: "speed" },
+  { id: "cookiebat", name: "Cookie Bat", emoji: "🦇", hp: 58, speed: 118, gold: 5, size: 13, kind: "speed" },
+  { id: "candycrow", name: "Candy Crow", emoji: "🐦‍⬛", hp: 70, speed: 112, gold: 6, size: 14, kind: "speed" },
 ];
 
 export const STRENGTH_THIEVES: ThiefDef[] = [
   { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 160, speed: 24, gold: 3, size: 17, kind: "strength" },
+  { id: "pantrygoat", name: "Pantry Goat", emoji: "🐐", hp: 200, speed: 22, gold: 4, size: 18, kind: "strength" },
   { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 255, speed: 18, gold: 5, size: 19, kind: "strength" },
+  { id: "doughbadger", name: "Dough Badger", emoji: "🦡", hp: 290, speed: 17, gold: 5, size: 18, kind: "strength" },
   { id: "boar", name: "Cookie Boar", emoji: "🐗", hp: 380, speed: 14, gold: 8, size: 22, kind: "strength" },
+  { id: "ovenox", name: "Oven Ox", emoji: "🐂", hp: 420, speed: 13, gold: 8, size: 23, kind: "strength" },
+  { id: "fridgehippo", name: "Fridge Hippo", emoji: "🦛", hp: 480, speed: 11, gold: 9, size: 24, kind: "strength" },
+  { id: "crumbgorilla", name: "Crumb Gorilla", emoji: "🦍", hp: 540, speed: 12, gold: 10, size: 25, kind: "strength" },
+  { id: "doughgolem", name: "Dough Golem", emoji: "🗿", hp: 620, speed: 10, gold: 12, size: 26, kind: "strength" },
+];
+
+/** Mid-map checkpoint foes (every 10 waves) */
+export const MINI_BOSSES: ThiefDef[] = [
+  { id: "miniboss_pig", name: "Boss Pig", emoji: "🐷", hp: 520, speed: 20, gold: 18, size: 24, kind: "boss", boss: true },
+  { id: "miniboss_crow", name: "Sugar Baron", emoji: "🐦‍⬛", hp: 480, speed: 34, gold: 18, size: 22, kind: "boss", boss: true },
+  { id: "miniboss_ox", name: "Baker Ox", emoji: "🐂", hp: 640, speed: 16, gold: 22, size: 26, kind: "boss", boss: true },
+  { id: "boss", name: "King Raccoon", emoji: "👑", hp: 820, speed: 28, gold: 30, size: 28, kind: "boss", boss: true },
 ];
 
 export const THIEVES: ThiefDef[] = [
   ...SPEED_THIEVES,
   ...STRENGTH_THIEVES,
-  { id: "boss", name: "King Raccoon", emoji: "👑", hp: 820, speed: 28, gold: 30, size: 28, kind: "boss", boss: true },
+  ...MINI_BOSSES,
 ];
 
 /** End-of-map bosses (fought on waves 30, 60, 90, …) */
@@ -153,6 +175,10 @@ export const LEVEL_BOSSES: ThiefDef[] = [
   { id: "boss_river", name: "Tide Thief", emoji: "🌊", hp: 1450, speed: 27, gold: 70, size: 34, kind: "boss", boss: true },
   { id: "boss_meadow", name: "Meadow Tyrant", emoji: "🐗", hp: 1650, speed: 22, gold: 80, size: 36, kind: "boss", boss: true },
   { id: "boss_canyon", name: "Canyon King", emoji: "🦂", hp: 1900, speed: 25, gold: 90, size: 36, kind: "boss", boss: true },
+  { id: "boss_bakery", name: "Oven Overlord", emoji: "🍪", hp: 1750, speed: 23, gold: 85, size: 35, kind: "boss", boss: true },
+  { id: "boss_pantry", name: "Pantry Phantom", emoji: "👻", hp: 1580, speed: 30, gold: 75, size: 33, kind: "boss", boss: true },
+  { id: "boss_frost", name: "Frostbite Bandit", emoji: "🧊", hp: 1820, speed: 21, gold: 88, size: 35, kind: "boss", boss: true },
+  { id: "boss_spice", name: "Spice Drake", emoji: "🐉", hp: 2100, speed: 26, gold: 100, size: 38, kind: "boss", boss: true },
 ];
 
 /** True on the last wave of each map (30, 60, 90, …) */
@@ -269,16 +295,21 @@ function weightedFromPool(pool: ThiefDef[], maxIndex: number, favorWeak: number)
   return pool[0];
 }
 
-/** How far into a role pool this wave unlocks (0..2) */
-function roleUnlockIndex(tier: number, local: number): number {
+/** How far into a role pool this wave unlocks (0..poolLength-1) */
+function roleUnlockIndex(tier: number, local: number, poolLen: number): number {
+  const max = Math.max(0, poolLen - 1);
   if (tier === 0) {
-    if (local <= 8) return 0;
-    if (local <= 16) return 1;
-    return 2;
+    if (local <= 4) return 0;
+    if (local <= 8) return Math.min(max, 1);
+    if (local <= 12) return Math.min(max, 2);
+    if (local <= 18) return Math.min(max, 3);
+    if (local <= 24) return Math.min(max, 5);
+    return Math.min(max, 6);
   }
-  if (local <= 4) return Math.min(2, tier > 1 ? 1 : 0);
-  if (local <= 12) return Math.min(2, 1 + Math.min(1, tier));
-  return 2;
+  if (local <= 4) return Math.min(max, tier > 1 ? 2 : 1);
+  if (local <= 10) return Math.min(max, 3 + Math.min(2, tier));
+  if (local <= 20) return Math.min(max, 5 + Math.min(2, tier));
+  return max;
 }
 
 /** Chance a spawn is strength (vs speed) — waves mix both roles */
@@ -289,6 +320,14 @@ function strengthChance(tier: number, local: number): number {
     return 0.48;
   }
   return Math.min(0.62, 0.4 + tier * 0.05 + local * 0.008);
+}
+
+function miniBossForWave(wave: number, tier: number): ThiefDef {
+  if (tier === 0 && waveInLevel(wave) <= 10) {
+    return MINI_BOSSES[0]!; // Boss Pig — gentle first checkpoint
+  }
+  const idx = Math.floor(wave / 10) % MINI_BOSSES.length;
+  return MINI_BOSSES[idx]!;
 }
 
 /**
@@ -302,15 +341,14 @@ export function thiefForWave(wave: number): ThiefDef {
   const tier = mapTierForWave(wave);
   const local = waveInLevel(wave);
 
-  // Soft mini-boss: early Snack Pig (strength), later King Raccoon
+  // Soft mini-boss every 10 waves
   if (wave > 0 && wave % 10 === 0) {
-    if (tier === 0 && local <= 10) return STRENGTH_THIEVES[1];
-    return THIEVES.find((t) => t.id === "boss")!;
+    return miniBossForWave(wave, tier);
   }
 
   const wantStrength = Math.random() < strengthChance(tier, local);
   const pool = wantStrength ? STRENGTH_THIEVES : SPEED_THIEVES;
-  const unlock = roleUnlockIndex(tier, local);
+  const unlock = roleUnlockIndex(tier, local, pool.length);
   const favorWeak = tier === 0 ? Math.max(0.45, 0.95 - local * 0.025) : Math.max(0.3, 0.7 - tier * 0.08);
 
   return weightedFromPool(pool, unlock, favorWeak);
