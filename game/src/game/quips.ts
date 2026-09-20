@@ -1,0 +1,75 @@
+import type { FriendDef } from "./data";
+
+const GENERIC = [
+  "Boop!",
+  "Hiya!",
+  "Cookie time!",
+  "I got this!",
+  "Nom nom?",
+  "Watch this!",
+  "Let's gooo!",
+  "Teehee!",
+  "Pew pew!",
+  "Don't touch the cookie!",
+  "Teamwork!",
+  "I'm fluffy AND fierce!",
+  "Snack break later!",
+  "Zoomies!",
+  "Beep boop friend!",
+];
+
+const BY_ID: Record<string, string[]> = {
+  hummingbird: ["Zip zip!", "Too fast for you!", "Nectar? No — thieves!", "Zoom!"],
+  bunny: ["Hop hop!", "Carrots later!", "Boing!", "Cute but deadly!"],
+  squirrel: ["Nuts to them!", "I buried a plan!", "Chitter chatter!", "Acorn power!"],
+  hedgehog: ["Pointy hug!", "Don't sit on me!", "Ouch for them!", "Spikes out!"],
+  chipmunk: ["Cheeky!", "Double stuffed!", "Squeak attack!", "Crumbs forever!"],
+  mouse: ["Squeak!", "Tiny but mighty!", "Cheese is a myth!", "Whisker mode!"],
+  penguin: ["Waddle of doom!", "Ice ice baby!", "Fish? Later!", "Slide attack!"],
+  mole: ["Coming up!", "Dirt nap for thieves!", "Dig dig dig!", "Underground king!"],
+  skunk: ["You asked for it!", "Phew-ware!", "Stink and awe!", "Hold your nose!"],
+  owl: ["Whooo goes there?", "Night shift!", "Hoo-dini!", "Wise guy, eh?"],
+  deer: ["Majestic missiles!", "Grace… then BAM!", "Antler express!", "Forest VIP!"],
+  beaver: ["Dam right!", "Wood you look at that!", "Build mode!", "Chomp chomp!"],
+  wolf: ["Awooo!", "Pack tactics!", "Big bad? Big good!", "Howlin' for cookies!"],
+  fox: ["Sly move!", "What does the fox say? Pew!", "Walls up!", "Clever cookie!"],
+  fish: ["Blub blub boom!", "Floppy justice!", "Swim lane closed!", "Splash damage!"],
+  seal: ["Arf arf!", "Slippery when wet!", "Ice to meet you!", "Clap clap clap!"],
+  moose: ["Huge vibes!", "Antlers loaded!", "Moose on the loose!", "Stampede vibes!"],
+  otter: ["River rave!", "I do tricks!", "Otterly awesome!", "Float and fight!"],
+  brownbear: ["Honey can wait!", "Bear with me!", "Rawr… politely!", "Big paws, big pews!"],
+  polarbear: ["Chill out!", "Ice to beat you!", "Snow problem!", "Frosty fists!"],
+  eagle: ["Freedom!", "Stars and stripes vibes!", "From above!", "Screee!", "Bombs away… soon!"],
+  shark: ["Chomp!", "Just keep swimming… and shooting!", "Fin-tastic!", "Sharknado lite!"],
+  phoenixlet: ["Reborn and ready!", "Hot take!", "Ash to ashes!", "Flamin' cute!"],
+  moonhare: ["Lunar leap!", "Moon power!", "Hop of destiny!", "Celestial fluff!"],
+  stormsquirrel: ["Static cling!", "Zap attack!", "Storm snack!", "Thunder nuts!"],
+  spikeking: ["Crown of ouch!", "All the spikes!", "Royal poke!", "Bow to the prickles!"],
+  jewelmunk: ["Shiny!", "Gem drop!", "Bling bling!", "Sparkle pew!"],
+  shadowmouse: ["From the shadows!", "Ninja squeak!", "You didn't see me!", "Poof!"],
+  emperorpenguin: ["Royal freeze!", "Bow to the tuxedo!", "Ice emperor!", "Waddle proudly!"],
+  titanmole: ["Titan dig!", "Earthquake vibes!", "Bigger shovel!", "Dirt throne!"],
+  stinklord: ["Supreme stink!", "Cloud of chaos!", "All shall sniff!", "Toxic royalty!"],
+  frostseal: ["Deep freeze!", "Arctic clap!", "Snow cone!", "Brrr-illiant!"],
+  megamoose: ["MEGA moose!", "Forest tank!", "Antler artillery!", "Unstoppable fluff!"],
+  nightoracle: ["I foresaw that!", "Mystic hoots!", "Prophecy: you lose!", "Crystal clear!"],
+  starcervid: ["Star power!", "Cosmic prance!", "Shine bright!", "Galaxy gallop!"],
+  giantpanda: ["Skadoosh!", "Dumpling time!", "Kung fu belly!", "Bamboo? Nah — boom!"],
+  werewolf: ["Full moon mode!", "Awooo (mythical)!", "Furry fury!", "Night bite!"],
+  kitsune: ["Nine tricks!", "Fox fire!", "Illusion… gotcha!", "Spirit sniper!"],
+  tidalkoi: ["Wave rider!", "Koi punch!", "Lucky splash!", "Pond protector!"],
+  riverspirit: ["Flow state!", "Current events!", "Spirit stream!", "Whoosh!"],
+  ursaking: ["King of the woods!", "Royal rawr!", "Bow down!", "Throne of paws!"],
+  frostursine: ["Ice king!", "Absolute zero!", "Snow throne!", "Chill monarch!"],
+  thunderroc: ["Thunderstruck!", "Storm wings!", "Boom from above!", "Cloud crusher!"],
+  megalodon: ["MEGA chomp!", "Ocean boss!", "Bigger bite!", "Ancient appetite!"],
+  crimsonoracle: ["Comet coming!", "Fate sealed!", "Red prophecy!", "Orbit of doom!"],
+  redpanda: ["God tier fluff!", "Beam me up!", "Dumplings AND lasers!", "Ultimate cute!"],
+};
+
+/** Pick a funny line when the player taps a friend */
+export function funnyQuipFor(def: FriendDef): string {
+  const pool = BY_ID[def.id] ?? GENERIC;
+  const mix = pool.length >= 3 ? pool : [...pool, ...GENERIC];
+  return mix[Math.floor(Math.random() * mix.length)]!;
+}
