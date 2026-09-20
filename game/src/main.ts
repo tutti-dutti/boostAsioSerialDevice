@@ -6,7 +6,6 @@ import { unlockAudio, setMuted, isMuted, playUnmuteChirp } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST } from "./game/types";
 import {
-  difficultyBadge,
   formatScoreDate,
   getSavedPlayerName,
   isHighScoreWorthy,
@@ -42,8 +41,13 @@ app.innerHTML = `
     <p class="home-note">No ads. Just the game.</p>
     <div class="home-scores" id="home-scores">
       <h2 class="scores-title">High Scores</h2>
+      <div class="mode-chips scores-mode-chips" id="home-score-chips" role="group" aria-label="Score play level">
+        <button class="mode-chip mode-easy selected" data-score-mode="easy" type="button">Easy</button>
+        <button class="mode-chip mode-medium" data-score-mode="medium" type="button">Medium</button>
+        <button class="mode-chip mode-hard" data-score-mode="hard" type="button">Hard</button>
+      </div>
       <ol class="scores-list" id="home-scores-list"></ol>
-      <p class="scores-empty hidden" id="home-scores-empty">No scores yet — clear waves to earn a spot!</p>
+      <p class="scores-empty hidden" id="home-scores-empty">No scores yet for this level — clear waves to earn a spot!</p>
     </div>
   </section>
 
@@ -54,6 +58,7 @@ app.innerHTML = `
         <span class="status-upgrade" id="status-upgrade">Select friend for upgrade cost</span>
         <div class="status-links">
           <button class="home-link" id="mute-btn" type="button">Sound: On</button>
+          <button class="home-link" id="play-scores-btn" type="button">Save score</button>
           <button class="home-link" id="play-feedback-btn" type="button">Feedback</button>
           <button class="home-link" id="back-home" type="button">Home</button>
         </div>
@@ -177,6 +182,25 @@ app.innerHTML = `
       </div>
     </div>
   </div>
+
+  <div class="scores-overlay hidden" id="scores-overlay" role="dialog" aria-modal="true" aria-labelledby="scores-title">
+    <div class="scores-card">
+      <h2 id="scores-title">High scores</h2>
+      <p class="scores-lead" id="scores-lead">Save your run for this play level.</p>
+      <p class="scores-run-line" id="scores-run-line">Wave 1 · Easy · 0🪙</p>
+      <div class="score-save" id="play-score-save">
+        <p class="score-save-label" id="play-score-save-label">Enter your name to save</p>
+        <div class="score-save-row">
+          <input id="play-score-name" type="text" maxlength="16" placeholder="Your name" autocomplete="nickname" />
+          <button class="green" id="play-save-score-btn" type="button">Save</button>
+        </div>
+        <p class="hint" id="play-score-save-status"></p>
+      </div>
+      <ol class="scores-list scores-list-compact" id="play-scores-list"></ol>
+      <p class="scores-empty hidden" id="play-scores-empty">No scores for this level yet.</p>
+      <button type="button" id="scores-close">Close</button>
+    </div>
+  </div>
 `;
 
 const home = document.querySelector<HTMLElement>("#home")!;
@@ -201,11 +225,21 @@ const homeModeChips = document.querySelector("#home-mode-chips")!;
 const homeModeBlurb = document.querySelector("#home-mode-blurb")!;
 const homeScoresList = document.querySelector("#home-scores-list")!;
 const homeScoresEmpty = document.querySelector("#home-scores-empty")!;
+const homeScoreChips = document.querySelector("#home-score-chips")!;
 const overScoreLine = document.querySelector("#over-score-line")!;
 const scoreSave = document.querySelector("#score-save")!;
 const scoreNameInput = document.querySelector<HTMLInputElement>("#score-name")!;
 const scoreSaveStatus = document.querySelector("#score-save-status")!;
 const overScoresList = document.querySelector("#over-scores-list")!;
+const scoresOverlay = document.querySelector("#scores-overlay")!;
+const scoresLead = document.querySelector("#scores-lead")!;
+const scoresRunLine = document.querySelector("#scores-run-line")!;
+const playScoreSave = document.querySelector("#play-score-save")!;
+const playScoreSaveLabel = document.querySelector("#play-score-save-label")!;
+const playScoreNameInput = document.querySelector<HTMLInputElement>("#play-score-name")!;
+const playScoreSaveStatus = document.querySelector("#play-score-save-status")!;
+const playScoresList = document.querySelector("#play-scores-list")!;
+const playScoresEmpty = document.querySelector("#play-scores-empty")!;
 const feedbackOverlay = document.querySelector("#feedback-overlay")!;
 const feedbackNameInput = document.querySelector<HTMLInputElement>("#feedback-name")!;
 const feedbackMessageInput = document.querySelector<HTMLTextAreaElement>("#feedback-message")!;
@@ -220,6 +254,8 @@ const confirmYesBtn = document.querySelector<HTMLButtonElement>("#confirm-yes")!
 const confirmNoBtn = document.querySelector<HTMLButtonElement>("#confirm-no")!;
 let scorePromptShown = false;
 let scoreSavedThisRun = false;
+let homeScoreMode: Difficulty = "easy";
+let pausedForScores = false;
 let feedbackKind: FeedbackKind = "feedback";
 let feedbackListFilter: FeedbackKind | "all" = "all";
 let feedbackListLoading = false;
@@ -267,11 +303,11 @@ function renderScoresList(container: Element, scores: HighScore[], compact = fal
     <li class="score-row">
       <span class="score-rank">${i + 1}.</span>
       <span class="score-name">${escapeHtml(s.name)}</span>
-      <span class="score-wave">Wave ${s.wave}</span>
+      <span class="score-wave">W${s.wave}</span>
       ${
         compact
-          ? `<span class="score-mode mode-tag-${s.difficulty ?? "easy"}">${difficultyBadge(s.difficulty)}</span>`
-          : `<span class="score-meta"><span class="mode-tag mode-tag-${s.difficulty ?? "easy"}">${difficultyBadge(s.difficulty)}</span> · ${s.gold}🪙 · ${formatScoreDate(s.at)}</span>`
+          ? `<span class="score-meta">${s.gold}🪙</span>`
+          : `<span class="score-meta">${s.gold}🪙 · ${formatScoreDate(s.at)}</span>`
       }
     </li>`,
     )
@@ -283,15 +319,29 @@ function escapeHtml(s: string) {
 }
 
 function refreshHomeScores() {
-  const scores = loadHighScores();
+  homeScoreChips.querySelectorAll<HTMLButtonElement>("[data-score-mode]").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.scoreMode === homeScoreMode);
+  });
+  const scores = loadHighScores(homeScoreMode);
   renderScoresList(homeScoresList, scores);
   homeScoresEmpty.classList.toggle("hidden", scores.length > 0);
   homeScoresList.classList.toggle("hidden", scores.length === 0);
 }
 
+homeScoreChips.querySelectorAll<HTMLButtonElement>("[data-score-mode]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    unlockAudio();
+    const mode = btn.dataset.scoreMode;
+    if (isDifficulty(mode)) {
+      homeScoreMode = mode;
+      refreshHomeScores();
+    }
+  });
+});
+
 function setupGameOverScoreUi() {
   overScoreLine.textContent = `Reached wave ${game.wave} on ${game.difficultyLabel} with ${game.gold}🪙. The thieves ate it!`;
-  const scores = loadHighScores();
+  const scores = loadHighScores(game.difficulty);
   renderScoresList(overScoresList, scores, true);
 
   const worthy = !scoreSavedThisRun && isHighScoreWorthy(game.wave, game.gold, game.difficulty);
@@ -312,7 +362,82 @@ function saveCurrentScore() {
   scoreSave.classList.add("hidden");
   scoreSaveStatus.textContent = `Saved — nice ${game.difficultyLabel} run, ${name}!`;
   renderScoresList(overScoresList, list, true);
+  homeScoreMode = game.difficulty;
   refreshHomeScores();
+}
+
+function refreshPlayScoresPanel() {
+  const mode = game.difficulty;
+  scoresLead.textContent = `${game.difficultyLabel} level board — top runs only for this mode.`;
+  scoresRunLine.textContent = `This run: Wave ${game.wave} · ${game.difficultyLabel} · ${game.gold}🪙`;
+  const scores = loadHighScores(mode);
+  renderScoresList(playScoresList, scores, true);
+  playScoresEmpty.classList.toggle("hidden", scores.length > 0);
+  playScoresList.classList.toggle("hidden", scores.length === 0);
+
+  const worthy = isHighScoreWorthy(game.wave, game.gold, mode);
+  if (scoreSavedThisRun) {
+    playScoreSaveLabel.textContent = "Already saved this run";
+    playScoreSaveStatus.textContent = "Start a new game to save again.";
+    (document.querySelector("#play-save-score-btn") as HTMLButtonElement).disabled = true;
+  } else if (worthy) {
+    playScoreSaveLabel.textContent = "New high score for this level — enter your name";
+    playScoreSaveStatus.textContent = "";
+    (document.querySelector("#play-save-score-btn") as HTMLButtonElement).disabled = false;
+  } else {
+    playScoreSaveLabel.textContent = "Not a top score for this level yet";
+    playScoreSaveStatus.textContent = "Reach a higher wave to earn a spot.";
+    (document.querySelector("#play-save-score-btn") as HTMLButtonElement).disabled = true;
+  }
+  playScoreSave.classList.remove("hidden");
+}
+
+function openScoresMenu() {
+  unlockAudio();
+  playScoreNameInput.value = getSavedPlayerName();
+  refreshPlayScoresPanel();
+  pausedForScores = false;
+  if (game.running && !game.paused && !game.gameOver) {
+    game.setPaused(true);
+    pausedForScores = true;
+  }
+  scoresOverlay.classList.remove("hidden");
+  const canSave =
+    !scoreSavedThisRun && isHighScoreWorthy(game.wave, game.gold, game.difficulty);
+  if (canSave) setTimeout(() => playScoreNameInput.focus(), 40);
+  refresh();
+}
+
+function closeScoresMenu() {
+  scoresOverlay.classList.add("hidden");
+  if (pausedForScores && game.paused && !game.gameOver) {
+    game.setPaused(false);
+  }
+  pausedForScores = false;
+  refresh();
+}
+
+function savePlayScoreFromPanel() {
+  unlockAudio();
+  if (scoreSavedThisRun) {
+    playScoreSaveStatus.textContent = "Already saved this run.";
+    return;
+  }
+  if (!isHighScoreWorthy(game.wave, game.gold, game.difficulty)) {
+    playScoreSaveStatus.textContent = "Not high enough for this level board yet.";
+    refreshPlayScoresPanel();
+    return;
+  }
+  const name = playScoreNameInput.value.trim() || getSavedPlayerName() || "Player";
+  const list = submitHighScore(name, game.wave, game.gold, game.difficulty);
+  scoreSavedThisRun = true;
+  playScoreSaveStatus.textContent = `Saved on ${game.difficultyLabel} — nice work, ${name}!`;
+  renderScoresList(playScoresList, list, true);
+  playScoresEmpty.classList.add("hidden");
+  playScoresList.classList.remove("hidden");
+  homeScoreMode = game.difficulty;
+  refreshHomeScores();
+  refreshPlayScoresPanel();
 }
 
 function refreshModes() {
@@ -327,7 +452,11 @@ homeModeChips.querySelectorAll<HTMLButtonElement>(".mode-chip").forEach((btn) =>
   btn.addEventListener("click", () => {
     unlockAudio();
     const mode = btn.dataset.mode as Difficulty;
-    if (isDifficulty(mode)) game.setDifficulty(mode);
+    if (isDifficulty(mode)) {
+      game.setDifficulty(mode);
+      homeScoreMode = mode;
+      refreshHomeScores();
+    }
     refreshModes();
   });
 });
@@ -559,10 +688,12 @@ refreshHomeScores();
 function showHome() {
   game.running = false;
   game.setPaused(false);
+  closeScoresMenu();
   home.classList.remove("hidden");
   playScreen.classList.add("hidden");
   refreshCourses();
   refreshModes();
+  homeScoreMode = game.difficulty;
   refreshHomeScores();
 }
 
@@ -657,12 +788,6 @@ document.querySelector("#feedback-cancel")!.addEventListener("click", closeFeedb
 feedbackOverlay.addEventListener("click", (e) => {
   if (e.target === feedbackOverlay) closeFeedbackMenu();
 });
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !feedbackOverlay.classList.contains("hidden")) {
-    closeFeedbackMenu();
-  }
-});
-
 document.querySelectorAll<HTMLButtonElement>(".feedback-kind").forEach((btn) => {
   btn.addEventListener("click", () => {
     feedbackKind = (btn.dataset.kind as FeedbackKind) || "feedback";
@@ -715,6 +840,26 @@ muteBtn.addEventListener("click", () => {
   setMuted(next);
   syncMuteLabel();
   if (!next) playUnmuteChirp();
+});
+
+document.querySelector("#play-scores-btn")!.addEventListener("click", () => {
+  openScoresMenu();
+});
+document.querySelector("#scores-close")!.addEventListener("click", () => {
+  unlockAudio();
+  closeScoresMenu();
+});
+scoresOverlay.addEventListener("click", (e) => {
+  if (e.target === scoresOverlay) closeScoresMenu();
+});
+document.querySelector("#play-save-score-btn")!.addEventListener("click", () => {
+  savePlayScoreFromPanel();
+});
+playScoreNameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    savePlayScoreFromPanel();
+  }
 });
 
 document.querySelector("#retry-btn")!.addEventListener("click", () => {
@@ -841,6 +986,11 @@ document.addEventListener("keydown", (e) => {
   if (!confirmOverlay.classList.contains("hidden")) {
     e.preventDefault();
     closeConfirm(false);
+    return;
+  }
+  if (!scoresOverlay.classList.contains("hidden")) {
+    e.preventDefault();
+    closeScoresMenu();
     return;
   }
   if (!feedbackOverlay.classList.contains("hidden")) {

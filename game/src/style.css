@@ -892,7 +892,7 @@ button.danger {
 
 .score-row {
   display: grid;
-  grid-template-columns: 1.6rem 1fr auto;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto auto;
   gap: 0.35rem 0.45rem;
   align-items: baseline;
   font-weight: 800;
@@ -900,8 +900,9 @@ button.danger {
   color: var(--ink);
 }
 
-.scores-list:not(.scores-list-compact) .score-row {
-  grid-template-columns: 1.6rem 1fr auto;
+.scores-mode-chips {
+  justify-content: center;
+  margin-bottom: 0.55rem;
 }
 
 .score-rank {
@@ -1107,6 +1108,64 @@ button.danger {
   min-width: 7rem;
 }
 
+.scores-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: rgba(40, 60, 80, 0.55);
+}
+
+.scores-overlay.hidden {
+  display: none;
+}
+
+.scores-card {
+  width: min(24rem, 100%);
+  max-height: min(92dvh, 40rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--cream);
+  border: 4px solid var(--cookie);
+  border-radius: 20px;
+  padding: 1.15rem 1.25rem;
+  text-align: left;
+  box-shadow: 0 14px 36px rgba(42, 48, 64, 0.22);
+}
+
+.scores-card h2 {
+  font-family: var(--display);
+  font-size: 1.45rem;
+  color: var(--cookie-dark);
+  margin-bottom: 0.25rem;
+  text-align: center;
+}
+
+.scores-lead {
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.scores-run-line {
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 0.75rem;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.scores-card #scores-close {
+  width: 100%;
+  margin-top: 0.35rem;
+}
 
 .feedback-card {
   width: min(28rem, 100%);
