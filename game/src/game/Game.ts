@@ -422,33 +422,31 @@ export class Game {
 
   /** Stable bite layout reconstructed from missing HP (legacy saves) */
   bitesFromMissingHp(missing: number): CookieBite[] {
-    const n = Math.min(14, Math.max(0, Math.round(missing)));
+    const n = Math.min(10, Math.max(0, Math.round(missing)));
     const bites: CookieBite[] = [];
     for (let i = 0; i < n; i++) {
       bites.push({
-        angle: -Math.PI * 0.35 + i * 0.48 + (i % 3) * 0.07,
-        size: 0.85 + (i % 4) * 0.12,
+        angle: -Math.PI * 0.35 + i * 0.55 + (i % 3) * 0.05,
+        size: 0.75 + (i % 3) * 0.15,
       });
     }
     return bites;
   }
 
-  /** Leave one or more permanent bite marks when the cookie is hit */
+  /** Leave a permanent bite mark — bigger damage = bigger scoop */
   chompCookie(dmg: number) {
-    const bites = Math.max(1, Math.min(4, Math.round(dmg)));
-    for (let i = 0; i < bites; i++) {
-      const idx = this.cookieBites.length;
-      // Spread around the rim so each chomp is a distinct scoop
-      const angle = -Math.PI * 0.85 + idx * 0.72 + (Math.random() - 0.5) * 0.15;
-      const size = 1.15 + Math.min(0.5, dmg * 0.12) + (Math.random() - 0.5) * 0.1;
-      this.cookieBites.push({ angle, size });
+    const hit = Math.max(1, dmg);
+    // One clear scoop per hit; size tracks damage (normal ≈0.7, boss ≈1.8+)
+    const size = Math.min(2.15, 0.55 + hit * 0.2 + Math.min(0.35, (hit - 1) * 0.05));
+    const idx = this.cookieBites.length;
+    const angle = -Math.PI * 0.85 + idx * 0.7 + (Math.random() - 0.5) * 0.12;
+    this.cookieBites.push({ angle, size });
+    this.cookieBitePulse = this.cookieBites.length - 1;
+    if (this.cookieBites.length > 12) {
+      this.cookieBites = this.cookieBites.slice(-12);
       this.cookieBitePulse = this.cookieBites.length - 1;
     }
-    if (this.cookieBites.length > 14) {
-      this.cookieBites = this.cookieBites.slice(-14);
-      this.cookieBitePulse = this.cookieBites.length - 1;
-    }
-    this.cookieBiteFlash = 0.85;
+    this.cookieBiteFlash = Math.min(1, 0.55 + hit * 0.06);
   }
 
   grantIdleGold() {

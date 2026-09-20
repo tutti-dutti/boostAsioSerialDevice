@@ -171,7 +171,7 @@ export interface Boom {
 export interface CookieBite {
   /** Angle around the cookie (radians) */
   angle: number;
-  /** How deep the bite is (0.7–1.35) */
+  /** How deep the bite is — scales with damage (≈0.55 small … 2.1 huge) */
   size: number;
 }
 

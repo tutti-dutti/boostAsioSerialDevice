@@ -283,10 +283,12 @@ function gate(ctx: CanvasRenderingContext2D) {
 
 function cookieBiteCenters(x: number, y: number, r: number, bites: CookieBite[]) {
   return bites.map((b) => {
-    const br = 17 + b.size * 11;
+    // Size scales with damage: small nibble → deep boss chomp
+    const br = 10 + b.size * 14;
+    const inset = Math.min(r * 0.72, br * 0.55);
     return {
-      bx: x + Math.cos(b.angle) * (r - br * 0.5),
-      by: y + Math.sin(b.angle) * (r - br * 0.5),
+      bx: x + Math.cos(b.angle) * (r - inset),
+      by: y + Math.sin(b.angle) * (r - inset),
       br,
       angle: b.angle,
       size: b.size,
@@ -309,51 +311,60 @@ function cookie(
   const marks =
     biteMarks.length > 0
       ? biteMarks
-      : Array.from({ length: Math.min(12, Math.max(0, max - hp)) }, (_, i) => ({
+      : Array.from({ length: Math.min(10, Math.max(0, max - hp)) }, (_, i) => ({
           angle: -Math.PI * 0.9 + i * 0.7,
-          size: 1.15,
+          size: 0.8,
         }));
   const bites = cookieBiteCenters(x, y, r, marks);
-  const body = biteFlash > 0.2 ? "#f6c06a" : "#e8a04a";
+  const warm = biteFlash > 0.25;
 
   ctx.save();
   if (biteFlash > 0) {
-    const shake = biteFlash * 10;
+    const shake = biteFlash * 7;
     ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
   }
 
-  // Full cookie body
-  ctx.fillStyle = body;
+  // Soft cookie body — warm base + lighter center
+  ctx.fillStyle = warm ? "#f0b45a" : "#e39a3e";
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = warm ? "rgba(255, 220, 150, 0.55)" : "rgba(250, 210, 140, 0.45)";
+  ctx.beginPath();
+  ctx.arc(x - 4, y - 5, r * 0.62, 0, Math.PI * 2);
+  ctx.fill();
+  // Soft top highlight
+  ctx.fillStyle = "rgba(255, 245, 220, 0.35)";
+  ctx.beginPath();
+  ctx.ellipse(x - 6, y - 12, r * 0.42, r * 0.22, -0.35, 0, Math.PI * 2);
+  ctx.fill();
 
-  // Chocolate chips (before scoops so bites cover them)
-  ctx.fillStyle = "#6a3a18";
-  const chips: [number, number][] = [
-    [-10, -8],
-    [8, -6],
-    [-4, 10],
-    [12, 8],
-    [0, 0],
-    [-14, 4],
-    [6, 12],
-    [-8, 14],
-    [14, -2],
+  // Clean chocolate chips — fewer, varied, inset from the rim
+  const chips: [number, number, number][] = [
+    [-9, -7, 3.4],
+    [7, -9, 2.8],
+    [11, 3, 3.1],
+    [2, 9, 2.6],
+    [-11, 6, 3.0],
+    [-2, -1, 2.4],
   ];
-  for (const [cx, cy] of chips) {
-    if (Math.hypot(cx, cy) > r - 9) continue;
+  for (const [cx, cy, cr] of chips) {
+    if (Math.hypot(cx, cy) > r - 11) continue;
+    ctx.fillStyle = "#5c3214";
     ctx.beginPath();
-    ctx.arc(x + cx, y + cy, 4, 0, Math.PI * 2);
+    ctx.arc(x + cx, y + cy, cr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(90, 50, 20, 0.35)";
+    ctx.beginPath();
+    ctx.arc(x + cx - cr * 0.25, y + cy - cr * 0.25, cr * 0.45, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Scoop each bite: paint grass into the cookie so a chunk is clearly gone
+  // Scoop each bite: grass shows through a clean circular chomp
   for (let i = 0; i < bites.length; i++) {
     const b = bites[i];
     const hot = biteFlash > 0 && i === pulseIndex;
     ctx.save();
-    // Only paint scoop where it overlaps the cookie
     ctx.beginPath();
     ctx.arc(x, y, r + 0.5, 0, Math.PI * 2);
     ctx.clip();
@@ -370,33 +381,29 @@ function cookie(
     }
     ctx.restore();
 
-    // Chew rim
+    // Smooth chew rim (no tooth dots)
     ctx.save();
     ctx.beginPath();
     ctx.arc(x, y, r + 0.5, 0, Math.PI * 2);
     ctx.clip();
     ctx.beginPath();
     ctx.arc(b.bx, b.by, b.br, 0, Math.PI * 2);
-    ctx.strokeStyle = hot ? "#3a1808" : "#5a2810";
-    ctx.lineWidth = hot ? 5 : 3.5;
+    ctx.strokeStyle = hot ? "#4a220c" : "#6a3818";
+    ctx.lineWidth = hot ? 4 : 2.75;
+    ctx.lineCap = "round";
     ctx.stroke();
-    // Tooth notches along chew face
-    ctx.fillStyle = hot ? "#3a1808" : "#5a2810";
-    for (let t = 0; t < 6; t++) {
-      const ta = b.angle + Math.PI + (t - 2.5) * 0.28;
-      const tx = b.bx + Math.cos(ta) * (b.br - 1.5);
-      const ty = b.by + Math.sin(ta) * (b.br - 1.5);
-      if (Math.hypot(tx - x, ty - y) > r - 1) continue;
-      ctx.beginPath();
-      ctx.arc(tx, ty, hot ? 2.8 : 2.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // Soft inner shade along the bite
+    ctx.beginPath();
+    ctx.arc(b.bx, b.by, b.br - 2.2, 0, Math.PI * 2);
+    ctx.strokeStyle = hot ? "rgba(90, 40, 10, 0.35)" : "rgba(70, 35, 12, 0.22)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
     ctx.restore();
   }
 
   // Outer cookie rim (skip bitten arcs)
   ctx.strokeStyle = "#c4782a";
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 3.25;
   if (bites.length === 0) {
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -424,46 +431,59 @@ function cookie(
     }
   }
 
-  // Crumbs flying out of bites
-  if (bites.length > 0) {
-    ctx.fillStyle = "#d4a060";
-    for (let i = 0; i < bites.length; i++) {
-      const b = bites[i];
-      const burst = biteFlash > 0 && i === pulseIndex ? 1 + biteFlash * 2 : 1;
-      for (let c = 0; c < 5; c++) {
-        ctx.beginPath();
-        ctx.arc(
-          x + Math.cos(b.angle + (c - 2) * 0.2) * (r + 8 + c * 5 * burst),
-          y + Math.sin(b.angle + (c - 2) * 0.2) * (r + 8 + c * 5 * burst),
-          (2.2 + (c % 2)) * (burst > 1 ? 1.35 : 1),
-          0,
-          Math.PI * 2,
-        );
-        ctx.fill();
-      }
-    }
-  }
-
+  // Crumbs only on the freshest bite while flashing
   if (biteFlash > 0 && pulseIndex >= 0 && bites[pulseIndex]) {
     const b = bites[pulseIndex];
-    ctx.strokeStyle = `rgba(255, 230, 160, ${Math.min(1, biteFlash * 1.5)})`;
-    ctx.lineWidth = 3;
+    const burst = 1 + biteFlash * 1.6;
+    ctx.fillStyle = "#d4a060";
+    for (let c = 0; c < 4; c++) {
+      ctx.beginPath();
+      ctx.arc(
+        x + Math.cos(b.angle + (c - 1.5) * 0.18) * (r + 6 + c * 4 * burst),
+        y + Math.sin(b.angle + (c - 1.5) * 0.18) * (r + 6 + c * 4 * burst),
+        1.8 + (c % 2) * 0.6,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+    ctx.strokeStyle = `rgba(255, 235, 180, ${Math.min(1, biteFlash * 1.4)})`;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(b.bx, b.by, b.br + 5 + (1 - biteFlash) * 12, 0, Math.PI * 2);
+    ctx.arc(b.bx, b.by, b.br + 4 + (1 - biteFlash) * 10, 0, Math.PI * 2);
     ctx.stroke();
   }
 
-  ctx.fillStyle = "#fff6e8";
-  ctx.font = "800 11px Nunito, sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText(bites.length > 0 ? "BITTEN!" : "COOKIE", x, y + 56);
-
+  // Compact HP bar under the cookie
   const pct = Math.max(0, hp / max);
-  ctx.fillStyle = "rgba(0,0,0,0.3)";
-  ctx.fillRect(x - 34, y + 62, 68, 8);
-  ctx.fillStyle = pct > 0.3 ? "#6ecf7a" : "#ff6b6b";
-  ctx.fillRect(x - 34, y + 62, 68 * pct, 8);
+  ctx.fillStyle = "rgba(42, 48, 64, 0.35)";
+  ctx.beginPath();
+  roundRect(ctx, x - 30, y + 48, 60, 7, 3.5);
+  ctx.fill();
+  if (pct > 0.01) {
+    ctx.fillStyle = pct > 0.3 ? "#6ecf7a" : "#ff6b6b";
+    ctx.beginPath();
+    roundRect(ctx, x - 30, y + 48, 60 * pct, 7, 3.5);
+    ctx.fill();
+  }
   ctx.restore();
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  rad: number,
+) {
+  const r = Math.min(rad, w / 2, h / 2);
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 function friendTokenRadius(f: PlacedFriend): number {
