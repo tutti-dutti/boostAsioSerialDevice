@@ -734,6 +734,8 @@ document.querySelector("#retry-btn")!.addEventListener("click", () => {
   unlockAudio();
   scorePromptShown = false;
   scoreSavedThisRun = false;
+  mathWaveOfferFor = -1;
+  mathPlayAccum = 0;
   game.reset();
   over.classList.add("hidden");
 });
