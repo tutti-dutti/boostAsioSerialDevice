@@ -1164,7 +1164,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
     ctx.textAlign = "center";
     if (s.autoWaveTimer && s.autoWaveTimer > 0) {
       const secs = Math.max(1, Math.ceil(s.autoWaveTimer));
-      ctx.fillText(`Next wave in ${secs}… · Pause to prepare`, W / 2, H - 12);
+      ctx.fillText(`Next wave in ${secs}s · Move & prepare`, W / 2, H - 12);
     } else {
       ctx.fillText(`Ready · Start Wave ${s.wave}`, W / 2, H - 12);
     }

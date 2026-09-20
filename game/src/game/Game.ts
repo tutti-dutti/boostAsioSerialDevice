@@ -104,6 +104,8 @@ export class Game {
   waveInProgress = false;
   /** Seconds until auto-start; 0 = wait for manual Start Wave */
   autoWaveTimer = 0;
+  /** Seconds of prep between cleared wave and next auto-start */
+  static readonly WAVE_BREAK_SEC = 5;
   time = 0;
   running = true;
   paused = false;
@@ -890,22 +892,42 @@ export class Game {
     this.onChange();
   }
 
+  /** True while a wave is spawning or thieves are still on the path */
+  isCombatActive(): boolean {
+    return (
+      this.waveInProgress ||
+      this.spawnLeft > 0 ||
+      this.thieves.some((t) => t.alive)
+    );
+  }
+
+  /** Board friends can only be repositioned between waves */
+  canMoveUnits(): boolean {
+    return !this.gameOver && !this.isCombatActive();
+  }
+
   onPointerDown(e: PointerEvent) {
     if (this.gameOver) return;
     const { x, y } = this.canvasPos(e);
     this.canvas.setPointerCapture(e.pointerId);
 
     const hit = this.hitFriendSlot(x, y, this.friendHitRadius(e));
-    // Always allow selecting/moving board friends — even mid-wave, and even if a
-    // bag friend is equipped (deploy mode). Tap a placed friend to drag it.
+    // Tap a placed friend to select; drag/move only between waves
     if (hit) {
       this.selectedBag = null;
       this.deployGhost = null;
-      this.draggingSlot = hit.id;
-      this.dragMoved = false;
-      this.dragOrigin = { x: hit.x, y: hit.y };
       this.selectedSlot = hit.id;
       this.popFunnyBubble(hit);
+      if (this.canMoveUnits()) {
+        this.draggingSlot = hit.id;
+        this.dragMoved = false;
+        this.dragOrigin = { x: hit.x, y: hit.y };
+      } else {
+        this.draggingSlot = null;
+        this.dragMoved = false;
+        this.dragOrigin = null;
+        this.toast("Wait for the next wave to move friends", true);
+      }
       this.onChange();
       return;
     }
@@ -935,6 +957,13 @@ export class Game {
     }
 
     if (this.draggingSlot == null) return;
+    if (!this.canMoveUnits()) {
+      this.draggingSlot = null;
+      this.dragMoved = false;
+      this.dragOrigin = null;
+      this.deployGhost = null;
+      return;
+    }
     const slot = this.slots.find((s) => s.id === this.draggingSlot);
     if (!slot) return;
     const foot = this.footprintForSlot(slot.id);
@@ -1021,7 +1050,7 @@ export class Game {
     this.selectedBag = null;
     this.selectedSlot = id;
     this.deployGhost = null;
-    this.toast(`${friend.emoji} Deployed! Drag to move anytime.`, true);
+    this.toast(`${friend.emoji} Deployed! Move units between waves.`, true);
     this.save();
     this.onChange();
   }
@@ -1032,7 +1061,7 @@ export class Game {
     if (this.selectedBag === index) {
       this.selectedBag = null;
       this.deployGhost = null;
-      this.toast("Unequipped — drag board friends to move anytime", true);
+      this.toast("Unequipped — move board friends between waves", true);
       this.onChange();
       return;
     }
@@ -1074,6 +1103,11 @@ export class Game {
     this.spawnLeft = scaleWaveCount(waveCount(this.wave), this.difficulty);
     this.spawnTimer = 0.2;
     this.autoWaveTimer = 0;
+    // Lock moves for combat — cancel any in-progress drag
+    this.draggingSlot = null;
+    this.dragMoved = false;
+    this.dragOrigin = null;
+    if (this.selectedBag == null) this.deployGhost = null;
     // Only announce bosses — normal wave toasts cover the board on phones
     if (isLevelBossWave(this.wave)) {
       const boss = levelBossForWave(this.wave);
@@ -1490,7 +1524,7 @@ export class Game {
       this.stars += 1;
       this.gold += 3;
       this.syncMapForWave(true);
-      this.autoWaveTimer = 3.2;
+      this.autoWaveTimer = Game.WAVE_BREAK_SEC;
       // Canvas banner already shows the countdown — skip a covering toast
       this.save();
       this.onChange();
