@@ -380,17 +380,17 @@ export function waveHpScale(wave: number): number {
   const local = waveInLevel(wave);
 
   if (tier === 0) {
-    // ~0.5 → ~1.95 across the first map — winnable with a few basic friends
-    const soft = 0.5 + (local - 1) * 0.045 + Math.floor(local / 10) * 0.15;
-    if (isLevelBossWave(wave)) return soft * 1.45;
+    // Slightly firmer early map — still teachable, but not trivial
+    const soft = 0.62 + (local - 1) * 0.055 + Math.floor(local / 10) * 0.18;
+    if (isLevelBossWave(wave)) return soft * 1.55;
     return soft;
   }
 
-  const tierFloor = 0.95 + tier * 0.48;
+  const tierFloor = 1.1 + tier * 0.55;
   const localRamp =
-    (local - 1) * (0.08 + tier * 0.02) + Math.floor(local / 10) * (0.24 + tier * 0.1);
+    (local - 1) * (0.095 + tier * 0.025) + Math.floor(local / 10) * (0.28 + tier * 0.12);
   const base = tierFloor + localRamp;
-  if (isLevelBossWave(wave)) return base * (1.65 + tier * 0.12);
+  if (isLevelBossWave(wave)) return base * (1.75 + tier * 0.14);
   return base;
 }
 

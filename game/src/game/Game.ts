@@ -158,6 +158,31 @@ export class Game {
     return Math.floor(this.countMythicalFriends() / 2);
   }
 
+  /**
+   * Approximate board defense strength (DPS) from placed friends only.
+   * Used to toughen enemies so strong setups stay challenging.
+   */
+  defenseStrength(): number {
+    let power = 0;
+    for (const s of this.slots) {
+      const f = s.friend;
+      if (!f) continue;
+      power += friendDamage(f) * f.def.attackSpeed;
+    }
+    return power;
+  }
+
+  /**
+   * HP multiplier that grows with board power (soft sqrt curve).
+   * Weak boards stay near 1×; stacked mythicals / high levels push toward 2×+.
+   */
+  defenseToughnessMult(): number {
+    const power = this.defenseStrength();
+    // Baseline ~a few basics; anything above that toughens enemies
+    const excess = Math.max(0, power - 14);
+    return 1 + Math.sqrt(excess) * 0.11;
+  }
+
   /** Announce when mythical pressure rises (e.g. after evolving) */
   maybeAnnounceMythicalPressure(prevPressure: number) {
     const next = this.mythicalPressure();
@@ -1063,6 +1088,7 @@ export class Game {
     const spd = waveSpeedScale(this.wave);
     const diff = difficultyTuning(this.difficulty);
     const pressure = this.mythicalPressure();
+    const toughness = this.defenseToughnessMult();
     // Keep archetypes sharp after wave scaling: speed stays fragile, strength stays slow
     const hpMult = base.kind === "speed" ? 0.85 : base.kind === "strength" ? 1.12 : 1;
     const spdMult = base.kind === "speed" ? 1.08 : base.kind === "strength" ? 0.82 : 1;
@@ -1073,9 +1099,10 @@ export class Game {
       speed: Math.max(10, Math.round(base.speed * spd * spdMult * diff.speed * pressureSpeed)),
       gold: Math.max(1, Math.round(base.gold * diff.gold)),
     };
+    // Scale HP with wave/difficulty, add mythic flat buff, then toughen vs board defense
     const hp = Math.max(
       1,
-      Math.round(def.hp * scale * hpMult * diff.hp) + pressure * 100,
+      Math.round((def.hp * scale * hpMult * diff.hp + pressure * 100) * toughness),
     );
     this.thieves.push({
       uid: uid("t"),
