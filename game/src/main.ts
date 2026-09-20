@@ -1,6 +1,6 @@
 import "./style.css";
 import { Game } from "./game/Game";
-import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, type FriendDef } from "./game/data";
+import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, SUMMON_COST, LUCKY_SUMMON_COST, type FriendDef } from "./game/data";
 import { friendPortraitDataUrl, weaponRoleShort } from "./game/animalArt";
 import { unlockAudio, setMuted, isMuted, playUnmuteChirp } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
@@ -102,8 +102,8 @@ app.innerHTML = `
 
       <div class="manage-panel" id="manage-panel">
         <div class="manage-row summon-row">
-          <button class="big" id="summon" type="button">Summon 15⭐</button>
-          <button class="pink" id="lucky" type="button">Lucky 30⭐</button>
+          <button class="big" id="summon" type="button">Summon ${SUMMON_COST}⭐</button>
+          <button class="pink" id="lucky" type="button">Lucky ${LUCKY_SUMMON_COST}⭐</button>
           <button class="danger" id="clear-bag" type="button">Clear unused</button>
         </div>
         <div class="manage-row">
@@ -538,7 +538,7 @@ function refresh() {
   if (!game.bag.length) {
     if (bag.dataset.sig !== "empty") {
       bag.dataset.sig = "empty";
-      bag.innerHTML = `<span class="empty-inv">Press Summon to get friends</span>`;
+      bag.innerHTML = `<span class="empty-inv">Summon friends before Start Wave (${SUMMON_COST}⭐ each)</span>`;
     }
   } else {
     const bagSig = `${game.selectedBag ?? "x"}:${game.bag.map((f) => f.id).join(",")}`;
@@ -635,8 +635,8 @@ function refresh() {
     setupGameOverScoreUi();
   }
 
-  (document.querySelector("#summon") as HTMLButtonElement).disabled = game.stars < 15;
-  (document.querySelector("#lucky") as HTMLButtonElement).disabled = game.stars < 30;
+  (document.querySelector("#summon") as HTMLButtonElement).disabled = game.stars < SUMMON_COST;
+  (document.querySelector("#lucky") as HTMLButtonElement).disabled = game.stars < LUCKY_SUMMON_COST;
   const startBtn = document.querySelector("#start-wave") as HTMLButtonElement;
   startBtn.disabled = !game.canStartWave();
   startBtn.textContent = game.canStartWave()

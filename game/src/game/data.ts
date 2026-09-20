@@ -269,7 +269,8 @@ export function tryEvolve(current: FriendDef): FriendDef | null {
 }
 
 export const SUMMON_COST = 15;
-export const LUCKY_SUMMON_COST = 30;
+/** Lucky costs exactly 2 normal summons — better rarity odds */
+export const LUCKY_SUMMON_COST = SUMMON_COST * 2;
 
 /** Wave number within the current map level (1..WAVES_PER_MAP) */
 export function waveInLevel(wave: number): number {

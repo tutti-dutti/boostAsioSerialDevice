@@ -22,6 +22,7 @@ import {
   difficultyTuning,
   isDifficulty,
   loadDifficultyPreference,
+  openingStartStars,
   saveDifficultyPreference,
   scaleWaveCount,
   type Difficulty,
@@ -88,7 +89,7 @@ export class Game {
   dams: Dam[] = [];
   poisonClouds: PoisonCloud[] = [];
   gold = 20;
-  stars = 5;
+  stars = openingStartStars(loadDifficultyPreference());
   wave = 1;
   cookieHp = 55;
   cookieMax = 55;
