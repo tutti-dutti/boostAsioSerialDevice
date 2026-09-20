@@ -83,8 +83,8 @@ app.innerHTML = `
     <div class="action-banner" id="action-banner">
       <button class="new-game-btn" id="new-game" type="button">New game</button>
       <button class="wave-btn" id="start-wave" type="button">Start Wave</button>
-      <button class="math-btn" id="math-challenge" type="button">Math 📚</button>
       <button class="pause-btn" id="pause-action" type="button">Pause</button>
+      <button class="math-btn" id="math-challenge" type="button">Math 📚</button>
       <button class="spell" id="crumb" type="button">Crumb 5🪙</button>
       <button class="spell" id="frost" type="button">Frost 4🪙</button>
       <button class="spell" id="zap" type="button">Zap 6🪙</button>
@@ -264,6 +264,13 @@ let mathGrade: MathGrade = loadMathGrade();
 let currentMath: MathQuestion | null = null;
 let mathCooldownUntil = 0;
 const MATH_COOLDOWN_MS = 20_000;
+/** Wave number we already rolled an between-wave math offer for */
+let mathWaveOfferFor = -1;
+/** Active combat time toward a random mid-wave math popup */
+let mathPlayAccum = 0;
+const MATH_PLAY_INTERVAL = 14;
+const MATH_WAVE_CHANCE = 0.48;
+const MATH_PLAY_CHANCE = 0.24;
 let confirmAction: (() => void) | null = null;
 
 function openConfirm(opts: {
@@ -629,6 +636,8 @@ function showPlay() {
   playScreen.classList.remove("hidden");
   game.running = true;
   game.setPaused(false);
+  mathWaveOfferFor = -1;
+  mathPlayAccum = 0;
   game.paint();
   refresh();
 }
@@ -829,7 +838,11 @@ document.querySelector("#new-game")!.addEventListener("click", () => {
     title: "New game?",
     message: "Start over from wave 1? Your current run will be reset.",
     confirmLabel: "Start over",
-    onConfirm: () => game.reset(),
+    onConfirm: () => {
+      mathWaveOfferFor = -1;
+      mathPlayAccum = 0;
+      game.reset();
+    },
   });
 });
 
@@ -844,14 +857,25 @@ function showMathQuestion(q: MathQuestion) {
   mathHintLine.classList.add("dim");
 }
 
-function openMathChallenge() {
+function mathUiBlocked() {
+  return (
+    !mathOverlay.classList.contains("hidden") ||
+    !confirmOverlay.classList.contains("hidden") ||
+    !feedbackOverlay.classList.contains("hidden")
+  );
+}
+
+/** Open math popup. `auto` = random/system offer (quiet if on cooldown). */
+function openMathChallenge(opts: { auto?: boolean } = {}): boolean {
   unlockAudio();
-  if (game.gameOver) return;
+  if (game.gameOver || mathUiBlocked()) return false;
   const left = mathCooldownUntil - Date.now();
   if (left > 0) {
-    game.toast(`Math ready in ${Math.ceil(left / 1000)}s`, true);
-    refresh();
-    return;
+    if (!opts.auto) {
+      game.toast(`Math ready in ${Math.ceil(left / 1000)}s`, true);
+      refresh();
+    }
+    return false;
   }
   showMathQuestion(generateMathQuestion(mathGrade));
   pausedForMath = false;
@@ -860,8 +884,40 @@ function openMathChallenge() {
     pausedForMath = true;
   }
   mathOverlay.classList.remove("hidden");
+  if (opts.auto) {
+    mathStatus.textContent = "Surprise challenge! Solve it for a reward.";
+  }
   setTimeout(() => mathAnswerInput.focus(), 40);
   refresh();
+  return true;
+}
+
+/** Random math offers: between waves, and sometimes mid-fight */
+function maybeAutoMathChallenge(dt: number) {
+  if (!game.running || game.gameOver || game.paused || mathUiBlocked()) return;
+  if (Date.now() < mathCooldownUntil) return;
+
+  // Before the next wave (auto-wave countdown just started for this wave number)
+  if (game.waveWaiting && game.autoWaveTimer > 0 && mathWaveOfferFor !== game.wave) {
+    mathWaveOfferFor = game.wave;
+    if (Math.random() < MATH_WAVE_CHANCE) {
+      openMathChallenge({ auto: true });
+      return;
+    }
+  }
+
+  // Sometime during an active wave
+  if (!game.waveWaiting && (game.waveInProgress || game.spawnLeft > 0 || game.thieves.some((t) => t.alive))) {
+    mathPlayAccum += dt;
+    if (mathPlayAccum >= MATH_PLAY_INTERVAL) {
+      mathPlayAccum = 0;
+      if (Math.random() < MATH_PLAY_CHANCE) {
+        openMathChallenge({ auto: true });
+      }
+    }
+  } else {
+    mathPlayAccum = 0;
+  }
 }
 
 function closeMathChallenge() {
@@ -895,7 +951,7 @@ function submitMathAnswer() {
   }
 }
 
-mathChallengeBtn.addEventListener("click", openMathChallenge);
+mathChallengeBtn.addEventListener("click", () => openMathChallenge());
 document.querySelector("#math-submit")!.addEventListener("click", submitMathAnswer);
 document.querySelector("#math-skip")!.addEventListener("click", () => {
   unlockAudio();
@@ -944,6 +1000,7 @@ function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   game.update(dt);
+  maybeAutoMathChallenge(dt);
   // Never full-refresh every frame for toasts — that rebuilt UI during the summon
   // toast window and ate the first bag tap. Toast visibility is updated lightly.
   if (game.toastTimer > 0 || toast.classList.contains("show")) refreshToastOnly();
