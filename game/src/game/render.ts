@@ -769,19 +769,56 @@ function thieves(
 function walls(ctx: CanvasRenderingContext2D, list: Wall[]) {
   for (const w of list) {
     const a = Math.min(1, w.life / 2);
-    ctx.globalAlpha = 0.45 + a * 0.4;
-    ctx.fillStyle = "#8a6030";
-    ctx.strokeStyle = "#ffe08a";
-    ctx.lineWidth = 3;
+    const fade = 0.55 + a * 0.45;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.translate(w.x, w.y);
+
+    // Wooden log body (horizontal)
+    ctx.fillStyle = "#8a5a28";
+    ctx.strokeStyle = "#5a3818";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(w.x - 18, w.y - 18, 36, 36, 6);
+    ctx.roundRect(-22, -10, 44, 20, 9);
     ctx.fill();
     ctx.stroke();
-    ctx.font = "18px serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.globalAlpha = 1;
-    ctx.fillText("🧱", w.x, w.y);
+
+    // Bark stripes
+    ctx.strokeStyle = "rgba(40, 24, 12, 0.4)";
+    ctx.lineWidth = 1.6;
+    for (const ox of [-12, -4, 4, 12]) {
+      ctx.beginPath();
+      ctx.moveTo(ox, -7);
+      ctx.lineTo(ox + 2, 7);
+      ctx.stroke();
+    }
+
+    // Cut ends (rings)
+    for (const side of [-1, 1] as const) {
+      ctx.fillStyle = "#c9a066";
+      ctx.beginPath();
+      ctx.ellipse(side * 20, 0, 5, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#6a4820";
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(90, 56, 24, 0.55)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(side * 20, 0, 2.5, 4.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(side * 20, 0, 1.2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Soft highlight along the top
+    ctx.fillStyle = "rgba(255, 220, 160, 0.22)";
+    ctx.beginPath();
+    ctx.roundRect(-16, -8, 32, 5, 3);
+    ctx.fill();
+
+    ctx.restore();
   }
 }
 
