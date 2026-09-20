@@ -1,6 +1,7 @@
 import "./style.css";
 import { Game } from "./game/Game";
 import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, type FriendDef } from "./game/data";
+import { friendPortraitDataUrl } from "./game/animalArt";
 import { unlockAudio, setMuted, isMuted, playUnmuteChirp } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST } from "./game/types";
@@ -413,7 +414,7 @@ function refresh() {
         .map(
           (f, i) => `
       <button class="inv-item ${game.selectedBag === i ? "selected" : ""} rarity-${f.rarity}" data-i="${i}" type="button">
-        <span class="emoji">${f.emoji}</span>
+        <img class="emoji portrait" src="${friendPortraitDataUrl(f)}" alt="${f.name}" width="40" height="40" draggable="false" />
         <span>${f.name}</span>
         <span class="rarity-${f.rarity}">${rarityLabel(f.rarity)}</span>
       </button>`,

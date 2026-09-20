@@ -1,5 +1,6 @@
 import { COOKIE, GATE, PATH, W, H, getActiveMap, type MapDecor } from "./path";
 import { evolveLineage, friendDisplayScale, friendFootprintRadius } from "./data";
+import { drawFriendPortrait } from "./animalArt";
 import type { Boom, CookieBite, Dam, FloatText, PlacedFriend, PoisonCloud, Shot, Slot, Thief, Wall } from "./types";
 import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
@@ -496,6 +497,7 @@ function drawFriendPad(
   x: number,
   y: number,
   selected: boolean,
+  time = 0,
 ) {
   const r = friendTokenRadius(f);
   const scale = friendDisplayScale(f.def);
@@ -529,11 +531,14 @@ function drawFriendPad(
     ctx.stroke();
   }
 
-  const emojiSize = Math.round((f.def.rarity === "mythical" || f.def.rarity === "god" ? 30 : 24) * scale);
-  ctx.font = `${emojiSize}px serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(f.def.emoji, x, y);
+  const portraitSize = Math.round((f.def.rarity === "mythical" || f.def.rarity === "god" ? 30 : 24) * scale);
+  drawFriendPortrait(ctx, f.def, x, y, {
+    size: portraitSize,
+    time,
+    mega: f.def.rarity === "mythical" || f.def.rarity === "god" || !!f.def.evolvedForm,
+    glowColor: f.def.color,
+    selected,
+  });
 
   const badgeX = x + r - 8;
   const badgeY = y - r + 8;
@@ -637,6 +642,7 @@ function slots(
   ctx: CanvasRenderingContext2D,
   list: Slot[],
   selected: number | null,
+  time = 0,
 ) {
   for (const s of list) {
     if (!s.friend) continue; // never draw empty deploy pads — too crowded
@@ -672,12 +678,12 @@ function slots(
           ctx.stroke();
         }
       }
-      drawFriendPad(ctx, f, pos.x, pos.y, on);
+      drawFriendPad(ctx, f, pos.x, pos.y, on, time);
       if (f.speech && f.speech.life > 0) {
         drawSpeechBubble(ctx, pos.x, pos.y, f.speech.text);
       }
     } else {
-      drawFriendPad(ctx, s.friend, s.x, s.y, on);
+      drawFriendPad(ctx, s.friend, s.x, s.y, on, time);
       if (s.friend.speech && s.friend.speech.life > 0) {
         drawSpeechBubble(ctx, s.x, s.y, s.friend.speech.text);
       }
@@ -958,7 +964,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   walls(ctx, s.walls);
   dams(ctx, s.dams || []);
   poisonClouds(ctx, s.poisonClouds || [], s.time);
-  slots(ctx, s.slots, s.selectedSlot);
+  slots(ctx, s.slots, s.selectedSlot, s.time);
   deployGhost(ctx, s.deployGhost, !!s.deployMode);
   thieves(ctx, s.thieves, s.thiefPos);
   shots(ctx, s.shots);

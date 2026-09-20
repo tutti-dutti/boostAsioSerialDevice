@@ -767,9 +767,16 @@ button.danger {
   transform: scale(1.04);
 }
 
-.inv-item .emoji {
+.inv-item .emoji,
+.inv-item .portrait {
   font-size: 1.35rem;
   display: block;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 auto 0.15rem;
+  object-fit: contain;
+  border-radius: 50%;
+  image-rendering: auto;
 }
 
 .hint {
