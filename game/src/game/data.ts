@@ -268,7 +268,8 @@ export function tryEvolve(current: FriendDef): FriendDef | null {
   return FRIENDS.find((f) => f.id === current.evolvesTo) ?? null;
 }
 
-export const SUMMON_COST = 1;
+export const SUMMON_COST = 15;
+export const LUCKY_SUMMON_COST = 30;
 
 /** Wave number within the current map level (1..WAVES_PER_MAP) */
 export function waveInLevel(wave: number): number {

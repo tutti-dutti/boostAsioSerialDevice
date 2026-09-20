@@ -97,8 +97,8 @@ app.innerHTML = `
 
       <div class="manage-panel" id="manage-panel">
         <div class="manage-row summon-row">
-          <button class="big" id="summon" type="button">Summon 1⭐</button>
-          <button class="pink" id="lucky" type="button">Lucky 3⭐</button>
+          <button class="big" id="summon" type="button">Summon 15⭐</button>
+          <button class="pink" id="lucky" type="button">Lucky 30⭐</button>
           <button class="danger" id="clear-bag" type="button">Clear unused</button>
         </div>
         <div class="manage-row">
@@ -491,8 +491,8 @@ function refresh() {
     setupGameOverScoreUi();
   }
 
-  (document.querySelector("#summon") as HTMLButtonElement).disabled = game.stars < 1;
-  (document.querySelector("#lucky") as HTMLButtonElement).disabled = game.stars < 3;
+  (document.querySelector("#summon") as HTMLButtonElement).disabled = game.stars < 15;
+  (document.querySelector("#lucky") as HTMLButtonElement).disabled = game.stars < 30;
   const startBtn = document.querySelector("#start-wave") as HTMLButtonElement;
   startBtn.disabled = !game.canStartWave();
   startBtn.textContent = game.canStartWave()

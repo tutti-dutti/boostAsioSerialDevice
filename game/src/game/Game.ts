@@ -1,6 +1,7 @@
 import {
   FRIENDS,
   SUMMON_COST,
+  LUCKY_SUMMON_COST,
   pickFriend,
   tryEvolve,
   thiefForWave,
@@ -614,7 +615,7 @@ export class Game {
   }
 
   summon(lucky = false) {
-    const cost = lucky ? 3 : SUMMON_COST;
+    const cost = lucky ? LUCKY_SUMMON_COST : SUMMON_COST;
     if (this.stars < cost) {
       this.toast("Need more stars", true);
       return;
