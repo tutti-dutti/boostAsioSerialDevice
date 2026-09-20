@@ -4,20 +4,168 @@ import { drawFriendPortrait } from "./animalArt";
 import type { Boom, CookieBite, Dam, FloatText, PlacedFriend, PoisonCloud, Shot, Slot, Thief, Wall } from "./types";
 import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
+/** Strip complexity suffix (`forest_t2` → `forest`) */
+function baseThemeId(mapId: string): string {
+  return mapId.replace(/_t\d+$/, "");
+}
+
+function mulberry32(seed: number) {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Soft, theme-following ground — no checkerboard */
 function grass(ctx: CanvasRenderingContext2D) {
   const map = getActiveMap();
+  const theme = baseThemeId(map.id);
+  const rnd = mulberry32(hashStr(map.id + ":ground"));
+
+  // Base wash
   ctx.fillStyle = map.grassB;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = map.grassA;
-  for (let y = 0; y < H; y += 28) {
-    for (let x = 0; x < W; x += 28) {
-      if ((x + y) % 56 === 0) ctx.fillRect(x, y, 28, 28);
+
+  // Soft diagonal blend into the lighter tone
+  const wash = ctx.createLinearGradient(0, 0, W * 0.85, H);
+  wash.addColorStop(0, map.grassA);
+  wash.addColorStop(0.45, "rgba(0,0,0,0)");
+  wash.addColorStop(1, map.grassA);
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  // Gentle radial lift toward the center
+  const lift = ctx.createRadialGradient(W * 0.45, H * 0.4, 40, W * 0.5, H * 0.5, 520);
+  lift.addColorStop(0, map.grassA);
+  lift.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = lift;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  // Theme accents — organic patches, not a grid
+  if (theme === "snow") {
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    for (let i = 0; i < 28; i++) {
+      const x = rnd() * W;
+      const y = rnd() * H;
+      const r = 18 + rnd() * 55;
+      ctx.globalAlpha = 0.12 + rnd() * 0.18;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * (0.45 + rnd() * 0.35), rnd() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (theme === "desert") {
+    ctx.strokeStyle = "rgba(160, 120, 60, 0.22)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 14; i++) {
+      const y = 40 + rnd() * (H - 80);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      for (let x = 0; x <= W; x += 40) {
+        ctx.lineTo(x, y + Math.sin(x * 0.02 + i) * (6 + rnd() * 8));
+      }
+      ctx.stroke();
+    }
+  } else if (theme === "volcano") {
+    for (let i = 0; i < 22; i++) {
+      const x = rnd() * W;
+      const y = rnd() * H;
+      const r = 12 + rnd() * 40;
+      ctx.globalAlpha = 0.1 + rnd() * 0.15;
+      ctx.fillStyle = rnd() > 0.5 ? "#5a3028" : "#a04028";
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (theme === "river") {
+    for (let i = 0; i < 18; i++) {
+      const x = rnd() * W;
+      const y = rnd() * H;
+      ctx.globalAlpha = 0.08 + rnd() * 0.12;
+      ctx.fillStyle = "#9ad8e8";
+      ctx.beginPath();
+      ctx.ellipse(x, y, 30 + rnd() * 50, 10 + rnd() * 18, rnd() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (theme === "swamp") {
+    for (let i = 0; i < 20; i++) {
+      const x = rnd() * W;
+      const y = rnd() * H;
+      ctx.globalAlpha = 0.12 + rnd() * 0.16;
+      ctx.fillStyle = rnd() > 0.4 ? "#3a5840" : "#4a7060";
+      ctx.beginPath();
+      ctx.ellipse(x, y, 20 + rnd() * 45, 14 + rnd() * 28, rnd(), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (theme === "sakura") {
+    ctx.fillStyle = "rgba(255, 180, 200, 0.2)";
+    for (let i = 0; i < 36; i++) {
+      const x = rnd() * W;
+      const y = rnd() * H;
+      ctx.globalAlpha = 0.15 + rnd() * 0.25;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 3 + rnd() * 5, 2 + rnd() * 3, rnd() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (theme === "canyon") {
+    for (let i = 0; i < 16; i++) {
+      const x = rnd() * W;
+      const y = rnd() * H;
+      ctx.globalAlpha = 0.1 + rnd() * 0.14;
+      ctx.fillStyle = "#a88858";
+      ctx.beginPath();
+      ctx.ellipse(x, y, 25 + rnd() * 60, 12 + rnd() * 22, rnd(), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (theme === "bamboo") {
+    ctx.strokeStyle = "rgba(60, 120, 50, 0.12)";
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 20; i++) {
+      const x = rnd() * W;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + (rnd() - 0.5) * 30, H);
+      ctx.stroke();
+    }
+  } else {
+    // Forest / meadow — soft moss patches
+    for (let i = 0; i < 24; i++) {
+      const x = rnd() * W;
+      const y = rnd() * H;
+      ctx.globalAlpha = 0.1 + rnd() * 0.16;
+      ctx.fillStyle = map.grassA;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 22 + rnd() * 48, 16 + rnd() * 32, rnd() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
-  const g = ctx.createRadialGradient(W / 2, H / 2, 120, W / 2, H / 2, 520);
-  g.addColorStop(0, "rgba(0,0,0,0)");
-  g.addColorStop(1, "rgba(20,40,20,0.18)");
-  ctx.fillStyle = g;
+  ctx.globalAlpha = 1;
+
+  // Theme-tinted vignette
+  const vig = ctx.createRadialGradient(W / 2, H / 2, 140, W / 2, H / 2, 540);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  if (theme === "snow") vig.addColorStop(1, "rgba(80,110,140,0.22)");
+  else if (theme === "desert") vig.addColorStop(1, "rgba(120,80,30,0.2)");
+  else if (theme === "volcano") vig.addColorStop(1, "rgba(40,10,8,0.32)");
+  else if (theme === "swamp") vig.addColorStop(1, "rgba(20,40,28,0.3)");
+  else if (theme === "river") vig.addColorStop(1, "rgba(20,60,70,0.22)");
+  else vig.addColorStop(1, "rgba(20,40,20,0.2)");
+  ctx.fillStyle = vig;
   ctx.fillRect(0, 0, W, H);
 }
 
@@ -374,12 +522,13 @@ function cookie(
     ctx.clip();
     ctx.fillStyle = map.grassB;
     ctx.fillRect(b.bx - b.br - 2, b.by - b.br - 2, b.br * 2 + 4, b.br * 2 + 4);
+    // Soft theme patch inside the bite (no checkerboard)
+    ctx.globalAlpha = 0.45;
     ctx.fillStyle = map.grassA;
-    for (let gy = Math.floor(b.by - b.br); gy < b.by + b.br; gy += 28) {
-      for (let gx = Math.floor(b.bx - b.br); gx < b.bx + b.br; gx += 28) {
-        if ((gx + gy) % 56 === 0) ctx.fillRect(gx, gy, 28, 28);
-      }
-    }
+    ctx.beginPath();
+    ctx.ellipse(b.bx - b.br * 0.15, b.by - b.br * 0.1, b.br * 0.7, b.br * 0.55, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
     ctx.restore();
 
     // Smooth chew rim (no tooth dots)
