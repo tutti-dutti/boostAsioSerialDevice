@@ -779,10 +779,70 @@ button.danger {
   display: block;
   width: 2.5rem;
   height: 2.5rem;
-  margin: 0 auto 0.15rem;
+  margin: 0;
   object-fit: contain;
   border-radius: 50%;
   image-rendering: auto;
+}
+
+.inv-item .portrait-wrap {
+  display: block;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 auto 0.15rem;
+}
+
+.inv-item .inv-name {
+  display: block;
+  line-height: 1.15;
+}
+
+.inv-item .inv-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  margin-top: 0.1rem;
+  line-height: 1.15;
+}
+
+.inv-item .role-tag {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.inv-item .role-tag.role-antiSpeed {
+  color: #2a9fd8;
+}
+
+.inv-item .role-tag.role-antiStrength {
+  color: #d06028;
+}
+
+.inv-item .role-tag.role-balanced {
+  color: #3a9a58;
+}
+
+.inv-item.role-antiSpeed {
+  border-bottom-color: #2a9fd8;
+}
+
+.inv-item.role-antiStrength {
+  border-bottom-color: #d06028;
+}
+
+.inv-item.role-balanced {
+  border-bottom-color: #3a9a58;
+}
+
+.inv-item.rarity-rare {
+  border-color: #4a8fd0;
+}
+
+.inv-item.rarity-common {
+  border-color: #8a9aaa;
 }
 
 .hint {

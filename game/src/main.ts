@@ -1,7 +1,7 @@
 import "./style.css";
 import { Game } from "./game/Game";
 import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, type FriendDef } from "./game/data";
-import { friendPortraitDataUrl } from "./game/animalArt";
+import { friendPortraitDataUrl, weaponRoleShort } from "./game/animalArt";
 import { unlockAudio, setMuted, isMuted, playUnmuteChirp } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST } from "./game/types";
@@ -545,14 +545,20 @@ function refresh() {
     if (bag.dataset.sig !== bagSig) {
       bag.dataset.sig = bagSig;
       bag.innerHTML = game.bag
-        .map(
-          (f, i) => `
-      <button class="inv-item ${game.selectedBag === i ? "selected" : ""} rarity-${f.rarity}" data-i="${i}" type="button">
-        <img class="emoji portrait" src="${friendPortraitDataUrl(f)}" alt="${f.name}" width="40" height="40" draggable="false" />
-        <span>${f.name}</span>
-        <span class="rarity-${f.rarity}">${rarityLabel(f.rarity)}</span>
-      </button>`,
-        )
+        .map((f, i) => {
+          const role = weaponRoleFor(f);
+          return `
+      <button class="inv-item ${game.selectedBag === i ? "selected" : ""} rarity-${f.rarity} role-${role}" data-i="${i}" type="button" title="${f.name} · ${rarityLabel(f.rarity)} · ${weaponRoleShort(role)}">
+        <span class="portrait-wrap">
+          <img class="emoji portrait" src="${friendPortraitDataUrl(f)}" alt="${f.name}" width="40" height="40" draggable="false" />
+        </span>
+        <span class="inv-name">${f.name}</span>
+        <span class="inv-meta">
+          <span class="rarity-${f.rarity}">${rarityLabel(f.rarity)}</span>
+          <span class="role-tag role-${role}">${weaponRoleShort(role)}</span>
+        </span>
+      </button>`;
+        })
         .join("");
     }
   }

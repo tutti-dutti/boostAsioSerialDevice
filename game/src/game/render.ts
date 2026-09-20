@@ -659,7 +659,7 @@ function drawFriendPad(
   ctx.lineWidth = selected ? 4 : 2;
   ctx.stroke();
 
-  // god / mythical / legendary ring
+  // rarity outer rings (common/rare use softer accents so tier is visible on-map)
   if (f.def.rarity === "god") {
     ctx.strokeStyle = "#ff5040";
     ctx.lineWidth = 3;
@@ -678,6 +678,18 @@ function drawFriendPad(
     ctx.beginPath();
     ctx.arc(x, y, r + 4, 0, Math.PI * 2);
     ctx.stroke();
+  } else if (f.def.rarity === "rare") {
+    ctx.strokeStyle = "#4a8fd0";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 3.5, 0, Math.PI * 2);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = "#8a9aaa";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 3, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   const portraitSize = Math.round((f.def.rarity === "mythical" || f.def.rarity === "god" ? 30 : 24) * scale);
@@ -687,20 +699,28 @@ function drawFriendPad(
     mega: f.def.rarity === "mythical" || f.def.rarity === "god" || !!f.def.evolvedForm,
     glowColor: f.def.color,
     selected,
+    showRole: true,
+    showTier: true,
   });
 
-  const badgeX = x + r - 8;
-  const badgeY = y - r + 8;
+  // Upgrade level — large chip so it stays readable on the map
+  const badgeX = x + r - 2;
+  const badgeY = y - r + 2;
+  const lv = String(f.level);
+  ctx.font = "800 9px Nunito, sans-serif";
+  const tw = Math.max(16, ctx.measureText(`Lv${lv}`).width + 8);
+  const th = 14;
   ctx.fillStyle = "#fff6e8";
   ctx.strokeStyle = "#c4782a";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(badgeX, badgeY, 10, 0, Math.PI * 2);
+  ctx.roundRect(badgeX - tw / 2, badgeY - th / 2, tw, th, 6);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = "#2a3040";
-  ctx.font = "800 10px Nunito, sans-serif";
-  ctx.fillText(String(f.level), badgeX, badgeY + 1);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`Lv${lv}`, badgeX, badgeY + 0.5);
 
   if (selected) {
     drawEvolveInfo(ctx, f, x, y, r);

@@ -2,8 +2,19 @@
  * Stylized animal portraits for friends.
  * Base forms = recognizable animal drawings.
  * Mythical / evolved / god = same base animal with RGB glow + stars + mega aura.
+ *
+ * Icon overlays (readable without text):
+ * - Rarity rim + top pips = evolution / tier level
+ * - Corner glyph = weapon type (speed / strength / balanced)
+ * - Optional level chip = upgrade level when placed on the board
  */
-import { evolvesFrom, type FriendDef, type Rarity } from "./data";
+import {
+  evolvesFrom,
+  weaponRoleFor,
+  type FriendDef,
+  type Rarity,
+  type WeaponRole,
+} from "./data";
 
 export type SpeciesId =
   | "hummingbird"
@@ -530,12 +541,157 @@ function drawRgbGhosts(
   drawTintedSpecies(ctx, species, "rgba(120,255,80,0.7)", -oy * 0.5, ox * 0.4, 0.35);
 }
 
+export function rarityAccent(r: Rarity): string {
+  if (r === "god") return "#e05030";
+  if (r === "mythical") return "#c060ff";
+  if (r === "legendary") return "#e8c15a";
+  if (r === "rare") return "#4a8fd0";
+  return "#8a9aaa";
+}
+
+/** How many tier pips to show (1 BASIC … 5 GOD) */
+export function rarityTierPips(r: Rarity): number {
+  if (r === "god") return 5;
+  if (r === "mythical") return 4;
+  if (r === "legendary") return 3;
+  if (r === "rare") return 2;
+  return 1;
+}
+
+export function weaponRoleAccent(role: WeaponRole): string {
+  if (role === "antiSpeed") return "#2a9fd8";
+  if (role === "antiStrength") return "#d06028";
+  return "#3a9a58";
+}
+
+function drawRarityRim(
+  ctx: CanvasRenderingContext2D,
+  rarity: Rarity,
+  mega: boolean,
+  time: number,
+) {
+  const accent = rarityAccent(rarity);
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = mega ? 1.8 : rarity === "common" ? 1.2 : 1.5;
+  ctx.globalAlpha = mega ? 0.7 + Math.sin(time * 4) * 0.25 : 0.95;
+  ctx.beginPath();
+  ctx.arc(0, 0, mega ? 13.5 : 12.8, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+/** Top pips = evolution / rarity level (readable at a glance) */
+function drawRarityPips(ctx: CanvasRenderingContext2D, rarity: Rarity) {
+  const n = rarityTierPips(rarity);
+  const accent = rarityAccent(rarity);
+  const gap = 3.2;
+  const start = -((n - 1) * gap) / 2;
+  for (let i = 0; i < n; i++) {
+    const px = start + i * gap;
+    const py = -14.2;
+    ctx.fillStyle = "#fff8ee";
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(px, py, 1.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    ctx.arc(px, py, 0.85, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/** Bottom-left glyph = weapon type */
+function drawWeaponRoleBadge(ctx: CanvasRenderingContext2D, role: WeaponRole) {
+  const accent = weaponRoleAccent(role);
+  const bx = -11.5;
+  const by = 11.2;
+  ctx.fillStyle = "#fff8ee";
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 1.35;
+  ctx.beginPath();
+  ctx.roundRect(bx - 4.2, by - 4.2, 8.4, 8.4, 2.2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = accent;
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  if (role === "antiSpeed") {
+    // lightning bolt
+    ctx.beginPath();
+    ctx.moveTo(bx + 1.2, by - 3.2);
+    ctx.lineTo(bx - 1.4, by + 0.2);
+    ctx.lineTo(bx + 0.4, by + 0.2);
+    ctx.lineTo(bx - 1.2, by + 3.2);
+    ctx.lineTo(bx + 1.6, by - 0.3);
+    ctx.lineTo(bx - 0.2, by - 0.3);
+    ctx.closePath();
+    ctx.fill();
+  } else if (role === "antiStrength") {
+    // heavy fist / block
+    ctx.fillRect(bx - 2.4, by - 1.6, 4.8, 3.6);
+    ctx.beginPath();
+    ctx.arc(bx, by - 2.2, 2.1, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = "#fff8ee";
+    ctx.fillRect(bx - 1.5, by - 0.4, 1.0, 1.8);
+    ctx.fillRect(bx - 0.2, by - 0.4, 1.0, 1.8);
+    ctx.fillRect(bx + 1.1, by - 0.4, 1.0, 1.8);
+  } else {
+    // balanced: equal bars
+    ctx.fillRect(bx - 2.6, by - 0.7, 5.2, 1.4);
+    ctx.beginPath();
+    ctx.moveTo(bx - 2.8, by - 0.7);
+    ctx.lineTo(bx - 3.4, by + 2.4);
+    ctx.lineTo(bx - 1.6, by + 2.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(bx + 2.8, by - 0.7);
+    ctx.lineTo(bx + 3.4, by + 2.4);
+    ctx.lineTo(bx + 1.6, by + 2.4);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+/** Top-right chip = upgrade level (board tokens) */
+function drawLevelChip(ctx: CanvasRenderingContext2D, level: number) {
+  const label = String(Math.max(1, Math.min(99, level | 0)));
+  const bx = 11.2;
+  const by = -11.2;
+  ctx.fillStyle = "#fff6e8";
+  ctx.strokeStyle = "#c4782a";
+  ctx.lineWidth = 1.35;
+  ctx.beginPath();
+  ctx.arc(bx, by, 5.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#2a3040";
+  ctx.font = "800 6.5px Nunito, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, bx, by + 0.4);
+}
+
 export interface PortraitOpts {
   size?: number;
   time?: number;
   mega?: boolean;
   glowColor?: string;
   selected?: boolean;
+  /** When set, draw upgrade-level chip on the portrait */
+  level?: number;
+  /** Draw weapon-type glyph (default true) */
+  showRole?: boolean;
+  /** Draw rarity rim + tier pips (default true) */
+  showTier?: boolean;
 }
 
 /** Draw a friend portrait centered at (x,y) */
@@ -551,6 +707,9 @@ export function drawFriendPortrait(
   const mega = opts.mega ?? isMegaPortrait(def.rarity, def.evolvedForm);
   const species = baseSpeciesFor(def);
   const scale = size / 28;
+  const showRole = opts.showRole !== false;
+  const showTier = opts.showTier !== false;
+  const role = weaponRoleFor(def);
 
   ctx.save();
   ctx.translate(x, y);
@@ -580,8 +739,10 @@ export function drawFriendPortrait(
 
   drawSpecies(ctx, species);
 
-  if (mega) {
-    // iridescent rim sparkles
+  if (showTier) {
+    drawRarityRim(ctx, def.rarity, mega, time);
+    drawRarityPips(ctx, def.rarity);
+  } else if (mega) {
     ctx.strokeStyle = def.rarity === "god" ? "#ff7050" : "#c080ff";
     ctx.lineWidth = 1.4;
     ctx.globalAlpha = 0.65 + Math.sin(time * 4) * 0.25;
@@ -591,15 +752,19 @@ export function drawFriendPortrait(
     ctx.globalAlpha = 1;
   }
 
+  if (showRole) drawWeaponRoleBadge(ctx, role);
+  if (opts.level != null && opts.level > 0) drawLevelChip(ctx, opts.level);
+
   ctx.restore();
 }
 
 const portraitCache = new Map<string, string>();
 
-/** Cached data-URL for bag / HTML UI */
+/** Cached data-URL for bag / HTML UI (includes type + tier marks) */
 export function friendPortraitDataUrl(def: FriendDef, size = 64): string {
   const mega = isMegaPortrait(def.rarity, def.evolvedForm);
-  const key = `${def.id}:${size}:${mega ? "m" : "n"}`;
+  const role = weaponRoleFor(def);
+  const key = `${def.id}:${size}:${mega ? "m" : "n"}:${role}:tier`;
   const hit = portraitCache.get(key);
   if (hit) return hit;
 
@@ -612,13 +777,28 @@ export function friendPortraitDataUrl(def: FriendDef, size = 64): string {
   ctx.beginPath();
   ctx.arc(size / 2, size / 2, size * 0.46, 0, Math.PI * 2);
   ctx.fill();
+  // rarity-tinted outer ring on bag icons
+  ctx.strokeStyle = rarityAccent(def.rarity);
+  ctx.lineWidth = Math.max(2, size * 0.04);
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size * 0.46, 0, Math.PI * 2);
+  ctx.stroke();
   drawFriendPortrait(ctx, def, size / 2, size / 2, {
     size: size * 0.72,
     time: mega ? 0.8 : 0,
     mega,
     glowColor: def.color,
+    showRole: true,
+    showTier: true,
   });
   const url = canvas.toDataURL("image/png");
   portraitCache.set(key, url);
   return url;
+}
+
+/** Short label for weapon-type glyph tooltips / bag meta */
+export function weaponRoleShort(role: WeaponRole): string {
+  if (role === "antiSpeed") return "Speed";
+  if (role === "antiStrength") return "Strength";
+  return "Balanced";
 }
