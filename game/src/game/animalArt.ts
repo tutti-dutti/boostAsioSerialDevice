@@ -584,21 +584,30 @@ function drawRarityRim(
 function drawRarityPips(ctx: CanvasRenderingContext2D, rarity: Rarity) {
   const n = rarityTierPips(rarity);
   const accent = rarityAccent(rarity);
-  const gap = 3.2;
+  const gap = 4.4;
   const start = -((n - 1) * gap) / 2;
   for (let i = 0; i < n; i++) {
     const px = start + i * gap;
-    const py = -14.2;
+    const py = -11.6;
+    // diamond pip — larger so bag icons stay readable
     ctx.fillStyle = "#fff8ee";
     ctx.strokeStyle = accent;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.15;
     ctx.beginPath();
-    ctx.arc(px, py, 1.55, 0, Math.PI * 2);
+    ctx.moveTo(px, py - 2.6);
+    ctx.lineTo(px + 2.4, py);
+    ctx.lineTo(px, py + 2.6);
+    ctx.lineTo(px - 2.4, py);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = accent;
     ctx.beginPath();
-    ctx.arc(px, py, 0.85, 0, Math.PI * 2);
+    ctx.moveTo(px, py - 1.35);
+    ctx.lineTo(px + 1.25, py);
+    ctx.lineTo(px, py + 1.35);
+    ctx.lineTo(px - 1.25, py);
+    ctx.closePath();
     ctx.fill();
   }
 }
@@ -606,56 +615,56 @@ function drawRarityPips(ctx: CanvasRenderingContext2D, rarity: Rarity) {
 /** Bottom-left glyph = weapon type */
 function drawWeaponRoleBadge(ctx: CanvasRenderingContext2D, role: WeaponRole) {
   const accent = weaponRoleAccent(role);
-  const bx = -11.5;
-  const by = 11.2;
+  const bx = -9.6;
+  const by = 9.8;
   ctx.fillStyle = "#fff8ee";
   ctx.strokeStyle = accent;
-  ctx.lineWidth = 1.35;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.roundRect(bx - 4.2, by - 4.2, 8.4, 8.4, 2.2);
+  ctx.roundRect(bx - 5.1, by - 5.1, 10.2, 10.2, 2.6);
   ctx.fill();
   ctx.stroke();
 
   ctx.fillStyle = accent;
   ctx.strokeStyle = accent;
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 1.35;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
   if (role === "antiSpeed") {
     // lightning bolt
     ctx.beginPath();
-    ctx.moveTo(bx + 1.2, by - 3.2);
-    ctx.lineTo(bx - 1.4, by + 0.2);
-    ctx.lineTo(bx + 0.4, by + 0.2);
-    ctx.lineTo(bx - 1.2, by + 3.2);
-    ctx.lineTo(bx + 1.6, by - 0.3);
-    ctx.lineTo(bx - 0.2, by - 0.3);
+    ctx.moveTo(bx + 1.5, by - 3.8);
+    ctx.lineTo(bx - 1.7, by + 0.15);
+    ctx.lineTo(bx + 0.55, by + 0.15);
+    ctx.lineTo(bx - 1.5, by + 3.8);
+    ctx.lineTo(bx + 1.9, by - 0.25);
+    ctx.lineTo(bx - 0.15, by - 0.25);
     ctx.closePath();
     ctx.fill();
   } else if (role === "antiStrength") {
     // heavy fist / block
-    ctx.fillRect(bx - 2.4, by - 1.6, 4.8, 3.6);
+    ctx.fillRect(bx - 2.8, by - 1.7, 5.6, 4.1);
     ctx.beginPath();
-    ctx.arc(bx, by - 2.2, 2.1, Math.PI, 0);
+    ctx.arc(bx, by - 2.5, 2.45, Math.PI, 0);
     ctx.fill();
     ctx.fillStyle = "#fff8ee";
-    ctx.fillRect(bx - 1.5, by - 0.4, 1.0, 1.8);
-    ctx.fillRect(bx - 0.2, by - 0.4, 1.0, 1.8);
-    ctx.fillRect(bx + 1.1, by - 0.4, 1.0, 1.8);
+    ctx.fillRect(bx - 1.75, by - 0.35, 1.15, 2.0);
+    ctx.fillRect(bx - 0.25, by - 0.35, 1.15, 2.0);
+    ctx.fillRect(bx + 1.25, by - 0.35, 1.15, 2.0);
   } else {
     // balanced: equal bars
-    ctx.fillRect(bx - 2.6, by - 0.7, 5.2, 1.4);
+    ctx.fillRect(bx - 3.0, by - 0.75, 6.0, 1.55);
     ctx.beginPath();
-    ctx.moveTo(bx - 2.8, by - 0.7);
-    ctx.lineTo(bx - 3.4, by + 2.4);
-    ctx.lineTo(bx - 1.6, by + 2.4);
+    ctx.moveTo(bx - 3.2, by - 0.75);
+    ctx.lineTo(bx - 3.9, by + 2.8);
+    ctx.lineTo(bx - 1.8, by + 2.8);
     ctx.closePath();
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(bx + 2.8, by - 0.7);
-    ctx.lineTo(bx + 3.4, by + 2.4);
-    ctx.lineTo(bx + 1.6, by + 2.4);
+    ctx.moveTo(bx + 3.2, by - 0.75);
+    ctx.lineTo(bx + 3.9, by + 2.8);
+    ctx.lineTo(bx + 1.8, by + 2.8);
     ctx.closePath();
     ctx.fill();
   }
@@ -761,10 +770,10 @@ export function drawFriendPortrait(
 const portraitCache = new Map<string, string>();
 
 /** Cached data-URL for bag / HTML UI (includes type + tier marks) */
-export function friendPortraitDataUrl(def: FriendDef, size = 64): string {
+export function friendPortraitDataUrl(def: FriendDef, size = 80): string {
   const mega = isMegaPortrait(def.rarity, def.evolvedForm);
   const role = weaponRoleFor(def);
-  const key = `${def.id}:${size}:${mega ? "m" : "n"}:${role}:tier`;
+  const key = `${def.id}:${size}:${mega ? "m" : "n"}:${role}:tier2`;
   const hit = portraitCache.get(key);
   if (hit) return hit;
 
@@ -772,19 +781,19 @@ export function friendPortraitDataUrl(def: FriendDef, size = 64): string {
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
-  // soft pad behind
+  // soft pad behind — leave room for tier pips + role badge
   ctx.fillStyle = def.color;
   ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size * 0.46, 0, Math.PI * 2);
+  ctx.arc(size / 2, size / 2, size * 0.48, 0, Math.PI * 2);
   ctx.fill();
   // rarity-tinted outer ring on bag icons
   ctx.strokeStyle = rarityAccent(def.rarity);
-  ctx.lineWidth = Math.max(2, size * 0.04);
+  ctx.lineWidth = Math.max(2.5, size * 0.05);
   ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size * 0.46, 0, Math.PI * 2);
+  ctx.arc(size / 2, size / 2, size * 0.48, 0, Math.PI * 2);
   ctx.stroke();
   drawFriendPortrait(ctx, def, size / 2, size / 2, {
-    size: size * 0.72,
+    size: size * 0.62,
     time: mega ? 0.8 : 0,
     mega,
     glowColor: def.color,

@@ -777,8 +777,8 @@ button.danger {
 .inv-item .portrait {
   font-size: 1.35rem;
   display: block;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   margin: 0;
   object-fit: contain;
   border-radius: 50%;
@@ -787,8 +787,8 @@ button.danger {
 
 .inv-item .portrait-wrap {
   display: block;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   margin: 0 auto 0.15rem;
 }
 
