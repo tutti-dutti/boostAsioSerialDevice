@@ -133,27 +133,27 @@ export const FRIENDS: FriendDef[] = [
  * Pools are ordered weak → strong; waves unlock further entries over time.
  */
 export const SPEED_THIEVES: ThiefDef[] = [
-  { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 26, speed: 66, gold: 2, size: 12, kind: "speed" },
-  { id: "sugarant", name: "Sugar Ant", emoji: "🐜", hp: 32, speed: 71, gold: 2, size: 11, kind: "speed" },
-  { id: "raiderskunk", name: "Skunk", emoji: "🦨", hp: 40, speed: 77, gold: 3, size: 13, kind: "speed" },
-  { id: "sprinklefly", name: "Sprinkle Fly", emoji: "🦟", hp: 36, speed: 83, gold: 3, size: 11, kind: "speed" },
-  { id: "swiftrat", name: "Swift Rat", emoji: "🐀", hp: 55, speed: 90, gold: 4, size: 13, kind: "speed" },
-  { id: "jellyjay", name: "Jelly Jay", emoji: "🐤", hp: 48, speed: 96, gold: 4, size: 12, kind: "speed" },
-  { id: "frostingfox", name: "Frosting Fox", emoji: "🦊", hp: 62, speed: 101, gold: 5, size: 14, kind: "speed" },
-  { id: "cookiebat", name: "Cookie Bat", emoji: "🦇", hp: 58, speed: 111, gold: 5, size: 13, kind: "speed" },
-  { id: "candycrow", name: "Candy Crow", emoji: "🐦‍⬛", hp: 70, speed: 105, gold: 6, size: 14, kind: "speed" },
+  { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 36, speed: 66, gold: 2, size: 12, kind: "speed" },
+  { id: "sugarant", name: "Sugar Ant", emoji: "🐜", hp: 42, speed: 71, gold: 2, size: 11, kind: "speed" },
+  { id: "raiderskunk", name: "Skunk", emoji: "🦨", hp: 50, speed: 77, gold: 3, size: 13, kind: "speed" },
+  { id: "sprinklefly", name: "Sprinkle Fly", emoji: "🦟", hp: 46, speed: 83, gold: 3, size: 11, kind: "speed" },
+  { id: "swiftrat", name: "Swift Rat", emoji: "🐀", hp: 65, speed: 90, gold: 4, size: 13, kind: "speed" },
+  { id: "jellyjay", name: "Jelly Jay", emoji: "🐤", hp: 58, speed: 96, gold: 4, size: 12, kind: "speed" },
+  { id: "frostingfox", name: "Frosting Fox", emoji: "🦊", hp: 72, speed: 101, gold: 5, size: 14, kind: "speed" },
+  { id: "cookiebat", name: "Cookie Bat", emoji: "🦇", hp: 68, speed: 111, gold: 5, size: 13, kind: "speed" },
+  { id: "candycrow", name: "Candy Crow", emoji: "🐦‍⬛", hp: 80, speed: 105, gold: 6, size: 14, kind: "speed" },
 ];
 
 export const STRENGTH_THIEVES: ThiefDef[] = [
-  { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 110, speed: 24, gold: 3, size: 17, kind: "strength" },
-  { id: "pantrygoat", name: "Pantry Goat", emoji: "🐐", hp: 200, speed: 22, gold: 4, size: 18, kind: "strength" },
-  { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 175, speed: 18, gold: 5, size: 19, kind: "strength" },
-  { id: "doughbadger", name: "Dough Badger", emoji: "🦡", hp: 290, speed: 17, gold: 5, size: 18, kind: "strength" },
-  { id: "boar", name: "Cookie Boar", emoji: "🐗", hp: 380, speed: 14, gold: 8, size: 22, kind: "strength" },
-  { id: "ovenox", name: "Oven Ox", emoji: "🐂", hp: 420, speed: 13, gold: 8, size: 23, kind: "strength" },
-  { id: "fridgehippo", name: "Fridge Hippo", emoji: "🦛", hp: 480, speed: 11, gold: 9, size: 24, kind: "strength" },
-  { id: "crumbgorilla", name: "Crumb Gorilla", emoji: "🦍", hp: 540, speed: 12, gold: 10, size: 25, kind: "strength" },
-  { id: "doughgolem", name: "Dough Golem", emoji: "🗿", hp: 620, speed: 10, gold: 12, size: 26, kind: "strength" },
+  { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 120, speed: 24, gold: 3, size: 17, kind: "strength" },
+  { id: "pantrygoat", name: "Pantry Goat", emoji: "🐐", hp: 210, speed: 22, gold: 4, size: 18, kind: "strength" },
+  { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 185, speed: 18, gold: 5, size: 19, kind: "strength" },
+  { id: "doughbadger", name: "Dough Badger", emoji: "🦡", hp: 300, speed: 17, gold: 5, size: 18, kind: "strength" },
+  { id: "boar", name: "Cookie Boar", emoji: "🐗", hp: 390, speed: 14, gold: 8, size: 22, kind: "strength" },
+  { id: "ovenox", name: "Oven Ox", emoji: "🐂", hp: 430, speed: 13, gold: 8, size: 23, kind: "strength" },
+  { id: "fridgehippo", name: "Fridge Hippo", emoji: "🦛", hp: 490, speed: 11, gold: 9, size: 24, kind: "strength" },
+  { id: "crumbgorilla", name: "Crumb Gorilla", emoji: "🦍", hp: 550, speed: 12, gold: 10, size: 25, kind: "strength" },
+  { id: "doughgolem", name: "Dough Golem", emoji: "🗿", hp: 630, speed: 10, gold: 12, size: 26, kind: "strength" },
 ];
 
 /** Mid-map checkpoint foes (every 10 waves) */
