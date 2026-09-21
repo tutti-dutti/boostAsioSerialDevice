@@ -408,10 +408,11 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.35rem 0.65rem;
-  background: rgba(255, 248, 238, 0.95);
-  border: 3px solid rgba(196, 120, 42, 0.35);
-  border-radius: 12px;
-  padding: 0.35rem 0.55rem;
+  background: linear-gradient(180deg, #3a4258 0%, #2a3040 100%);
+  border: 3px solid #c4782a;
+  border-radius: 14px;
+  padding: 0.4rem 0.65rem;
+  box-shadow: inset 0 1px 0 rgba(255, 220, 160, 0.2), 0 4px 14px rgba(20, 24, 36, 0.25);
 }
 
 .status-main {
@@ -424,25 +425,28 @@ body {
 }
 
 .status-chip {
-  background: var(--panel);
-  border: 2px solid rgba(42, 48, 64, 0.1);
+  background: linear-gradient(180deg, #4a5268 0%, #343a4c 100%);
+  border: 2px solid rgba(232, 192, 106, 0.45);
   border-radius: 999px;
   padding: 0.22rem 0.55rem;
   font-weight: 800;
   font-size: 0.85rem;
   white-space: nowrap;
+  color: #fff6e8;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }
 
 .status-chip.status-gold {
-  background: #fff0c8;
-  border-color: #c4782a;
-  color: #8a4a10;
+  background: linear-gradient(180deg, #f0c860 0%, #c4782a 100%);
+  border-color: #ffd24a;
+  color: #3a2010;
+  text-shadow: none;
 }
 
 .status-chip.status-pressure {
-  background: #f0e0ff;
-  border-color: #9050c8;
-  color: #5a2080;
+  background: linear-gradient(180deg, #9050c8 0%, #5a2080 100%);
+  border-color: #d0a0ff;
+  color: #fff6e8;
 }
 
 .status-meta {
@@ -456,16 +460,16 @@ body {
 .status-upgrade {
   font-weight: 800;
   font-size: 0.82rem;
-  color: var(--muted);
+  color: #d0c8b8;
   white-space: nowrap;
 }
 
 .status-upgrade.can-afford {
-  color: #2a7848;
+  color: #7ed89a;
 }
 
 .status-upgrade.cant-afford {
-  color: #a83828;
+  color: #ff9080;
 }
 
 .status-links {
@@ -478,13 +482,14 @@ body {
   font-family: var(--font);
   font-weight: 800;
   font-size: 0.82rem;
-  border: 2px solid rgba(42, 48, 64, 0.15);
-  background: var(--cream);
-  color: var(--ink);
+  border: 2px solid rgba(232, 192, 106, 0.45);
+  background: linear-gradient(180deg, #fff6e8 0%, #e8d8b8 100%);
+  color: #2a3040;
   padding: 0.32rem 0.6rem;
   border-radius: 999px;
   cursor: pointer;
   min-height: 2.1rem;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
 }
 
 .action-banner {
@@ -492,6 +497,11 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
+  background: linear-gradient(180deg, rgba(58, 66, 88, 0.92) 0%, rgba(42, 48, 64, 0.95) 100%);
+  border: 3px solid rgba(196, 120, 42, 0.55);
+  border-radius: 14px;
+  padding: 0.4rem 0.5rem;
+  box-shadow: inset 0 1px 0 rgba(255, 220, 160, 0.15);
 }
 
 .action-banner .wave-btn,
@@ -535,11 +545,13 @@ body {
   width: 100%;
   flex: 1 1 0;
   min-height: 0;
-  border: 4px solid rgba(42, 48, 64, 0.12);
+  border: 4px solid #c4782a;
   border-radius: 16px;
   overflow: hidden;
   background: #6a9868;
-  box-shadow: 0 10px 24px rgba(42, 48, 64, 0.14);
+  box-shadow:
+    inset 0 0 0 2px rgba(42, 48, 64, 0.35),
+    0 12px 28px rgba(42, 48, 64, 0.22);
   display: flex;
   align-items: stretch;
   justify-content: stretch;

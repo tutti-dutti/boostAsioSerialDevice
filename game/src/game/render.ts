@@ -28,7 +28,85 @@ function hashStr(s: string): number {
   return h >>> 0;
 }
 
-/** Soft, theme-following ground — no checkerboard */
+/** Theme-aware fringe / shadow tints for Kingdom Rush–style depth */
+function themeFringeColor(theme: string): string {
+  if (theme === "snow") return "rgba(90,120,150,0.85)";
+  if (theme === "desert") return "rgba(120,80,35,0.75)";
+  if (theme === "volcano") return "rgba(60,20,15,0.8)";
+  if (theme === "swamp") return "rgba(30,55,40,0.85)";
+  if (theme === "river") return "rgba(35,80,70,0.75)";
+  if (theme === "canyon") return "rgba(100,70,40,0.8)";
+  return "rgba(28,70,32,0.82)";
+}
+
+function themeShadowColor(theme: string): string {
+  if (theme === "snow") return "rgba(40,60,90,0.28)";
+  if (theme === "desert") return "rgba(90,55,20,0.28)";
+  if (theme === "volcano") return "rgba(20,8,5,0.35)";
+  return "rgba(18,36,18,0.28)";
+}
+
+function castShadow(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  rx: number,
+  ry: number,
+  alpha = 1,
+) {
+  const theme = baseThemeId(getActiveMap().id);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = themeShadowColor(theme);
+  ctx.beginPath();
+  ctx.ellipse(x + 3, y + 5, rx, ry, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawGrassTufts(ctx: CanvasRenderingContext2D, theme: string, rnd: () => number) {
+  const count = theme === "desert" || theme === "volcano" ? 55 : 110;
+  for (let i = 0; i < count; i++) {
+    const x = rnd() * W;
+    const y = rnd() * H;
+    const h = 3 + rnd() * 5;
+    ctx.strokeStyle =
+      theme === "snow"
+        ? "rgba(200,220,235,0.45)"
+        : theme === "desert"
+          ? "rgba(140,110,55,0.4)"
+          : theme === "sakura"
+            ? "rgba(80,140,70,0.35)"
+            : "rgba(40,100,45,0.4)";
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - 1.5 - rnd(), y - h);
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 1.5 + rnd(), y - h * 0.85);
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (rnd() - 0.5), y - h * 1.1);
+    ctx.stroke();
+  }
+  // Flower / pebble speckles
+  const dots = theme === "sakura" ? 50 : 36;
+  for (let i = 0; i < dots; i++) {
+    const x = rnd() * W;
+    const y = rnd() * H;
+    ctx.globalAlpha = 0.35 + rnd() * 0.4;
+    if (theme === "sakura") ctx.fillStyle = "#ffb0c8";
+    else if (theme === "snow") ctx.fillStyle = "#ffffff";
+    else if (theme === "desert") ctx.fillStyle = "#c8a060";
+    else ctx.fillStyle = rnd() > 0.5 ? "#f0d060" : "#e878a0";
+    ctx.beginPath();
+    ctx.arc(x, y, 1.2 + rnd() * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** Soft, theme-following ground — Kingdom Rush–style mottling + tufts */
 function grass(ctx: CanvasRenderingContext2D) {
   const map = getActiveMap();
   const theme = baseThemeId(map.id);
@@ -156,6 +234,8 @@ function grass(ctx: CanvasRenderingContext2D) {
   }
   ctx.globalAlpha = 1;
 
+  drawGrassTufts(ctx, theme, rnd);
+
   // Theme-tinted vignette
   const vig = ctx.createRadialGradient(W / 2, H / 2, 140, W / 2, H / 2, 540);
   vig.addColorStop(0, "rgba(0,0,0,0)");
@@ -171,6 +251,7 @@ function grass(ctx: CanvasRenderingContext2D) {
 
 function drawDecorItem(ctx: CanvasRenderingContext2D, d: MapDecor) {
   const s = d.s;
+  castShadow(ctx, d.x, d.y + 2, 10 * s, 4.5 * s, 0.9);
   ctx.save();
   ctx.translate(d.x, d.y);
   ctx.scale(s, s);
@@ -178,12 +259,25 @@ function drawDecorItem(ctx: CanvasRenderingContext2D, d: MapDecor) {
   const trunk = (h: number, w = 5) => {
     ctx.fillStyle = "#6a4828";
     ctx.fillRect(-w / 2, -h * 0.15, w, h * 0.55);
+    // trunk highlight
+    ctx.fillStyle = "rgba(200,160,100,0.35)";
+    ctx.fillRect(-w / 2 + 1, -h * 0.15, Math.max(1.5, w * 0.28), h * 0.55);
   };
   const canopy = (r: number, color: string, y = -r * 0.55) => {
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(0, y, r, 0, Math.PI * 2);
     ctx.fill();
+    // leaf highlight
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.beginPath();
+    ctx.arc(-r * 0.28, y - r * 0.25, r * 0.42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(20,40,20,0.25)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, y, r, 0, Math.PI * 2);
+    ctx.stroke();
   };
 
   switch (d.kind) {
@@ -379,35 +473,120 @@ function landscaping(ctx: CanvasRenderingContext2D) {
 
 function path(ctx: CanvasRenderingContext2D) {
   const map = getActiveMap();
-  ctx.strokeStyle = map.pathColor;
-  ctx.lineWidth = 44;
+  const theme = baseThemeId(map.id);
+  const rnd = mulberry32(hashStr(map.id + ":path"));
+
+  const strokePoly = () => {
+    ctx.beginPath();
+    ctx.moveTo(PATH[0].x, PATH[0].y);
+    for (let i = 1; i < PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
+  };
+
+  // Dark scalloped fringe — path sits recessed in the grass
+  ctx.strokeStyle = themeFringeColor(theme);
+  ctx.lineWidth = 54;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.moveTo(PATH[0].x, PATH[0].y);
-  for (let i = 1; i < PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
+  strokePoly();
   ctx.stroke();
-  ctx.strokeStyle = "#d8b878";
-  ctx.globalAlpha = 0.55;
-  ctx.lineWidth = 30;
+
+  // Main dirt body
+  ctx.strokeStyle = map.pathColor;
+  ctx.lineWidth = 42;
+  strokePoly();
+  ctx.stroke();
+
+  // Lighter worn center
+  ctx.strokeStyle = "#e0c088";
+  ctx.globalAlpha = 0.5;
+  ctx.lineWidth = 26;
+  strokePoly();
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  ctx.fillStyle = "rgba(90,60,20,0.25)";
+  // Path edge highlight (inner lip)
+  ctx.strokeStyle = "rgba(255,230,180,0.28)";
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  strokePoly();
+  ctx.stroke();
+
+  // Grain / pebbles along the path
+  ctx.fillStyle = "rgba(90,60,20,0.28)";
+  for (let i = 0; i < PATH.length - 1; i++) {
+    const a = PATH[i];
+    const b = PATH[i + 1];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const steps = Math.max(2, Math.floor(len / 16));
+    for (let s = 0; s < steps; s++) {
+      const t = (s + 0.5) / steps;
+      const px = a.x + dx * t + nx * (rnd() - 0.5) * 18;
+      const py = a.y + dy * t + ny * (rnd() - 0.5) * 18;
+      ctx.globalAlpha = 0.2 + rnd() * 0.35;
+      ctx.beginPath();
+      ctx.arc(px, py, 1 + rnd() * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Directional footprint dashes
+  ctx.strokeStyle = "rgba(70,45,18,0.22)";
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  for (let i = 0; i < PATH.length - 1; i++) {
+    const a = PATH[i];
+    const b = PATH[i + 1];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    for (let d = 10; d < len; d += 22) {
+      const px = a.x + ux * d;
+      const py = a.y + uy * d;
+      ctx.beginPath();
+      ctx.moveTo(px - ux * 4, py - uy * 4);
+      ctx.lineTo(px + ux * 4, py + uy * 4);
+      ctx.stroke();
+    }
+  }
+
+  // Node rivets
+  ctx.fillStyle = "rgba(90,60,20,0.3)";
   for (let i = 0; i < PATH.length; i++) {
     ctx.beginPath();
-    ctx.arc(PATH[i].x, PATH[i].y, 3, 0, Math.PI * 2);
+    ctx.arc(PATH[i].x, PATH[i].y, 2.5, 0, Math.PI * 2);
     ctx.fill();
   }
 }
 
 function gate(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = "#6a5030";
+  castShadow(ctx, GATE.x, GATE.y, 18, 8, 0.95);
+  // Stone pad under gate
+  ctx.fillStyle = "#7a6a50";
+  ctx.beginPath();
+  ctx.ellipse(GATE.x, GATE.y + 4, 20, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const g = ctx.createRadialGradient(GATE.x - 4, GATE.y - 6, 4, GATE.x, GATE.y, 24);
+  g.addColorStop(0, "#8a6840");
+  g.addColorStop(1, "#5a4020");
+  ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(GATE.x, GATE.y, 22, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "#3a2810";
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3.5;
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(255,220,160,0.35)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(GATE.x, GATE.y, 17, -Math.PI * 0.8, -Math.PI * 0.15);
   ctx.stroke();
 
   // Arrow pointing along the path's starting direction
@@ -457,6 +636,7 @@ function cookie(
   const y = COOKIE.y;
   const r = 40;
   const map = getActiveMap();
+  castShadow(ctx, x, y + 6, r * 0.85, r * 0.32, 0.95);
   const marks =
     biteMarks.length > 0
       ? biteMarks
@@ -650,13 +830,32 @@ function drawFriendPad(
 ) {
   const r = friendTokenRadius(f);
   const scale = friendDisplayScale(f.def);
+  castShadow(ctx, x, y + 2, r * 0.95, r * 0.4, 0.95);
+
+  // Stone tower pad under the friend (Kingdom Rush–style plot)
+  ctx.fillStyle = "#8a7a62";
+  ctx.beginPath();
+  ctx.ellipse(x, y + 3, r + 5, r * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(40,30,20,0.45)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = "#a89878";
+  ctx.beginPath();
+  ctx.ellipse(x - 2, y + 1, r * 0.55, r * 0.22, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   // round top-down token (mythical / god stay a bit larger, but capped off the path)
-  ctx.fillStyle = f.def.color;
+  const padGrad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, 2, x, y, r);
+  padGrad.addColorStop(0, "#ffffff88");
+  padGrad.addColorStop(0.35, f.def.color);
+  padGrad.addColorStop(1, f.def.color);
+  ctx.fillStyle = padGrad;
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = selected ? "#ffd24a" : "rgba(0,0,0,0.35)";
-  ctx.lineWidth = selected ? 4 : 2;
+  ctx.strokeStyle = selected ? "#ffd24a" : "rgba(0,0,0,0.4)";
+  ctx.lineWidth = selected ? 4 : 2.5;
   ctx.stroke();
 
   // rarity outer rings (common/rare use softer accents so tier is visible on-map)
@@ -703,7 +902,27 @@ function drawFriendPad(
     showTier: true,
   });
 
-  // Upgrade level — large chip so it stays readable on the map
+  // Yellow upgrade chevrons under pad (KR-style level mark) + Lv chip
+  const chevrons = Math.min(3, Math.max(1, f.level));
+  for (let i = 0; i < chevrons; i++) {
+    const cx = x - (chevrons - 1) * 5 + i * 10;
+    const cy = y + r + 7;
+    ctx.fillStyle = "#ffd24a";
+    ctx.strokeStyle = "#8a5a10";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 4);
+    ctx.lineTo(cx + 4.5, cy + 1);
+    ctx.lineTo(cx + 1.5, cy + 1);
+    ctx.lineTo(cx + 1.5, cy + 4);
+    ctx.lineTo(cx - 1.5, cy + 4);
+    ctx.lineTo(cx - 1.5, cy + 1);
+    ctx.lineTo(cx - 4.5, cy + 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
   const badgeX = x + r - 2;
   const badgeY = y - r + 2;
   const lv = String(f.level);
@@ -895,26 +1114,50 @@ function thieves(
     if (!p) continue;
     const r = t.def.boss ? 18 : 13;
     const kind = t.def.kind ?? "strength";
+    castShadow(ctx, p.x, p.y + 2, r * 0.9, r * 0.38, 0.9);
+
     const fill =
       t.def.boss ? "#e8c15a" : kind === "speed" ? "#dff6ff" : "#ffe8d4";
-    ctx.fillStyle = fill;
+    const rim =
+      t.def.boss ? "#8a6020" : kind === "speed" ? "#2a88b0" : "#b06028";
+    const body = ctx.createRadialGradient(p.x - 3, p.y - 4, 2, p.x, p.y, r);
+    body.addColorStop(0, "#ffffffaa");
+    body.addColorStop(0.4, fill);
+    body.addColorStop(1, fill);
+    ctx.fillStyle = body;
     ctx.beginPath();
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle =
-      t.def.boss ? "rgba(42,48,64,0.4)" : kind === "speed" ? "#3aa0c8" : "#c87838";
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 2.8;
     ctx.stroke();
+    // Dark outline for silhouette pop
+    ctx.strokeStyle = "rgba(20,24,36,0.35)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r + 1.2, 0, Math.PI * 2);
+    ctx.stroke();
+
     ctx.font = `${t.def.boss ? 22 : 18}px serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(t.def.emoji, p.x, p.y);
 
-    const pct = t.hp / t.maxHp;
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(p.x - 12, p.y - r - 10, 24, 5);
-    ctx.fillStyle = kind === "speed" ? "#4ec4f0" : "#ff6b6b";
-    ctx.fillRect(p.x - 12, p.y - r - 10, 24 * pct, 5);
+    // Bordered HP bar — red track / green remaining (KR style)
+    const pct = Math.max(0, Math.min(1, t.hp / t.maxHp));
+    const bw = t.def.boss ? 30 : 24;
+    const bh = t.def.boss ? 6 : 5;
+    const bx = p.x - bw / 2;
+    const by = p.y - r - 11;
+    ctx.fillStyle = "#2a1820";
+    ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    ctx.fillStyle = "#c03030";
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = kind === "speed" ? "#4ec4f0" : "#6ecf5a";
+    ctx.fillRect(bx, by, bw * pct, bh);
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
 
     if (t.slowTimer > 0 || t.blockedTimer > 0 || t.freezeTimer > 0) {
       ctx.strokeStyle = t.freezeTimer > 0 ? "#9ad4ff" : t.blockedTimer > 0 ? "#c4782a" : "#5b8cff";
@@ -1097,7 +1340,6 @@ function shots(ctx: CanvasRenderingContext2D, list: Shot[]) {
 function booms(ctx: CanvasRenderingContext2D, list: Boom[]) {
   for (const b of list) {
     const a = Math.max(0, b.life);
-    ctx.globalAlpha = a;
     const colors: Record<string, string> = {
       crumb: "#e8a04a",
       frost: "#5b8cff",
@@ -1112,15 +1354,31 @@ function booms(ctx: CanvasRenderingContext2D, list: Boom[]) {
       freeze: "#9ad4ff",
       heavy: "#c87838",
     };
-    ctx.strokeStyle = colors[b.kind] || "#fff";
-    ctx.fillStyle = ctx.strokeStyle;
-    ctx.globalAlpha = a * 0.25;
+    const col = colors[b.kind] || "#fff";
+    const rad = b.radius * (1.25 - a * 0.25);
+    // Soft shockwave fill
+    ctx.globalAlpha = a * 0.22;
+    ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.arc(b.x, b.y, b.radius * (1.2 - a * 0.2), 0, Math.PI * 2);
+    ctx.arc(b.x, b.y, rad, 0, Math.PI * 2);
     ctx.fill();
+    // Outer ring
     ctx.globalAlpha = a;
+    ctx.strokeStyle = col;
     ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, rad, 0, Math.PI * 2);
     ctx.stroke();
+    // Spark flecks
+    ctx.fillStyle = "#fff8e0";
+    ctx.globalAlpha = a * 0.85;
+    for (let i = 0; i < 5; i++) {
+      const ang = (i / 5) * Math.PI * 2 + a * 3;
+      const dist = rad * (0.55 + (i % 2) * 0.25);
+      ctx.beginPath();
+      ctx.arc(b.x + Math.cos(ang) * dist, b.y + Math.sin(ang) * dist, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
   }
 }
@@ -1130,6 +1388,10 @@ function floats(ctx: CanvasRenderingContext2D, list: FloatText[]) {
   ctx.font = "800 13px Nunito, sans-serif";
   for (const f of list) {
     ctx.globalAlpha = Math.min(1, f.life);
+    // Soft outline for readability on busy terrain
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(20,24,36,0.55)";
+    ctx.strokeText(f.text, f.x, f.y);
     ctx.fillStyle = f.color;
     ctx.fillText(f.text, f.x, f.y);
   }
@@ -1162,11 +1424,29 @@ export interface DrawState {
   deployGhost?: { x: number; y: number; valid: boolean } | null;
 }
 
+/** Cached static ground (grass + path + decor + gate) — rebuilt when the map changes */
+let groundCache: HTMLCanvasElement | null = null;
+let groundCacheKey = "";
+
+function ensureGroundCache(): HTMLCanvasElement {
+  const map = getActiveMap();
+  const key = `${map.id}:${PATH.length}:${PATH[0]?.x},${PATH[0]?.y}:${PATH[PATH.length - 1]?.x}`;
+  if (groundCache && groundCacheKey === key) return groundCache;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const gctx = c.getContext("2d")!;
+  grass(gctx);
+  path(gctx);
+  landscaping(gctx);
+  gate(gctx);
+  groundCache = c;
+  groundCacheKey = key;
+  return c;
+}
+
 export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
-  grass(ctx);
-  path(ctx);
-  landscaping(ctx);
-  gate(ctx);
+  ctx.drawImage(ensureGroundCache(), 0, 0);
   walls(ctx, s.walls);
   dams(ctx, s.dams || []);
   poisonClouds(ctx, s.poisonClouds || [], s.time);
