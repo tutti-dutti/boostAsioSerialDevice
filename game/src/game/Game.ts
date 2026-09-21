@@ -1350,6 +1350,7 @@ export class Game {
       });
       this.creditBeaverKill(killerSlotId, t, x, y);
       this.creditEagleKill(killerSlotId, t, x, y);
+      this.onChange();
     }
   }
 
