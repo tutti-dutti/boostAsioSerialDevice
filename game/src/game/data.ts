@@ -133,15 +133,15 @@ export const FRIENDS: FriendDef[] = [
  * Pools are ordered weak → strong; waves unlock further entries over time.
  */
 export const SPEED_THIEVES: ThiefDef[] = [
-  { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 26, speed: 70, gold: 2, size: 12, kind: "speed" },
-  { id: "sugarant", name: "Sugar Ant", emoji: "🐜", hp: 32, speed: 76, gold: 2, size: 11, kind: "speed" },
-  { id: "raiderskunk", name: "Skunk", emoji: "🦨", hp: 40, speed: 82, gold: 3, size: 13, kind: "speed" },
-  { id: "sprinklefly", name: "Sprinkle Fly", emoji: "🦟", hp: 36, speed: 88, gold: 3, size: 11, kind: "speed" },
-  { id: "swiftrat", name: "Swift Rat", emoji: "🐀", hp: 55, speed: 96, gold: 4, size: 13, kind: "speed" },
-  { id: "jellyjay", name: "Jelly Jay", emoji: "🐤", hp: 48, speed: 102, gold: 4, size: 12, kind: "speed" },
-  { id: "frostingfox", name: "Frosting Fox", emoji: "🦊", hp: 62, speed: 108, gold: 5, size: 14, kind: "speed" },
-  { id: "cookiebat", name: "Cookie Bat", emoji: "🦇", hp: 58, speed: 118, gold: 5, size: 13, kind: "speed" },
-  { id: "candycrow", name: "Candy Crow", emoji: "🐦‍⬛", hp: 70, speed: 112, gold: 6, size: 14, kind: "speed" },
+  { id: "crumb", name: "Crumb Bug", emoji: "🐛", hp: 26, speed: 66, gold: 2, size: 12, kind: "speed" },
+  { id: "sugarant", name: "Sugar Ant", emoji: "🐜", hp: 32, speed: 71, gold: 2, size: 11, kind: "speed" },
+  { id: "raiderskunk", name: "Skunk", emoji: "🦨", hp: 40, speed: 77, gold: 3, size: 13, kind: "speed" },
+  { id: "sprinklefly", name: "Sprinkle Fly", emoji: "🦟", hp: 36, speed: 83, gold: 3, size: 11, kind: "speed" },
+  { id: "swiftrat", name: "Swift Rat", emoji: "🐀", hp: 55, speed: 90, gold: 4, size: 13, kind: "speed" },
+  { id: "jellyjay", name: "Jelly Jay", emoji: "🐤", hp: 48, speed: 96, gold: 4, size: 12, kind: "speed" },
+  { id: "frostingfox", name: "Frosting Fox", emoji: "🦊", hp: 62, speed: 101, gold: 5, size: 14, kind: "speed" },
+  { id: "cookiebat", name: "Cookie Bat", emoji: "🦇", hp: 58, speed: 111, gold: 5, size: 13, kind: "speed" },
+  { id: "candycrow", name: "Candy Crow", emoji: "🐦‍⬛", hp: 70, speed: 105, gold: 6, size: 14, kind: "speed" },
 ];
 
 export const STRENGTH_THIEVES: ThiefDef[] = [

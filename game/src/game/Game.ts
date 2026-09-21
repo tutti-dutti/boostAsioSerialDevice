@@ -1268,7 +1268,7 @@ export class Game {
     const toughness = this.defenseToughnessMult();
     // Keep archetypes sharp after wave scaling: speed stays fragile, strength stays slow
     const hpMult = base.kind === "speed" ? 0.85 : base.kind === "strength" ? 1.12 : 1;
-    const spdMult = base.kind === "speed" ? 1.08 : base.kind === "strength" ? 0.82 : 1;
+    const spdMult = base.kind === "speed" ? 0.98 : base.kind === "strength" ? 0.82 : 1;
     // Mythic pressure: light HP/speed bump so evolved friends stay ahead
     const pressureSpeed = 1 + pressure * Game.MYTHIC_PRESSURE_SPEED;
     const def = {
