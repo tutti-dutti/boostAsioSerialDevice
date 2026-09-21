@@ -29,6 +29,8 @@ import {
 } from "./difficulty";
 import {
   computeAchievementScore,
+  killScorePoints,
+  waveClearScorePoints,
   type ScoreStats,
 } from "./highscores";
 import {
@@ -95,6 +97,12 @@ export class Game {
   gold = 20;
   stars = openingStartStars(loadDifficultyPreference());
   wave = 1;
+  /** Enemies killed this run (score only from kills + wave clears) */
+  kills = 0;
+  /** Waves fully cleared — not early “call next wave” spawns */
+  wavesCleared = 0;
+  /** Running achievement points (kills + cleared waves only) */
+  scorePoints = 0;
   cookieHp = 55;
   cookieMax = 55;
   /** Best achievement score reached this run (does not drop when cookie is hurt) */
@@ -183,6 +191,8 @@ export class Game {
     }
     return {
       wave: this.wave,
+      kills: this.kills,
+      wavesCleared: this.wavesCleared,
       gold: this.gold,
       stars: this.stars,
       friends,
@@ -196,15 +206,23 @@ export class Game {
     };
   }
 
-  /** Current composite score for this moment in the run */
+  /** Current score — only grows from kills and finished waves */
   currentScore(): number {
-    return computeAchievementScore(this.scoreStats());
+    return this.scorePoints;
+  }
+
+  /** Credit kill / wave-clear points and refresh peak */
+  private awardScore(points: number) {
+    if (points <= 0) return;
+    this.scorePoints += points;
+    this.refreshPeakScore();
   }
 
   /** Update peak if the current moment is a new personal best this run */
   refreshPeakScore() {
     const stats = this.scoreStats();
-    const points = computeAchievementScore(stats);
+    // Prefer live awarded points; fall back to formula for older saves
+    const points = Math.max(this.scorePoints, computeAchievementScore(stats));
     if (points > this.peakScore) {
       this.peakScore = points;
       this.peakStats = { ...stats };
@@ -619,6 +637,9 @@ export class Game {
       courseIndex: this.courseIndex,
       courseRandom: this.courseRandom,
       difficulty: this.difficulty,
+      kills: this.kills,
+      wavesCleared: this.wavesCleared,
+      scorePoints: this.scorePoints,
       peakScore: this.peakScore,
       peakStats: this.peakStats,
       bag: this.bag.map((f) => f.id),
@@ -655,9 +676,35 @@ export class Game {
       this.wave = data.wave ?? 1;
       this.cookieHp = data.cookieHp ?? 55;
       this.cookieMax = data.cookieMax ?? 55;
-      this.peakScore = typeof data.peakScore === "number" ? data.peakScore : 0;
-      this.peakStats =
-        data.peakStats && typeof data.peakStats === "object" ? data.peakStats : null;
+      this.kills = typeof data.kills === "number" ? Math.max(0, data.kills | 0) : 0;
+      this.wavesCleared =
+        typeof data.wavesCleared === "number" ? Math.max(0, data.wavesCleared | 0) : 0;
+      this.scorePoints =
+        typeof data.scorePoints === "number" ? Math.max(0, data.scorePoints | 0) : 0;
+      const hasKillScoreFields =
+        typeof data.kills === "number" ||
+        typeof data.wavesCleared === "number" ||
+        typeof data.scorePoints === "number";
+      if (hasKillScoreFields) {
+        this.peakScore = typeof data.peakScore === "number" ? data.peakScore : 0;
+        this.peakStats =
+          data.peakStats && typeof data.peakStats === "object" ? data.peakStats : null;
+        // Older partial saves: rebuild score from kills/clears if points missing
+        if (!this.scorePoints && (this.kills > 0 || this.wavesCleared > 0)) {
+          this.scorePoints = computeAchievementScore({
+            ...this.scoreStats(),
+            kills: this.kills,
+            wavesCleared: this.wavesCleared,
+          });
+        }
+      } else {
+        // Pre–kill/clear scoring: drop inflated wave-spawn peaks
+        this.peakScore = 0;
+        this.peakStats = null;
+        this.scorePoints = 0;
+        this.kills = 0;
+        this.wavesCleared = 0;
+      }
       this.cookieBites = Array.isArray(data.cookieBites)
         ? data.cookieBites
             .filter(
@@ -752,6 +799,9 @@ export class Game {
     this.dams = [];
     this.poisonClouds = [];
     this.wave = 1;
+    this.kills = 0;
+    this.wavesCleared = 0;
+    this.scorePoints = 0;
     this.applyStartingResources(true);
     this.peakScore = 0;
     this.peakStats = null;
@@ -1327,6 +1377,8 @@ export class Game {
       // Every kill pays stars; bosses (mini + map) pay the bigger buffer reward
       const starReward = t.def.boss ? 5 : 2;
       this.stars += starReward;
+      this.kills += 1;
+      this.awardScore(killScorePoints(!!t.def.boss, this.difficulty));
       if (t.def.boss && isLevelBossWave(this.wave)) {
         this.gold += 25;
         this.toast(`🏆 ${t.def.name} defeated! Map clear!`, true);
@@ -1682,6 +1734,8 @@ export class Game {
       this.waveInProgress = false;
       this.waveWaiting = true;
       this.wave += 1;
+      this.wavesCleared += 1;
+      this.awardScore(waveClearScorePoints(this.difficulty));
       this.stars += 1;
       // Scale wave-clear gold with difficulty loot so Hard can fund upgrades
       this.gold += Math.max(3, Math.round(3 * difficultyTuning(this.difficulty).gold));

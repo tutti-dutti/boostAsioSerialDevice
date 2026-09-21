@@ -1066,6 +1066,14 @@ button.danger {
   margin-bottom: 0.45rem;
 }
 
+.scores-week-hint {
+  text-align: center;
+  font-size: 0.78rem;
+  color: rgba(90, 55, 30, 0.75);
+  margin: -0.15rem 0 0.55rem;
+  line-height: 1.35;
+}
+
 .scores-list {
   list-style: none;
   display: flex;

@@ -8,6 +8,7 @@ import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAN
 import {
   formatPoints,
   formatScoreDate,
+  formatWeeklyResetHint,
   getSavedPlayerName,
   isHighScoreWorthy,
   loadHighScores,
@@ -43,13 +44,14 @@ app.innerHTML = `
     <p class="home-note">No ads. Just the game.</p>
     <div class="home-scores" id="home-scores">
       <h2 class="scores-title">High Scores</h2>
+      <p class="scores-week-hint" id="home-scores-week">${formatWeeklyResetHint()}</p>
       <div class="mode-chips scores-mode-chips" id="home-score-chips" role="group" aria-label="Score play level">
         <button class="mode-chip mode-easy selected" data-score-mode="easy" type="button">Easy</button>
         <button class="mode-chip mode-medium" data-score-mode="medium" type="button">Medium</button>
         <button class="mode-chip mode-hard" data-score-mode="hard" type="button">Hard</button>
       </div>
       <ol class="scores-list" id="home-scores-list"></ol>
-      <p class="scores-empty hidden" id="home-scores-empty">No scores yet for this level — clear waves to earn a spot!</p>
+      <p class="scores-empty hidden" id="home-scores-empty">No scores yet this week — kills &amp; cleared waves only!</p>
     </div>
   </section>
 
@@ -202,7 +204,7 @@ app.innerHTML = `
   <div class="scores-overlay hidden" id="scores-overlay" role="dialog" aria-modal="true" aria-labelledby="scores-title">
     <div class="scores-card">
       <h2 id="scores-title">High scores</h2>
-      <p class="scores-lead" id="scores-lead">Save your run for this play level.</p>
+      <p class="scores-lead" id="scores-lead">Kills &amp; finished waves only. Board resets Sunday midnight.</p>
       <p class="scores-run-line" id="scores-run-line">Wave 1 · Easy · 0🪙</p>
       <div class="score-save" id="play-score-save">
         <p class="score-save-label" id="play-score-save-label">Enter your name to save</p>
@@ -339,6 +341,8 @@ function escapeHtml(s: string) {
 }
 
 function refreshHomeScores() {
+  const weekHint = document.querySelector("#home-scores-week");
+  if (weekHint) weekHint.textContent = formatWeeklyResetHint();
   homeScoreChips.querySelectorAll<HTMLButtonElement>("[data-score-mode]").forEach((btn) => {
     btn.classList.toggle("selected", btn.dataset.scoreMode === homeScoreMode);
   });
@@ -362,7 +366,7 @@ homeScoreChips.querySelectorAll<HTMLButtonElement>("[data-score-mode]").forEach(
 function setupGameOverScoreUi() {
   const best = game.bestScoreStats();
   const points = game.peakScore || game.currentScore();
-  overScoreLine.textContent = `Best score ${formatPoints(points)} — Wave ${best.wave} · ${best.stars}⭐ · ${best.gold}🪙 · ${best.friends} friends · cookie ${best.cookieHp}/${best.cookieMax}`;
+  overScoreLine.textContent = `Best score ${formatPoints(points)} — ${best.kills} kills · ${best.wavesCleared} waves cleared · Wave ${best.wave}`;
   const scores = loadHighScores(game.difficulty);
   renderScoresList(overScoresList, scores, true);
 
@@ -393,8 +397,8 @@ function refreshPlayScoresPanel() {
   const mode = game.difficulty;
   const best = game.bestScoreStats();
   const points = game.peakScore || game.currentScore();
-  scoresLead.textContent = `${game.difficultyLabel} board — ranked by achievement score (wave, army, economy, cookie care).`;
-  scoresRunLine.textContent = `Best this run: ${formatPoints(points)} · Wave ${best.wave} · ${best.stars}⭐ · ${best.gold}🪙 · ${best.friends}🐾 · 🍪 ${best.cookieHp}/${best.cookieMax}`;
+  scoresLead.textContent = `${game.difficultyLabel} · kills & finished waves only · ${formatWeeklyResetHint()}`;
+  scoresRunLine.textContent = `Best this run: ${formatPoints(points)} · ${best.kills} kills · ${best.wavesCleared} cleared · Wave ${best.wave}`;
   const scores = loadHighScores(mode);
   renderScoresList(playScoresList, scores, true);
   playScoresEmpty.classList.toggle("hidden", scores.length > 0);
@@ -411,7 +415,7 @@ function refreshPlayScoresPanel() {
     (document.querySelector("#play-save-score-btn") as HTMLButtonElement).disabled = false;
   } else {
     playScoreSaveLabel.textContent = "Not a top score for this level yet";
-    playScoreSaveStatus.textContent = "Push further — higher wave, stronger army, keep the cookie healthy.";
+    playScoreSaveStatus.textContent = "Earn points by killing enemies and finishing waves.";
     (document.querySelector("#play-save-score-btn") as HTMLButtonElement).disabled = true;
   }
   playScoreSave.classList.remove("hidden");

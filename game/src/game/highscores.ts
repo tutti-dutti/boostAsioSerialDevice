@@ -1,14 +1,27 @@
 import { difficultyTuning, isDifficulty, type Difficulty } from "./difficulty";
 
-const HS_KEY = "cookie-guard-highscores-v2";
+const HS_KEY = "cookie-guard-highscores-v3";
+const HS_KEY_V2 = "cookie-guard-highscores-v2";
 const HS_KEY_LEGACY = "cookie-guard-highscores-v1";
+const WEEK_KEY = "cookie-guard-hs-week-id";
 const NAME_KEY = "cookie-guard-player-name";
 /** Top scores kept per play level (Easy / Medium / Hard) */
 export const MAX_SCORES_PER_MODE = 8;
 
+/** Points awarded when an enemy dies (before difficulty weight) */
+export const SCORE_PER_KILL = 100;
+/** Extra points for boss kills (before difficulty weight) */
+export const SCORE_PER_BOSS_KILL = 300;
+/** Points awarded when a wave is fully cleared (before difficulty weight) */
+export const SCORE_PER_WAVE_CLEAR = 520;
+
 /** Snapshot of what made a run great — used for ranking and display */
 export interface ScoreStats {
   wave: number;
+  /** Enemies killed this run */
+  kills: number;
+  /** Waves fully cleared (board empty) — not early spawns */
+  wavesCleared: number;
   gold: number;
   stars: number;
   /** Friends on the board */
@@ -31,6 +44,8 @@ export interface HighScore {
   /** Composite achievement points (ranking key) */
   points: number;
   wave: number;
+  kills?: number;
+  wavesCleared?: number;
   gold: number;
   stars?: number;
   friends?: number;
@@ -46,47 +61,75 @@ export interface HighScore {
 }
 
 /**
- * Composite achievement score — rewards lasting further, richer economy,
- * stronger armies, and keeping the cookie healthy. Difficulty multiplies the total.
- *
- * Rough feel (Easy):
- *  Wave 10, 80🪙, 20⭐, 4 friends, full cookie ≈ mid thousands
- *  Wave 30 hard push with mythics ≈ tens of thousands
+ * Local calendar week id: Sunday 00:00 → next Sunday.
+ * High scores wipe when this id changes.
+ */
+export function currentScoreWeekId(now = Date.now()): string {
+  const d = new Date(now);
+  const day = d.getDay(); // 0 = Sunday
+  const sunday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day);
+  sunday.setHours(0, 0, 0, 0);
+  const y = sunday.getFullYear();
+  const m = String(sunday.getMonth() + 1).padStart(2, "0");
+  const dd = String(sunday.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+/** Next Sunday midnight local — when the board resets */
+export function nextWeeklyResetAt(now = Date.now()): Date {
+  const d = new Date(now);
+  const day = d.getDay();
+  const daysUntilNextSunday = day === 0 ? 7 : 7 - day;
+  const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + daysUntilNextSunday);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+export function formatWeeklyResetHint(now = Date.now()): string {
+  try {
+    const next = nextWeeklyResetAt(now);
+    return `Weekly board · resets ${next.toLocaleString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })}`;
+  } catch {
+    return "Weekly board · resets Sunday midnight";
+  }
+}
+
+/**
+ * Score from kills + finished waves only.
+ * Calling the next wave early does not count — only kills and board clears.
  */
 export function computeAchievementScore(s: ScoreStats): number {
-  const wave = Math.max(0, s.wave | 0);
-  const gold = Math.max(0, s.gold | 0);
-  const stars = Math.max(0, s.stars | 0);
-  const friends = Math.max(0, s.friends | 0);
-  const levels = Math.max(0, s.friendLevels | 0);
-  const mythics = Math.max(0, s.mythics | 0);
-  const tier = Math.max(0, s.mapTier | 0);
-  const defense = Math.max(0, s.defense);
-  const cookieMax = Math.max(1, s.cookieMax | 0);
-  const cookieHp = Math.max(0, Math.min(cookieMax, s.cookieHp | 0));
-  const cookiePct = cookieHp / cookieMax;
-
-  // Wave progress dominates — each cleared wave is the core achievement
-  const wavePts = wave * 520;
-  // Economy: gold spent+held and stars banked both matter
-  const economyPts = gold * 2 + stars * 28;
-  // Army: bodies, upgrades, and mythical presence
-  const armyPts = friends * 90 + levels * 55 + mythics * 220 + Math.round(defense * 6);
-  // Cookie care: surviving with health left is skill, not just greed
-  const cookiePts = Math.round(cookiePct * cookiePct * 480 + cookieHp * 3);
-  // Deeper map courses
-  const tierPts = tier * 650;
-
-  const raw = wavePts + economyPts + armyPts + cookiePts + tierPts;
+  const kills = Math.max(0, s.kills | 0);
+  const cleared = Math.max(0, s.wavesCleared | 0);
+  const raw = kills * SCORE_PER_KILL + cleared * SCORE_PER_WAVE_CLEAR;
   const weight = difficultyTuning(s.difficulty).scoreWeight;
   return Math.max(0, Math.round(raw * weight));
 }
 
+/** Weighted points for a single kill (bosses include the boss bonus) */
+export function killScorePoints(boss: boolean, difficulty: Difficulty): number {
+  const base = SCORE_PER_KILL + (boss ? SCORE_PER_BOSS_KILL : 0);
+  return Math.max(0, Math.round(base * difficultyTuning(difficulty).scoreWeight));
+}
+
+/** Weighted points for finishing a wave (board cleared) */
+export function waveClearScorePoints(difficulty: Difficulty): number {
+  return Math.max(0, Math.round(SCORE_PER_WAVE_CLEAR * difficultyTuning(difficulty).scoreWeight));
+}
+
 /** Rank key — prefer stored points; fall back for legacy rows */
-export function scoreValue(s: Pick<HighScore, "points" | "wave" | "gold" | "difficulty" | "stars">): number {
+export function scoreValue(s: Pick<HighScore, "points" | "wave" | "gold" | "difficulty" | "stars" | "kills" | "wavesCleared">): number {
   if (typeof s.points === "number" && Number.isFinite(s.points)) return s.points;
   return computeAchievementScore({
     wave: s.wave,
+    kills: s.kills ?? 0,
+    wavesCleared: s.wavesCleared ?? Math.max(0, (s.wave | 0) - 1),
     gold: s.gold,
     stars: s.stars ?? 0,
     friends: 0,
@@ -113,24 +156,44 @@ function normalize(list: HighScore[]): HighScore[] {
     });
 }
 
-function migrateLegacyIfNeeded(): HighScore[] {
+/** Wipe the board when a new Sunday week begins */
+function ensureCurrentWeek(): void {
+  try {
+    const id = currentScoreWeekId();
+    const stored = localStorage.getItem(WEEK_KEY);
+    if (stored != null && stored !== id) {
+      localStorage.removeItem(HS_KEY);
+      localStorage.removeItem(HS_KEY_V2);
+      localStorage.removeItem(HS_KEY_LEGACY);
+    }
+    localStorage.setItem(WEEK_KEY, id);
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+function migrateOlderKeysIfNeeded(): HighScore[] {
   try {
     if (localStorage.getItem(HS_KEY)) return [];
-    const raw = localStorage.getItem(HS_KEY_LEGACY);
-    if (!raw) return [];
-    const list = JSON.parse(raw) as HighScore[];
-    if (!Array.isArray(list)) return [];
-    return normalize(list);
+    for (const key of [HS_KEY_V2, HS_KEY_LEGACY]) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const list = JSON.parse(raw) as HighScore[];
+      if (!Array.isArray(list) || !list.length) continue;
+      return normalize(list);
+    }
+    return [];
   } catch {
     return [];
   }
 }
 
 function loadAllHighScores(): HighScore[] {
+  ensureCurrentWeek();
   try {
     const raw = localStorage.getItem(HS_KEY);
     if (!raw) {
-      const legacy = migrateLegacyIfNeeded();
+      const legacy = migrateOlderKeysIfNeeded();
       if (legacy.length) {
         saveHighScores(legacy);
         return loadAllHighScores();
@@ -159,6 +222,7 @@ function trimPerMode(list: HighScore[]): HighScore[] {
 }
 
 function saveHighScores(list: HighScore[]) {
+  ensureCurrentWeek();
   localStorage.setItem(HS_KEY, JSON.stringify(trimPerMode(list)));
 }
 
@@ -204,6 +268,8 @@ export function submitHighScore(name: string, stats: ScoreStats & { points?: num
     name: clean,
     points,
     wave: stats.wave,
+    kills: stats.kills,
+    wavesCleared: stats.wavesCleared,
     gold: stats.gold,
     stars: stats.stars,
     friends: stats.friends,
@@ -236,12 +302,10 @@ export function difficultyBadge(d?: Difficulty): string {
 
 /** Short breakdown line for score lists */
 export function scoreBreakdown(s: HighScore): string {
-  const bits = [`W${s.wave}`];
+  const bits: string[] = [];
+  if (s.kills != null) bits.push(`${s.kills} kills`);
+  if (s.wavesCleared != null) bits.push(`${s.wavesCleared} cleared`);
+  bits.push(`W${s.wave}`);
   if (s.stars != null) bits.push(`${s.stars}⭐`);
-  bits.push(`${s.gold}🪙`);
-  if (s.friends != null) bits.push(`${s.friends}🐾`);
-  if (s.cookieMax && s.cookieMax > 0 && s.cookieHp != null) {
-    bits.push(`${s.cookieHp}/${s.cookieMax}🍪`);
-  }
   return bits.join(" · ");
 }
