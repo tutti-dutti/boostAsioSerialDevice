@@ -89,7 +89,7 @@ export const FRIENDS: FriendDef[] = [
   { id: "wolf", name: "Wolf", emoji: "🐺", rarity: "rare", color: "#808898", damage: 26, range: 115, attackSpeed: 0.65, ability: "none", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "werewolf" },
   { id: "fox", name: "Fox", emoji: "🦊", rarity: "rare", color: "#e87840", damage: 9, range: 105, attackSpeed: 1.9, ability: "foxWall", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "kitsune" },
   { id: "fish", name: "Fish", emoji: "🐟", rarity: "rare", color: "#5eb8e0", damage: 8, range: 100, attackSpeed: 2.0, ability: "floppyFin", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "tidalkoi" },
-  { id: "seal", name: "Seal", emoji: "🦭", rarity: "rare", color: "#a8d0e8", damage: 9, range: 108, attackSpeed: 1.75, ability: "freeze", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "frostseal" },
+  { id: "seal", name: "Seal", emoji: "🦭", rarity: "rare", color: "#a8d0e8", damage: 9, range: 108, attackSpeed: 2.05, ability: "freeze", weaponRole: "antiSpeed", canEvolve: true, evolvesTo: "frostseal" },
   { id: "moose", name: "Moose", emoji: "🫎", rarity: "rare", color: "#a07040", damage: 30, range: 105, attackSpeed: 0.58, ability: "heavyHit", weaponRole: "antiStrength", canEvolve: true, evolvesTo: "megamoose" },
 
   // —— Legendary ——
@@ -110,7 +110,7 @@ export const FRIENDS: FriendDef[] = [
   { id: "emperorpenguin", name: "Emperor Penguin", emoji: "🧊", rarity: "mythical", color: "#70b8e0", damage: 14, range: 140, attackSpeed: 1.85, ability: "freeze", weaponRole: "antiSpeed", evolvedForm: true },
   { id: "titanmole", name: "Titan Mole", emoji: "⛏️", rarity: "mythical", color: "#6a5040", damage: 55, range: 125, attackSpeed: 0.62, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true },
   { id: "stinklord", name: "Stink Lord", emoji: "☁️", rarity: "mythical", color: "#5a7060", damage: 12, range: 130, attackSpeed: 1.9, ability: "poisonFart", weaponRole: "antiSpeed", evolvedForm: true },
-  { id: "frostseal", name: "Frost Seal", emoji: "❄️", rarity: "mythical", color: "#c0e8ff", damage: 18, range: 150, attackSpeed: 1.8, ability: "freeze", weaponRole: "antiSpeed", evolvedForm: true },
+  { id: "frostseal", name: "Frost Seal", emoji: "❄️", rarity: "mythical", color: "#c0e8ff", damage: 18, range: 150, attackSpeed: 2.1, ability: "freeze", weaponRole: "antiSpeed", evolvedForm: true },
   { id: "megamoose", name: "Mega Moose", emoji: "🦌", rarity: "mythical", color: "#804820", damage: 72, range: 140, attackSpeed: 0.55, ability: "heavyHit", weaponRole: "antiStrength", evolvedForm: true, scale: 1.2 },
   { id: "nightoracle", name: "Night Oracle", emoji: "🔮", rarity: "mythical", color: "#6a40a0", damage: 8, range: 170, attackSpeed: 3.0, ability: "none", flies: true, weaponRole: "antiSpeed", evolvedForm: true },
   { id: "starcervid", name: "Star Cervid", emoji: "✨", rarity: "mythical", color: "#ffe08a", damage: 38, range: 145, attackSpeed: 1.25, ability: "none", weaponRole: "balanced", evolvedForm: true },
