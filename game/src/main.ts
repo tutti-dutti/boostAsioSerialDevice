@@ -705,8 +705,13 @@ function showHome() {
 
 function showPlay() {
   unlockAudio();
+  // Always start fresh from the main menu — don't resume a prior save
+  scorePromptShown = false;
+  scoreSavedThisRun = false;
+  game.reset();
   home.classList.add("hidden");
   playScreen.classList.remove("hidden");
+  over.classList.add("hidden");
   game.running = true;
   game.setPaused(false);
   game.paint();
