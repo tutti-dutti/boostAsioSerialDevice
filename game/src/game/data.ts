@@ -147,7 +147,7 @@ export const SPEED_THIEVES: ThiefDef[] = [
 export const STRENGTH_THIEVES: ThiefDef[] = [
   { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 110, speed: 24, gold: 3, size: 17, kind: "strength" },
   { id: "pantrygoat", name: "Pantry Goat", emoji: "🐐", hp: 200, speed: 22, gold: 4, size: 18, kind: "strength" },
-  { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 255, speed: 18, gold: 5, size: 19, kind: "strength" },
+  { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 175, speed: 18, gold: 5, size: 19, kind: "strength" },
   { id: "doughbadger", name: "Dough Badger", emoji: "🦡", hp: 290, speed: 17, gold: 5, size: 18, kind: "strength" },
   { id: "boar", name: "Cookie Boar", emoji: "🐗", hp: 380, speed: 14, gold: 8, size: 22, kind: "strength" },
   { id: "ovenox", name: "Oven Ox", emoji: "🐂", hp: 420, speed: 13, gold: 8, size: 23, kind: "strength" },
@@ -158,7 +158,7 @@ export const STRENGTH_THIEVES: ThiefDef[] = [
 
 /** Mid-map checkpoint foes (every 10 waves) */
 export const MINI_BOSSES: ThiefDef[] = [
-  { id: "miniboss_pig", name: "Boss Pig", emoji: "🐷", hp: 520, speed: 20, gold: 18, size: 24, kind: "boss", boss: true },
+  { id: "miniboss_pig", name: "Boss Pig", emoji: "🐷", hp: 360, speed: 20, gold: 18, size: 24, kind: "boss", boss: true },
   { id: "miniboss_crow", name: "Sugar Baron", emoji: "🐦‍⬛", hp: 480, speed: 34, gold: 18, size: 22, kind: "boss", boss: true },
   { id: "miniboss_ox", name: "Baker Ox", emoji: "🐂", hp: 640, speed: 16, gold: 22, size: 26, kind: "boss", boss: true },
   { id: "boss", name: "King Raccoon", emoji: "👑", hp: 560, speed: 28, gold: 30, size: 28, kind: "boss", boss: true },
