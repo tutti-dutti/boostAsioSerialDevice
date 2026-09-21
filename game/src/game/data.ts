@@ -161,7 +161,7 @@ export const MINI_BOSSES: ThiefDef[] = [
   { id: "miniboss_pig", name: "Boss Pig", emoji: "🐷", hp: 520, speed: 20, gold: 18, size: 24, kind: "boss", boss: true },
   { id: "miniboss_crow", name: "Sugar Baron", emoji: "🐦‍⬛", hp: 480, speed: 34, gold: 18, size: 22, kind: "boss", boss: true },
   { id: "miniboss_ox", name: "Baker Ox", emoji: "🐂", hp: 640, speed: 16, gold: 22, size: 26, kind: "boss", boss: true },
-  { id: "boss", name: "King Raccoon", emoji: "👑", hp: 820, speed: 28, gold: 30, size: 28, kind: "boss", boss: true },
+  { id: "boss", name: "King Raccoon", emoji: "👑", hp: 560, speed: 28, gold: 30, size: 28, kind: "boss", boss: true },
 ];
 
 export const THIEVES: ThiefDef[] = [
