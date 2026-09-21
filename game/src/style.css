@@ -1105,6 +1105,43 @@ button.danger {
   display: none;
 }
 
+.unit-stats {
+  margin-top: 0.45rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.unit-stats.hidden {
+  display: none;
+}
+
+.unit-stat {
+  background: #fff6e8;
+  border: 2px solid rgba(196, 120, 42, 0.4);
+  border-radius: 12px;
+  padding: 0.4rem 0.35rem;
+  text-align: center;
+}
+
+.unit-stat-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cookie-dark);
+  margin-bottom: 0.15rem;
+}
+
+.unit-stat-value {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .evolve-row {
   display: flex;
   flex-direction: column;

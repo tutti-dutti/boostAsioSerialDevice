@@ -4,7 +4,7 @@ import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, SUMMON_COST
 import { friendPortraitDataUrl, weaponRoleShort } from "./game/animalArt";
 import { unlockAudio, setMuted, isMuted, playUnmuteChirp } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
-import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST } from "./game/types";
+import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST, friendDamage, type PlacedFriend } from "./game/types";
 import {
   formatPoints,
   formatScoreDate,
@@ -123,6 +123,20 @@ app.innerHTML = `
         </div>
         <p class="hint select-hint" id="select-hint">Upgrade to try a 5% mythical evolve!</p>
         <p class="gold-upgrade-line hint" id="gold-upgrade-line">Gold 0🪙 · Select a friend for upgrade cost</p>
+        <div class="unit-stats hidden" id="unit-stats" aria-live="polite">
+          <div class="unit-stat">
+            <span class="unit-stat-label">Damage</span>
+            <span class="unit-stat-value" id="unit-stat-damage">—</span>
+          </div>
+          <div class="unit-stat">
+            <span class="unit-stat-label">Fire rate</span>
+            <span class="unit-stat-value" id="unit-stat-rof">—</span>
+          </div>
+          <div class="unit-stat">
+            <span class="unit-stat-label">DPS</span>
+            <span class="unit-stat-value" id="unit-stat-dps">—</span>
+          </div>
+        </div>
         <div class="evolve-lineage hidden" id="evolve-lineage" aria-live="polite">
           <div class="evolve-row">
             <span class="evolve-label">Evolved from</span>
@@ -217,6 +231,10 @@ const bag = document.querySelector<HTMLElement>("#bag")!;
 const toast = document.querySelector("#toast")!;
 const over = document.querySelector("#over")!;
 const selectHint = document.querySelector("#select-hint")!;
+const unitStatsEl = document.querySelector("#unit-stats")!;
+const unitStatDamage = document.querySelector("#unit-stat-damage")!;
+const unitStatRof = document.querySelector("#unit-stat-rof")!;
+const unitStatDps = document.querySelector("#unit-stat-dps")!;
 const evolveLineageEl = document.querySelector("#evolve-lineage")!;
 const evolveFromEl = document.querySelector("#evolve-from")!;
 const evolveIntoEl = document.querySelector("#evolve-into")!;
@@ -584,6 +602,39 @@ function refresh() {
     evolveLineageEl.classList.remove("hidden");
   }
 
+  function showUnitCombatStats(friend: PlacedFriend | null, bagDef: FriendDef | null = null) {
+    if (friend) {
+      const dmg = friendDamage(friend);
+      const rof = friend.def.attackSpeed;
+      const dps = dmg * rof;
+      unitStatDamage.textContent = String(dmg);
+      unitStatRof.textContent = `${rof.toFixed(2)}/s`;
+      unitStatDps.textContent = dps.toFixed(1);
+      unitStatsEl.classList.remove("hidden");
+      return;
+    }
+    if (bagDef) {
+      // Preview at level 1 before deploy
+      const preview: PlacedFriend = {
+        uid: "preview",
+        def: bagDef,
+        level: 1,
+        cooldown: 0,
+        slotId: -1,
+        abilityTimer: 0,
+        orbitAngle: 0,
+      };
+      const dmg = friendDamage(preview);
+      const rof = bagDef.attackSpeed;
+      unitStatDamage.textContent = String(dmg);
+      unitStatRof.textContent = `${rof.toFixed(2)}/s`;
+      unitStatDps.textContent = (dmg * rof).toFixed(1);
+      unitStatsEl.classList.remove("hidden");
+      return;
+    }
+    unitStatsEl.classList.add("hidden");
+  }
+
   if (game.selectedSlot != null) {
     const slot = game.slots.find((s) => s.id === game.selectedSlot);
     if (slot?.friend) {
@@ -613,25 +664,30 @@ function refresh() {
       }
       selectHint.textContent = `${f.def.emoji} ${f.def.name} Lv${f.level} — Gold ${game.gold}🪙 · Upgrade ${upgradeCost(f)}🪙${extra}`;
       showEvolveLineage(f.def);
+      showUnitCombatStats(f);
     } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
       const f = game.bag[game.selectedBag];
       selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass to deploy`;
       showEvolveLineage(f);
+      showUnitCombatStats(null, f);
     } else {
       selectHint.textContent = game.canMoveUnits()
         ? "Move friends between waves. Equip from bag to deploy."
         : "Wave in progress — move friends after it ends.";
       showEvolveLineage(null);
+      showUnitCombatStats(null);
     }
   } else if (game.selectedBag != null && game.bag[game.selectedBag]) {
     const f = game.bag[game.selectedBag];
     selectHint.textContent = `${f.emoji} ${f.name} equipped — tap grass to deploy`;
     showEvolveLineage(f);
+    showUnitCombatStats(null, f);
   } else {
     selectHint.textContent = game.canMoveUnits()
-      ? "Move friends between waves. Equip from bag to deploy."
+      ? "Upgrade to try a 5% mythical evolve! Move friends between waves."
       : "Wave in progress — move friends after it ends.";
     showEvolveLineage(null);
+    showUnitCombatStats(null);
   }
 
   toast.textContent = game.toastText;
