@@ -46,6 +46,81 @@ function themeShadowColor(theme: string): string {
   return "rgba(18,36,18,0.28)";
 }
 
+/**
+ * Soft halo + crisp circle/arc. Round caps make dashed arcs look smooth
+ * instead of choppy square segments.
+ */
+function strokeSmoothRing(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  color: string,
+  opts: {
+    lineWidth?: number;
+    glow?: string;
+    glowWidth?: number;
+    dash?: number[];
+    dashOffset?: number;
+    alpha?: number;
+    start?: number;
+    end?: number;
+  } = {},
+) {
+  const lw = opts.lineWidth ?? 2;
+  const a0 = opts.start ?? 0;
+  const a1 = opts.end ?? Math.PI * 2;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.imageSmoothingEnabled = true;
+  if (opts.glow) {
+    ctx.globalAlpha = (opts.alpha ?? 1) * 0.4;
+    ctx.strokeStyle = opts.glow;
+    ctx.lineWidth = opts.glowWidth ?? lw * 2.8;
+    ctx.beginPath();
+    ctx.arc(x, y, r, a0, a1);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = opts.alpha ?? 1;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  if (opts.dash?.length) {
+    ctx.setLineDash(opts.dash);
+    ctx.lineDashOffset = opts.dashOffset ?? 0;
+  } else {
+    ctx.setLineDash([]);
+  }
+  ctx.beginPath();
+  ctx.arc(x, y, r, a0, a1);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+/** Soft radial disc under range / orbit rings */
+function fillSoftDisc(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  colorInner: string,
+  colorOuter: string,
+  alpha = 1,
+) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const g = ctx.createRadialGradient(x, y, r * 0.15, x, y, r);
+  g.addColorStop(0, colorInner);
+  g.addColorStop(0.7, colorOuter);
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function castShadow(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -580,14 +655,14 @@ function gate(ctx: CanvasRenderingContext2D) {
   ctx.beginPath();
   ctx.arc(GATE.x, GATE.y, 22, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "#3a2810";
-  ctx.lineWidth = 3.5;
-  ctx.stroke();
-  ctx.strokeStyle = "rgba(255,220,160,0.35)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(GATE.x, GATE.y, 17, -Math.PI * 0.8, -Math.PI * 0.15);
-  ctx.stroke();
+  strokeSmoothRing(ctx, GATE.x, GATE.y, 22, "#3a2810", { lineWidth: 3.25, glow: "rgba(58,40,16,0.35)", glowWidth: 6 });
+  strokeSmoothRing(ctx, GATE.x, GATE.y, 17, "rgba(255,220,160,0.55)", {
+    lineWidth: 2.2,
+    glow: "rgba(255,220,160,0.25)",
+    glowWidth: 5,
+    start: -Math.PI * 0.8,
+    end: -Math.PI * 0.15,
+  });
 
   // Arrow pointing along the path's starting direction
   const next = PATH[1] ?? { x: GATE.x + 1, y: GATE.y };
@@ -731,13 +806,13 @@ function cookie(
     ctx.restore();
   }
 
-  // Outer cookie rim (skip bitten arcs)
+  // Outer cookie rim (skip bitten arcs) — round caps keep bite gaps smooth
   ctx.strokeStyle = "#c4782a";
   ctx.lineWidth = 3.25;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   if (bites.length === 0) {
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.stroke();
+    strokeSmoothRing(ctx, x, y, r, "#c4782a", { lineWidth: 3.25, glow: "rgba(196,120,42,0.35)", glowWidth: 6 });
   } else {
     const gaps = bites
       .map((b) => {
@@ -748,16 +823,24 @@ function cookie(
     let cursor = -Math.PI;
     for (const g of gaps) {
       if (g.a0 > cursor + 0.05) {
-        ctx.beginPath();
-        ctx.arc(x, y, r, cursor, g.a0);
-        ctx.stroke();
+        strokeSmoothRing(ctx, x, y, r, "#c4782a", {
+          lineWidth: 3.25,
+          glow: "rgba(196,120,42,0.28)",
+          glowWidth: 5,
+          start: cursor,
+          end: g.a0,
+        });
       }
       cursor = Math.max(cursor, g.a1);
     }
     if (cursor < Math.PI - 0.05) {
-      ctx.beginPath();
-      ctx.arc(x, y, r, cursor, Math.PI);
-      ctx.stroke();
+      strokeSmoothRing(ctx, x, y, r, "#c4782a", {
+        lineWidth: 3.25,
+        glow: "rgba(196,120,42,0.28)",
+        glowWidth: 5,
+        start: cursor,
+        end: Math.PI,
+      });
     }
   }
 
@@ -854,41 +937,27 @@ function drawFriendPad(
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = selected ? "#ffd24a" : "rgba(0,0,0,0.4)";
-  ctx.lineWidth = selected ? 4 : 2.5;
-  ctx.stroke();
+  strokeSmoothRing(ctx, x, y, r, selected ? "#ffd24a" : "rgba(0,0,0,0.4)", {
+    lineWidth: selected ? 3.5 : 2.4,
+    glow: selected ? "rgba(255,210,74,0.55)" : undefined,
+    glowWidth: selected ? 8 : undefined,
+  });
 
   // rarity outer rings (common/rare use softer accents so tier is visible on-map)
   if (f.def.rarity === "god") {
-    ctx.strokeStyle = "#ff5040";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(x, y, r + 5, 0, Math.PI * 2);
-    ctx.stroke();
+    strokeSmoothRing(ctx, x, y, r + 5, "#ff5040", { lineWidth: 2.75, glow: "rgba(255,80,64,0.45)", glowWidth: 7 });
   } else if (f.def.rarity === "mythical") {
-    ctx.strokeStyle = scale >= 1.2 ? "#ffd24a" : "#c060ff";
-    ctx.lineWidth = scale >= 1.2 ? 3.5 : 3;
-    ctx.beginPath();
-    ctx.arc(x, y, r + 5, 0, Math.PI * 2);
-    ctx.stroke();
+    strokeSmoothRing(ctx, x, y, r + 5, scale >= 1.2 ? "#ffd24a" : "#c060ff", {
+      lineWidth: scale >= 1.2 ? 3.2 : 2.75,
+      glow: scale >= 1.2 ? "rgba(255,210,74,0.5)" : "rgba(192,96,255,0.45)",
+      glowWidth: 7,
+    });
   } else if (f.def.rarity === "legendary") {
-    ctx.strokeStyle = "#e8c15a";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(x, y, r + 4, 0, Math.PI * 2);
-    ctx.stroke();
+    strokeSmoothRing(ctx, x, y, r + 4, "#e8c15a", { lineWidth: 2.4, glow: "rgba(232,193,90,0.4)", glowWidth: 6 });
   } else if (f.def.rarity === "rare") {
-    ctx.strokeStyle = "#4a8fd0";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y, r + 3.5, 0, Math.PI * 2);
-    ctx.stroke();
+    strokeSmoothRing(ctx, x, y, r + 3.5, "#4a8fd0", { lineWidth: 2, glow: "rgba(74,143,208,0.35)", glowWidth: 5 });
   } else {
-    ctx.strokeStyle = "#8a9aaa";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(x, y, r + 3, 0, Math.PI * 2);
-    ctx.stroke();
+    strokeSmoothRing(ctx, x, y, r + 3, "#8a9aaa", { lineWidth: 1.5 });
   }
 
   const portraitSize = Math.round((f.def.rarity === "mythical" || f.def.rarity === "god" ? 30 : 24) * scale);
@@ -1042,28 +1111,36 @@ function slots(
       // Nest / orbit rings only when this flyer is selected — keeps the board clear
       if (on) {
         const orbitR = flyerOrbitRadius(f);
-        ctx.fillStyle = landed ? "rgba(224, 112, 48, 0.3)" : "rgba(255,210,74,0.25)";
-        ctx.strokeStyle = landed ? "#e07030" : "#e8a04a";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, 16, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        if (!landed) {
-          ctx.strokeStyle = "rgba(126,200,255,0.55)";
-          ctx.lineWidth = 2;
-          ctx.setLineDash([6, 6]);
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, orbitR, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.setLineDash([]);
-
-          ctx.strokeStyle = "rgba(255,255,255,0.25)";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, orbitR * 0.72, 0, Math.PI * 2);
-          ctx.stroke();
+        if (landed) {
+          fillSoftDisc(ctx, s.x, s.y, 22, "rgba(224,112,48,0.45)", "rgba(224,112,48,0.08)", 0.9);
+          strokeSmoothRing(ctx, s.x, s.y, 16, "#e07030", {
+            lineWidth: 2.25,
+            glow: "rgba(224,112,48,0.55)",
+            glowWidth: 6,
+          });
+        } else {
+          fillSoftDisc(ctx, s.x, s.y, orbitR, "rgba(126,200,255,0.18)", "rgba(126,200,255,0.02)", 0.85);
+          strokeSmoothRing(ctx, s.x, s.y, 16, "#e8a04a", {
+            lineWidth: 2.25,
+            glow: "rgba(255,210,74,0.45)",
+            glowWidth: 6,
+          });
+          // Outer shoot ring — long soft dashes that drift
+          strokeSmoothRing(ctx, s.x, s.y, orbitR, "rgba(126,200,255,0.75)", {
+            lineWidth: 2.4,
+            glow: "rgba(126,200,255,0.35)",
+            glowWidth: 7,
+            dash: [14, 10],
+            dashOffset: -time * 28,
+          });
+          // Inner fly path — thin continuous arc (smoother than a hard dash)
+          strokeSmoothRing(ctx, s.x, s.y, orbitR * 0.72, "rgba(255,255,255,0.4)", {
+            lineWidth: 1.35,
+            glow: "rgba(255,255,255,0.15)",
+            glowWidth: 4,
+            dash: [3, 11],
+            dashOffset: time * 18,
+          });
         }
       }
       drawFriendPad(ctx, f, pos.x, pos.y, on, time);
@@ -1088,13 +1165,21 @@ function deployGhost(
   if (!deployMode || !ghost) return;
   ctx.save();
   ctx.globalAlpha = 0.55;
-  ctx.fillStyle = ghost.valid ? "rgba(126, 220, 120, 0.45)" : "rgba(220, 80, 80, 0.4)";
-  ctx.strokeStyle = ghost.valid ? "#3a9a40" : "#c04030";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(ghost.x, ghost.y, 28, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
+  fillSoftDisc(
+    ctx,
+    ghost.x,
+    ghost.y,
+    34,
+    ghost.valid ? "rgba(126,220,120,0.55)" : "rgba(220,80,80,0.45)",
+    ghost.valid ? "rgba(126,220,120,0.05)" : "rgba(220,80,80,0.05)",
+    1,
+  );
+  strokeSmoothRing(ctx, ghost.x, ghost.y, 28, ghost.valid ? "#3a9a40" : "#c04030", {
+    lineWidth: 2.75,
+    glow: ghost.valid ? "rgba(80,200,90,0.5)" : "rgba(220,80,80,0.45)",
+    glowWidth: 8,
+    dash: [10, 8],
+  });
   ctx.fillStyle = ghost.valid ? "#2a6030" : "#6a2020";
   ctx.font = "800 18px Nunito, sans-serif";
   ctx.textAlign = "center";
@@ -1271,19 +1356,23 @@ function poisonClouds(ctx: CanvasRenderingContext2D, list: PoisonCloud[], time: 
   for (const c of list) {
     const fade = Math.min(1, c.life / Math.min(1.2, c.maxLife));
     const pulse = 0.85 + Math.sin(time * 4 + c.x * 0.01) * 0.08;
-    ctx.globalAlpha = 0.22 * fade;
-    ctx.fillStyle = "#5a9060";
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, c.radius * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 0.35 * fade;
-    ctx.strokeStyle = "#3a7048";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, c.radius * 0.92, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    fillSoftDisc(
+      ctx,
+      c.x,
+      c.y,
+      c.radius * pulse,
+      "rgba(90,144,96,0.55)",
+      "rgba(90,144,96,0.05)",
+      0.55 * fade,
+    );
+    strokeSmoothRing(ctx, c.x, c.y, c.radius * 0.92 * pulse, "rgba(58,112,72,0.85)", {
+      lineWidth: 2.2,
+      glow: "rgba(90,160,100,0.4)",
+      glowWidth: 6,
+      dash: [12, 9],
+      dashOffset: -time * 22,
+      alpha: fade,
+    });
     ctx.globalAlpha = Math.min(1, fade + 0.2);
     ctx.font = "22px serif";
     ctx.textAlign = "center";
@@ -1357,18 +1446,13 @@ function booms(ctx: CanvasRenderingContext2D, list: Boom[]) {
     const col = colors[b.kind] || "#fff";
     const rad = b.radius * (1.25 - a * 0.25);
     // Soft shockwave fill
-    ctx.globalAlpha = a * 0.22;
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, rad, 0, Math.PI * 2);
-    ctx.fill();
-    // Outer ring
-    ctx.globalAlpha = a;
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, rad, 0, Math.PI * 2);
-    ctx.stroke();
+    fillSoftDisc(ctx, b.x, b.y, rad, col, "rgba(255,255,255,0)", a * 0.35);
+    strokeSmoothRing(ctx, b.x, b.y, rad, col, {
+      lineWidth: 2.8,
+      glow: col,
+      glowWidth: 8,
+      alpha: a,
+    });
     // Spark flecks
     ctx.fillStyle = "#fff8e0";
     ctx.globalAlpha = a * 0.85;
@@ -1430,12 +1514,16 @@ let groundCacheKey = "";
 
 function ensureGroundCache(): HTMLCanvasElement {
   const map = getActiveMap();
-  const key = `${map.id}:${PATH.length}:${PATH[0]?.x},${PATH[0]?.y}:${PATH[PATH.length - 1]?.x}`;
+  const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 2.5);
+  const key = `${map.id}:${PATH.length}:${PATH[0]?.x},${PATH[0]?.y}:${PATH[PATH.length - 1]?.x}:dpr${dpr}`;
   if (groundCache && groundCacheKey === key) return groundCache;
   const c = document.createElement("canvas");
-  c.width = W;
-  c.height = H;
+  c.width = Math.round(W * dpr);
+  c.height = Math.round(H * dpr);
   const gctx = c.getContext("2d")!;
+  gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  gctx.imageSmoothingEnabled = true;
+  if ("imageSmoothingQuality" in gctx) gctx.imageSmoothingQuality = "high";
   grass(gctx);
   path(gctx);
   landscaping(gctx);
@@ -1446,7 +1534,8 @@ function ensureGroundCache(): HTMLCanvasElement {
 }
 
 export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
-  ctx.drawImage(ensureGroundCache(), 0, 0);
+  const cache = ensureGroundCache();
+  ctx.drawImage(cache, 0, 0, cache.width, cache.height, 0, 0, W, H);
   walls(ctx, s.walls);
   dams(ctx, s.dams || []);
   poisonClouds(ctx, s.poisonClouds || [], s.time);
@@ -1501,13 +1590,26 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   }
 }
 
-export function drawRangeHint(ctx: CanvasRenderingContext2D, slot: Slot) {
+export function drawRangeHint(ctx: CanvasRenderingContext2D, slot: Slot, time = 0) {
   if (!slot.friend) return;
-  ctx.strokeStyle = "rgba(255,255,255,0.35)";
-  ctx.lineWidth = 2;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath();
-  ctx.arc(slot.x, slot.y, friendRange(slot.friend), 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  const r = friendRange(slot.friend);
+  fillSoftDisc(ctx, slot.x, slot.y, r, "rgba(255,255,255,0.14)", "rgba(255,210,120,0.04)", 0.9);
+  strokeSmoothRing(ctx, slot.x, slot.y, r, "rgba(255,248,220,0.7)", {
+    lineWidth: 2.35,
+    glow: "rgba(255,210,120,0.35)",
+    glowWidth: 7,
+    dash: [12, 9],
+    dashOffset: -time * 24,
+  });
+  // Inner accent arc — short sweep so the ring reads as a smooth guide
+  const sweep = Math.PI * 0.55;
+  const spin = time * 1.1;
+  strokeSmoothRing(ctx, slot.x, slot.y, r, "rgba(255,210,74,0.85)", {
+    lineWidth: 2.8,
+    glow: "rgba(255,210,74,0.4)",
+    glowWidth: 6,
+    start: spin,
+    end: spin + sweep,
+    alpha: 0.95,
+  });
 }

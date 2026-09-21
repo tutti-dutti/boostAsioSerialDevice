@@ -576,6 +576,7 @@ canvas#stage {
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  image-rendering: auto;
 }
 
 .bottom-dock {

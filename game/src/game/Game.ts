@@ -127,8 +127,7 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
-    canvas.width = W;
-    canvas.height = H;
+    this.syncCanvasResolution();
     this.courseIndex = randomCourseIndex();
     this.difficulty = loadDifficultyPreference();
     this.applyStartingResources(false);
@@ -141,6 +140,32 @@ export class Game {
     this.canvas.addEventListener("pointermove", (e) => this.onPointerMove(e));
     this.canvas.addEventListener("pointerup", (e) => this.onPointerUp(e));
     this.canvas.addEventListener("pointercancel", (e) => this.onPointerUp(e));
+    window.addEventListener("resize", () => this.syncCanvasResolution());
+  }
+
+  /** Match backing store to device pixels so circles/arcs stay crisp when CSS-scaled */
+  private canvasDpr = 0;
+  syncCanvasResolution() {
+    const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 2.5);
+    const bw = Math.round(W * dpr);
+    const bh = Math.round(H * dpr);
+    if (this.canvasDpr === dpr && this.canvas.width === bw && this.canvas.height === bh) {
+      // Re-apply transform — setting width clears it; keep a cheap path for unchanged size
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this.ctx.imageSmoothingEnabled = true;
+      if ("imageSmoothingQuality" in this.ctx) {
+        this.ctx.imageSmoothingQuality = "high";
+      }
+      return;
+    }
+    this.canvasDpr = dpr;
+    this.canvas.width = bw;
+    this.canvas.height = bh;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.ctx.imageSmoothingEnabled = true;
+    if ("imageSmoothingQuality" in this.ctx) {
+      this.ctx.imageSmoothingQuality = "high";
+    }
   }
 
   get difficultyLabel(): string {
@@ -2013,6 +2038,7 @@ export class Game {
     if (this.slots.some((s) => !s.friend)) {
       this.slots = this.slots.filter((s) => s.friend);
     }
+    this.syncCanvasResolution();
     this.refreshPeakScore();
     const thiefPos = new Map<string, { x: number; y: number }>();
     for (const t of this.thieves) {
@@ -2047,7 +2073,7 @@ export class Game {
     // Range ring only while a board friend is selected (not during bag deploy)
     if (this.selectedBag == null) {
       const selected = this.slotById(this.selectedSlot);
-      if (selected?.friend) drawRangeHint(this.ctx, selected);
+      if (selected?.friend) drawRangeHint(this.ctx, selected, this.time);
     }
   }
 }
