@@ -28,6 +28,10 @@ import {
   type Difficulty,
 } from "./difficulty";
 import {
+  computeAchievementScore,
+  type ScoreStats,
+} from "./highscores";
+import {
   friendRange,
   flyerOrbitSpeed,
   flyerWorldPos,
@@ -93,6 +97,9 @@ export class Game {
   wave = 1;
   cookieHp = 55;
   cookieMax = 55;
+  /** Best achievement score reached this run (does not drop when cookie is hurt) */
+  peakScore = 0;
+  peakStats: ScoreStats | null = null;
   cookieBiteFlash = 0;
   /** Permanent bite marks left when thieves chomp the cookie */
   cookieBites: CookieBite[] = [];
@@ -138,6 +145,51 @@ export class Game {
 
   get difficultyLabel(): string {
     return difficultyTuning(this.difficulty).label;
+  }
+
+  /** Live stats used for the composite achievement score */
+  scoreStats(): ScoreStats {
+    let friends = 0;
+    let friendLevels = 0;
+    for (const s of this.slots) {
+      if (!s.friend) continue;
+      friends += 1;
+      friendLevels += Math.max(1, s.friend.level);
+    }
+    return {
+      wave: this.wave,
+      gold: this.gold,
+      stars: this.stars,
+      friends,
+      friendLevels,
+      mythics: this.countMythicalFriends(),
+      cookieHp: this.cookieHp,
+      cookieMax: this.cookieMax,
+      mapTier: this.mapTier,
+      defense: this.defenseStrength(),
+      difficulty: this.difficulty,
+    };
+  }
+
+  /** Current composite score for this moment in the run */
+  currentScore(): number {
+    return computeAchievementScore(this.scoreStats());
+  }
+
+  /** Update peak if the current moment is a new personal best this run */
+  refreshPeakScore() {
+    const stats = this.scoreStats();
+    const points = computeAchievementScore(stats);
+    if (points > this.peakScore) {
+      this.peakScore = points;
+      this.peakStats = { ...stats };
+    }
+  }
+
+  /** Stats to save on the high-score board (peak achievement this run) */
+  bestScoreStats(): ScoreStats {
+    this.refreshPeakScore();
+    return this.peakStats ? { ...this.peakStats } : this.scoreStats();
   }
 
   /** Mythical + god friends on the board or in the bag */
@@ -530,6 +582,8 @@ export class Game {
       courseIndex: this.courseIndex,
       courseRandom: this.courseRandom,
       difficulty: this.difficulty,
+      peakScore: this.peakScore,
+      peakStats: this.peakStats,
       bag: this.bag.map((f) => f.id),
       slots: this.slots
         .filter((s) => s.friend)
@@ -564,6 +618,9 @@ export class Game {
       this.wave = data.wave ?? 1;
       this.cookieHp = data.cookieHp ?? 55;
       this.cookieMax = data.cookieMax ?? 55;
+      this.peakScore = typeof data.peakScore === "number" ? data.peakScore : 0;
+      this.peakStats =
+        data.peakStats && typeof data.peakStats === "object" ? data.peakStats : null;
       this.cookieBites = Array.isArray(data.cookieBites)
         ? data.cookieBites
             .filter(
@@ -636,6 +693,7 @@ export class Game {
       this.spawnLeft = 0;
       this.thieves = [];
       this.shots = [];
+      this.refreshPeakScore();
     } catch {
       /* ignore */
     }
@@ -658,6 +716,8 @@ export class Game {
     this.poisonClouds = [];
     this.wave = 1;
     this.applyStartingResources(true);
+    this.peakScore = 0;
+    this.peakStats = null;
     this.cookieBiteFlash = 0;
     this.cookieBites = [];
     this.cookieBitePulse = -1;
@@ -1946,6 +2006,7 @@ export class Game {
     if (this.slots.some((s) => !s.friend)) {
       this.slots = this.slots.filter((s) => s.friend);
     }
+    this.refreshPeakScore();
     const thiefPos = new Map<string, { x: number; y: number }>();
     for (const t of this.thieves) {
       if (!t.alive) continue;

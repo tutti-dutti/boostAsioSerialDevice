@@ -6,10 +6,12 @@ import { unlockAudio, setMuted, isMuted, playUnmuteChirp } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST } from "./game/types";
 import {
+  formatPoints,
   formatScoreDate,
   getSavedPlayerName,
   isHighScoreWorthy,
   loadHighScores,
+  scoreBreakdown,
   submitHighScore,
   type HighScore,
 } from "./game/highscores";
@@ -303,11 +305,11 @@ function renderScoresList(container: Element, scores: HighScore[], compact = fal
     <li class="score-row">
       <span class="score-rank">${i + 1}.</span>
       <span class="score-name">${escapeHtml(s.name)}</span>
-      <span class="score-wave">W${s.wave}</span>
+      <span class="score-wave">${formatPoints(s.points ?? 0)}</span>
       ${
         compact
-          ? `<span class="score-meta">${s.gold}🪙</span>`
-          : `<span class="score-meta">${s.gold}🪙 · ${formatScoreDate(s.at)}</span>`
+          ? `<span class="score-meta">${scoreBreakdown(s)}</span>`
+          : `<span class="score-meta">${scoreBreakdown(s)} · ${formatScoreDate(s.at)}</span>`
       }
     </li>`,
     )
@@ -340,11 +342,13 @@ homeScoreChips.querySelectorAll<HTMLButtonElement>("[data-score-mode]").forEach(
 });
 
 function setupGameOverScoreUi() {
-  overScoreLine.textContent = `Reached wave ${game.wave} on ${game.difficultyLabel} with ${game.gold}🪙. The thieves ate it!`;
+  const best = game.bestScoreStats();
+  const points = game.peakScore || game.currentScore();
+  overScoreLine.textContent = `Best score ${formatPoints(points)} — Wave ${best.wave} · ${best.stars}⭐ · ${best.gold}🪙 · ${best.friends} friends · cookie ${best.cookieHp}/${best.cookieMax}`;
   const scores = loadHighScores(game.difficulty);
   renderScoresList(overScoresList, scores, true);
 
-  const worthy = !scoreSavedThisRun && isHighScoreWorthy(game.wave, game.gold, game.difficulty);
+  const worthy = !scoreSavedThisRun && isHighScoreWorthy(points, game.difficulty);
   scoreSave.classList.toggle("hidden", !worthy);
   if (worthy && !scorePromptShown) {
     scorePromptShown = true;
@@ -357,10 +361,11 @@ function setupGameOverScoreUi() {
 function saveCurrentScore() {
   if (scoreSavedThisRun) return;
   const name = scoreNameInput.value.trim() || getSavedPlayerName() || "Player";
-  const list = submitHighScore(name, game.wave, game.gold, game.difficulty);
+  const stats = game.bestScoreStats();
+  const list = submitHighScore(name, { ...stats, points: game.peakScore || game.currentScore() });
   scoreSavedThisRun = true;
   scoreSave.classList.add("hidden");
-  scoreSaveStatus.textContent = `Saved — nice ${game.difficultyLabel} run, ${name}!`;
+  scoreSaveStatus.textContent = `Saved ${formatPoints(game.peakScore)} — nice ${game.difficultyLabel} run, ${name}!`;
   renderScoresList(overScoresList, list, true);
   homeScoreMode = game.difficulty;
   refreshHomeScores();
@@ -368,14 +373,16 @@ function saveCurrentScore() {
 
 function refreshPlayScoresPanel() {
   const mode = game.difficulty;
-  scoresLead.textContent = `${game.difficultyLabel} level board — top runs only for this mode.`;
-  scoresRunLine.textContent = `This run: Wave ${game.wave} · ${game.difficultyLabel} · ${game.gold}🪙`;
+  const best = game.bestScoreStats();
+  const points = game.peakScore || game.currentScore();
+  scoresLead.textContent = `${game.difficultyLabel} board — ranked by achievement score (wave, army, economy, cookie care).`;
+  scoresRunLine.textContent = `Best this run: ${formatPoints(points)} · Wave ${best.wave} · ${best.stars}⭐ · ${best.gold}🪙 · ${best.friends}🐾 · 🍪 ${best.cookieHp}/${best.cookieMax}`;
   const scores = loadHighScores(mode);
   renderScoresList(playScoresList, scores, true);
   playScoresEmpty.classList.toggle("hidden", scores.length > 0);
   playScoresList.classList.toggle("hidden", scores.length === 0);
 
-  const worthy = isHighScoreWorthy(game.wave, game.gold, mode);
+  const worthy = isHighScoreWorthy(points, mode);
   if (scoreSavedThisRun) {
     playScoreSaveLabel.textContent = "Already saved this run";
     playScoreSaveStatus.textContent = "Start a new game to save again.";
@@ -386,7 +393,7 @@ function refreshPlayScoresPanel() {
     (document.querySelector("#play-save-score-btn") as HTMLButtonElement).disabled = false;
   } else {
     playScoreSaveLabel.textContent = "Not a top score for this level yet";
-    playScoreSaveStatus.textContent = "Reach a higher wave to earn a spot.";
+    playScoreSaveStatus.textContent = "Push further — higher wave, stronger army, keep the cookie healthy.";
     (document.querySelector("#play-save-score-btn") as HTMLButtonElement).disabled = true;
   }
   playScoreSave.classList.remove("hidden");
@@ -403,7 +410,7 @@ function openScoresMenu() {
   }
   scoresOverlay.classList.remove("hidden");
   const canSave =
-    !scoreSavedThisRun && isHighScoreWorthy(game.wave, game.gold, game.difficulty);
+    !scoreSavedThisRun && isHighScoreWorthy(game.peakScore || game.currentScore(), game.difficulty);
   if (canSave) setTimeout(() => playScoreNameInput.focus(), 40);
   refresh();
 }
@@ -423,15 +430,17 @@ function savePlayScoreFromPanel() {
     playScoreSaveStatus.textContent = "Already saved this run.";
     return;
   }
-  if (!isHighScoreWorthy(game.wave, game.gold, game.difficulty)) {
+  const points = game.peakScore || game.currentScore();
+  if (!isHighScoreWorthy(points, game.difficulty)) {
     playScoreSaveStatus.textContent = "Not high enough for this level board yet.";
     refreshPlayScoresPanel();
     return;
   }
   const name = playScoreNameInput.value.trim() || getSavedPlayerName() || "Player";
-  const list = submitHighScore(name, game.wave, game.gold, game.difficulty);
+  const stats = game.bestScoreStats();
+  const list = submitHighScore(name, { ...stats, points });
   scoreSavedThisRun = true;
-  playScoreSaveStatus.textContent = `Saved on ${game.difficultyLabel} — nice work, ${name}!`;
+  playScoreSaveStatus.textContent = `Saved ${formatPoints(points)} on ${game.difficultyLabel} — nice work, ${name}!`;
   renderScoresList(playScoresList, list, true);
   playScoresEmpty.classList.add("hidden");
   playScoresList.classList.remove("hidden");
@@ -491,6 +500,7 @@ function refreshCourses() {
 function refresh() {
   const courseName = `${getActiveMap().name}${game.courseRandom ? " 🎲" : ""}`;
   statusMain.innerHTML = `
+    <span class="status-chip status-score">🏆 ${formatPoints(game.peakScore || game.currentScore())}</span>
     <span class="status-chip status-gold">🪙 ${game.gold}</span>
     <span class="status-chip">⭐ ${game.stars}</span>
     <span class="status-chip">Wave ${game.wave}</span>

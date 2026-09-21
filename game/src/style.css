@@ -443,6 +443,14 @@ body {
   text-shadow: none;
 }
 
+.status-chip.status-score {
+  background: linear-gradient(180deg, #ffe08a 0%, #e8a04a 100%);
+  border-color: #ffd24a;
+  color: #3a2010;
+  text-shadow: none;
+  font-variant-numeric: tabular-nums;
+}
+
 .status-chip.status-pressure {
   background: linear-gradient(180deg, #9050c8 0%, #5a2080 100%);
   border-color: #d0a0ff;
@@ -962,14 +970,32 @@ button.danger {
   text-align: left;
 }
 
+.scores-list:not(.scores-list-compact) .score-row {
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+}
+
 .score-row {
   display: grid;
-  grid-template-columns: 1.6rem minmax(0, 1fr) auto auto;
-  gap: 0.35rem 0.45rem;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  gap: 0.25rem 0.45rem;
   align-items: baseline;
   font-weight: 800;
   font-size: 0.9rem;
   color: var(--ink);
+}
+
+.score-wave {
+  color: #8a4a10;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-meta {
+  grid-column: 2 / -1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: normal;
 }
 
 .scores-mode-chips {
@@ -985,18 +1011,6 @@ button.danger {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.score-wave {
-  color: #3a6a48;
-  white-space: nowrap;
-}
-
-.score-meta {
-  grid-column: 2 / -1;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--muted);
 }
 
 .scores-empty {
