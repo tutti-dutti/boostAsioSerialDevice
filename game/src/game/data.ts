@@ -172,7 +172,7 @@ export const THIEVES: ThiefDef[] = [
 
 /** End-of-map bosses (fought on waves 30, 60, 90, …) */
 export const LEVEL_BOSSES: ThiefDef[] = [
-  { id: "boss_forest", name: "King Raccoon", emoji: "👑", hp: 1250, speed: 24, gold: 60, size: 34, kind: "boss", boss: true },
+  { id: "boss_forest", name: "King Raccoon", emoji: "👑", hp: 880, speed: 24, gold: 60, size: 34, kind: "boss", boss: true },
   { id: "boss_river", name: "Tide Thief", emoji: "🌊", hp: 1450, speed: 27, gold: 70, size: 34, kind: "boss", boss: true },
   { id: "boss_meadow", name: "Meadow Tyrant", emoji: "🐗", hp: 1650, speed: 22, gold: 80, size: 36, kind: "boss", boss: true },
   { id: "boss_canyon", name: "Canyon King", emoji: "🦂", hp: 1900, speed: 25, gold: 90, size: 36, kind: "boss", boss: true },
