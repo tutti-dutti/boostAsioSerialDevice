@@ -1374,8 +1374,8 @@ export class Game {
     if (t.hp <= 0) {
       t.alive = false;
       this.gold += t.def.gold;
-      // Every kill pays stars; bosses (mini + map) pay the bigger buffer reward
-      const starReward = t.def.boss ? 5 : 2;
+      // Every kill pays 1 star; bosses still get extra gold / toasts
+      const starReward = 1;
       this.stars += starReward;
       this.kills += 1;
       this.awardScore(killScorePoints(!!t.def.boss, this.difficulty));
