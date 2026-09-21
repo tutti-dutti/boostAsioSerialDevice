@@ -639,13 +639,16 @@ function refresh() {
   (document.querySelector("#lucky") as HTMLButtonElement).disabled = game.stars < LUCKY_SUMMON_COST;
   const startBtn = document.querySelector("#start-wave") as HTMLButtonElement;
   startBtn.disabled = !game.canStartWave();
-  startBtn.textContent = game.canStartWave()
-    ? game.autoWaveTimer > 0
-      ? `Start Now (${Math.ceil(game.autoWaveTimer)})`
-      : `Start Wave ${game.wave}`
-    : game.waveInProgress || game.spawnLeft > 0 || game.thieves.some((t) => t.alive)
-      ? `Wave ${game.wave}…`
-      : `Start Wave ${game.wave}`;
+  if (game.isCombatActive()) {
+    startBtn.textContent = `Next Wave ${game.nextWaveToStart()}`;
+  } else if (game.canStartWave()) {
+    startBtn.textContent =
+      game.autoWaveTimer > 0
+        ? `Start Now (${Math.ceil(game.autoWaveTimer)})`
+        : `Start Wave ${game.wave}`;
+  } else {
+    startBtn.textContent = `Start Wave ${game.wave}`;
+  }
 
   const pauseLabel = game.paused ? "Resume" : "Pause";
   const pauseAction = document.querySelector("#pause-action") as HTMLButtonElement;

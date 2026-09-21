@@ -1075,26 +1075,68 @@ export class Game {
 
   /** True when the Start Wave button should be enabled */
   canStartWave() {
-    return (
-      !this.gameOver &&
+    if (this.gameOver) return false;
+    // Between waves — start the waiting wave
+    if (
       this.waveWaiting &&
       !this.waveInProgress &&
       this.spawnLeft <= 0 &&
       this.thieves.every((t) => !t.alive)
-    );
+    ) {
+      return true;
+    }
+    // During combat — call the next wave early
+    return this.isCombatActive();
   }
 
-  /** Player presses Start Wave */
+  /** Wave number the Start button will launch */
+  nextWaveToStart(): number {
+    return this.isCombatActive() ? this.wave + 1 : this.wave;
+  }
+
+  /** Player presses Start Wave (or Next Wave during combat) */
   requestStartWave() {
-    if (!this.canStartWave()) {
-      if (this.waveInProgress || this.spawnLeft > 0 || this.thieves.some((t) => t.alive)) {
-        this.toast("Wave already going!", true);
-      }
+    if (this.gameOver) return;
+    if (this.isCombatActive()) {
+      this.callNextWaveEarly();
       return;
     }
+    if (!this.canStartWave()) return;
     this.paused = false;
     this.autoWaveTimer = 0;
     this.startWave();
+    this.onChange();
+  }
+
+  /**
+   * While a wave is still fighting, queue the next pack immediately.
+   * Remaining thieves stay on the path; new ones spawn after/alongside them.
+   */
+  callNextWaveEarly() {
+    if (this.gameOver || !this.isCombatActive()) return;
+    this.paused = false;
+    this.autoWaveTimer = 0;
+    // Credit the wave you're skipping the break for, then advance
+    this.stars += 1;
+    this.gold += 3;
+    this.wave += 1;
+    const extra = scaleWaveCount(waveCount(this.wave), this.difficulty);
+    this.spawnLeft += extra;
+    this.spawnTimer = Math.min(this.spawnTimer > 0 ? this.spawnTimer : 0.2, 0.18);
+    this.waveInProgress = true;
+    this.waveWaiting = false;
+    this.draggingSlot = null;
+    this.dragMoved = false;
+    this.dragOrigin = null;
+    if (this.selectedBag == null) this.deployGhost = null;
+    this.syncMapForWave(true);
+    if (isLevelBossWave(this.wave)) {
+      const boss = levelBossForWave(this.wave);
+      this.toast(`⚔️ ${boss.emoji} ${boss.name}! Wave ${this.wave} incoming!`, true);
+    } else {
+      this.toast(`Wave ${this.wave} incoming! (+1⭐ +3🪙)`, true);
+    }
+    this.save();
     this.onChange();
   }
 
