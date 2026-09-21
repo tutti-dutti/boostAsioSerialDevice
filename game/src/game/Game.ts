@@ -231,12 +231,21 @@ export class Game {
   }
 
   /**
-   * Pressure stacks: every 2 mythicals/gods → +1.
-   * Each stack buffs enemy HP by +100 and tightens combat difficulty.
+   * Pressure stacks: every 3 mythicals/gods → +1.
+   * Each stack lightly buffs enemies — mythics should still feel like a big power spike.
    */
   mythicalPressure(): number {
-    return Math.floor(this.countMythicalFriends() / 2);
+    return Math.floor(this.countMythicalFriends() / 3);
   }
+
+  /** Flat enemy HP added per mythic-pressure stack */
+  static readonly MYTHIC_PRESSURE_HP = 40;
+  /** Enemy speed bump per pressure stack */
+  static readonly MYTHIC_PRESSURE_SPEED = 0.02;
+  /** Cookie bite bump per pressure stack */
+  static readonly MYTHIC_PRESSURE_COOKIE = 0.025;
+  /** Spawn-pace tighten per pressure stack (lower → less punishing) */
+  static readonly MYTHIC_PRESSURE_SPAWN = 0.015;
 
   /**
    * Approximate board defense strength (DPS) from placed friends only.
@@ -254,15 +263,15 @@ export class Game {
 
   /**
    * HP multiplier that grows with board power (soft sqrt curve).
-   * Weak boards stay near 1×; stacked mythicals / high levels push toward 2×+.
-   * Hard uses a gentler curve so upgrades don't snowball enemy HP past income.
+   * Weak boards stay near 1×; stacked mythicals / high levels push gently.
+   * Baseline sits above a few basics so evolving doesn't immediately erase the power spike.
    */
   defenseToughnessMult(): number {
     const power = this.defenseStrength();
-    // Baseline ~a few basics; anything above that toughens enemies
-    const excess = Math.max(0, power - 14);
+    // Ignore early board DPS so mythics keep a clear lead over enemies
+    const excess = Math.max(0, power - 32);
     const curve =
-      this.difficulty === "hard" ? 0.075 : this.difficulty === "medium" ? 0.1 : 0.11;
+      this.difficulty === "hard" ? 0.05 : this.difficulty === "medium" ? 0.065 : 0.075;
     return 1 + Math.sqrt(excess) * curve;
   }
 
@@ -271,7 +280,7 @@ export class Game {
     const next = this.mythicalPressure();
     if (next > prevPressure) {
       this.toast(
-        `⚠️ Mythic pressure ${next} — enemies +${next * 100} HP & harder!`,
+        `⚠️ Mythic pressure ${next} — enemies +${next * Game.MYTHIC_PRESSURE_HP} HP`,
         true,
       );
     }
@@ -1260,17 +1269,19 @@ export class Game {
     // Keep archetypes sharp after wave scaling: speed stays fragile, strength stays slow
     const hpMult = base.kind === "speed" ? 0.85 : base.kind === "strength" ? 1.12 : 1;
     const spdMult = base.kind === "speed" ? 1.08 : base.kind === "strength" ? 0.82 : 1;
-    // Every 2 mythicals: +100 HP and a bit more speed (harder fight)
-    const pressureSpeed = 1 + pressure * 0.05;
+    // Mythic pressure: light HP/speed bump so evolved friends stay ahead
+    const pressureSpeed = 1 + pressure * Game.MYTHIC_PRESSURE_SPEED;
     const def = {
       ...base,
       speed: Math.max(10, Math.round(base.speed * spd * spdMult * diff.speed * pressureSpeed)),
       gold: Math.max(1, Math.round(base.gold * diff.gold)),
     };
-    // Scale HP with wave/difficulty, add mythic flat buff, then toughen vs board defense
+    // Scale HP with wave/difficulty, add mild mythic flat buff, then soft toughness
     const hp = Math.max(
       1,
-      Math.round((def.hp * scale * hpMult * diff.hp + pressure * 100) * toughness),
+      Math.round(
+        (def.hp * scale * hpMult * diff.hp + pressure * Game.MYTHIC_PRESSURE_HP) * toughness,
+      ),
     );
     this.thieves.push({
       uid: uid("t"),
@@ -1647,7 +1658,7 @@ export class Game {
           0.22,
           (1.1 - this.wave * 0.03) *
             difficultyTuning(this.difficulty).spawnPace *
-            Math.max(0.55, 1 - this.mythicalPressure() * 0.04),
+            Math.max(0.7, 1 - this.mythicalPressure() * Game.MYTHIC_PRESSURE_SPAWN),
         );
       }
     } else if (this.waveInProgress && this.thieves.every((t) => !t.alive)) {
@@ -1785,7 +1796,7 @@ export class Game {
           Math.round(
             baseDmg *
               difficultyTuning(this.difficulty).cookieDmg *
-              (1 + this.mythicalPressure() * 0.06),
+              (1 + this.mythicalPressure() * Game.MYTHIC_PRESSURE_COOKIE),
           ),
         );
         this.cookieHp -= dmg;
