@@ -518,18 +518,22 @@ function refreshCourses() {
 function refresh() {
   const courseName = `${getActiveMap().name}${game.courseRandom ? " 🎲" : ""}`;
   statusMain.innerHTML = `
-    <span class="status-chip status-score">🏆 ${formatPoints(game.peakScore || game.currentScore())}</span>
-    <span class="status-chip status-gold">🪙 ${game.gold}</span>
-    <span class="status-chip">⭐ ${game.stars}</span>
-    <span class="status-chip">Wave ${game.wave}</span>
-    <span class="status-chip mode-stat mode-stat-${game.difficulty}">${game.difficultyLabel}</span>
-    ${
-      game.mythicalPressure() > 0
-        ? `<span class="status-chip status-pressure">Mythic ×${game.mythicalPressure()} · +${game.mythicalPressure() * 100} HP</span>`
-        : ""
-    }
-    <span class="status-chip">🗺️ ${courseName}</span>
-    <span class="status-chip">🍪 ${game.cookieHp}/${game.cookieMax}</span>
+    <div class="status-hero" aria-label="Resources">
+      <span class="status-stat status-gold"><span class="status-stat-icon" aria-hidden="true">🪙</span><span class="status-stat-value">${game.gold}</span><span class="status-stat-label">Gold</span></span>
+      <span class="status-stat status-stars"><span class="status-stat-icon" aria-hidden="true">⭐</span><span class="status-stat-value">${game.stars}</span><span class="status-stat-label">Stars</span></span>
+      <span class="status-stat status-wave"><span class="status-stat-icon" aria-hidden="true">🌊</span><span class="status-stat-value">${game.wave}</span><span class="status-stat-label">Wave</span></span>
+    </div>
+    <div class="status-secondary">
+      <span class="status-chip status-score">🏆 ${formatPoints(game.peakScore || game.currentScore())}</span>
+      <span class="status-chip mode-stat mode-stat-${game.difficulty}">${game.difficultyLabel}</span>
+      ${
+        game.mythicalPressure() > 0
+          ? `<span class="status-chip status-pressure">Mythic ×${game.mythicalPressure()}</span>`
+          : ""
+      }
+      <span class="status-chip">🗺️ ${courseName}</span>
+      <span class="status-chip">🍪 ${game.cookieHp}/${game.cookieMax}</span>
+    </div>
   `;
 
   let upgradeCostAmt: number | null = null;

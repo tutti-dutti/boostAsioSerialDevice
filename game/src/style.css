@@ -407,33 +407,125 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.35rem 0.65rem;
-  background: linear-gradient(180deg, #3a4258 0%, #2a3040 100%);
+  gap: 0.45rem 0.75rem;
+  background: linear-gradient(180deg, #2f3648 0%, #1c2230 100%);
   border: 3px solid #c4782a;
   border-radius: 14px;
-  padding: 0.4rem 0.65rem;
-  box-shadow: inset 0 1px 0 rgba(255, 220, 160, 0.2), 0 4px 14px rgba(20, 24, 36, 0.25);
+  padding: 0.45rem 0.7rem;
+  box-shadow: inset 0 1px 0 rgba(255, 220, 160, 0.18), 0 4px 14px rgba(20, 24, 36, 0.3);
 }
 
 .status-main {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.45rem 0.75rem;
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.status-chip {
-  background: linear-gradient(180deg, #4a5268 0%, #343a4c 100%);
-  border: 2px solid rgba(232, 192, 106, 0.45);
-  border-radius: 999px;
-  padding: 0.22rem 0.55rem;
-  font-weight: 800;
-  font-size: 0.85rem;
-  white-space: nowrap;
+.status-hero {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.4rem;
+  flex: 0 1 auto;
+}
+
+.status-stat {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.35rem;
+  row-gap: 0;
+  align-items: center;
+  min-width: 4.6rem;
+  padding: 0.28rem 0.7rem 0.28rem 0.5rem;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 220, 160, 0.35);
+  background: linear-gradient(180deg, #3a4258 0%, #262c3c 100%);
   color: #fff6e8;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.status-stat-icon {
+  grid-row: 1 / span 2;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.status-stat-value {
+  font-weight: 900;
+  font-size: 1.35rem;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.status-stat-label {
+  font-weight: 800;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.72;
+  line-height: 1.1;
+}
+
+.status-stat.status-gold {
+  background: linear-gradient(180deg, #f2cc68 0%, #c4782a 100%);
+  border-color: #ffd24a;
+  color: #2a1808;
+  box-shadow: 0 2px 0 rgba(90, 50, 10, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.status-stat.status-gold .status-stat-label {
+  opacity: 0.8;
+  color: #4a2810;
+}
+
+.status-stat.status-stars {
+  background: linear-gradient(180deg, #ffe9a8 0%, #e8b04a 100%);
+  border-color: #ffe08a;
+  color: #2a1808;
+  box-shadow: 0 2px 0 rgba(90, 50, 10, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.status-stat.status-stars .status-stat-label {
+  opacity: 0.8;
+  color: #4a2810;
+}
+
+.status-stat.status-wave {
+  background: linear-gradient(180deg, #5a90d8 0%, #2a5088 100%);
+  border-color: #9ac0f0;
+  color: #fff8f0;
+  box-shadow: 0 2px 0 rgba(20, 40, 80, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.status-stat.status-wave .status-stat-label {
+  opacity: 0.85;
+  color: #d8e8ff;
+}
+
+.status-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.status-chip {
+  background: rgba(255, 246, 232, 0.08);
+  border: 1px solid rgba(232, 192, 106, 0.28);
+  border-radius: 999px;
+  padding: 0.16rem 0.45rem;
+  font-weight: 700;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  color: #d8d0c0;
+  text-shadow: none;
 }
 
 .status-chip.status-gold {
@@ -444,17 +536,38 @@ body {
 }
 
 .status-chip.status-score {
-  background: linear-gradient(180deg, #ffe08a 0%, #e8a04a 100%);
-  border-color: #ffd24a;
-  color: #3a2010;
-  text-shadow: none;
+  background: rgba(255, 224, 138, 0.16);
+  border-color: rgba(255, 210, 74, 0.45);
+  color: #ffe8a8;
   font-variant-numeric: tabular-nums;
 }
 
 .status-chip.status-pressure {
-  background: linear-gradient(180deg, #9050c8 0%, #5a2080 100%);
-  border-color: #d0a0ff;
-  color: #fff6e8;
+  background: rgba(144, 80, 200, 0.35);
+  border-color: rgba(208, 160, 255, 0.45);
+  color: #f0e0ff;
+}
+
+.status-chip.mode-stat {
+  font-weight: 800;
+}
+
+.status-chip.mode-stat-easy {
+  color: #8ef0b0;
+  border-color: rgba(100, 200, 130, 0.45);
+  background: rgba(42, 120, 72, 0.35);
+}
+
+.status-chip.mode-stat-medium {
+  color: #ffe08a;
+  border-color: rgba(232, 176, 74, 0.45);
+  background: rgba(168, 120, 24, 0.35);
+}
+
+.status-chip.mode-stat-hard {
+  color: #ffb0a0;
+  border-color: rgba(220, 100, 80, 0.45);
+  background: rgba(168, 56, 40, 0.35);
 }
 
 .status-meta {
@@ -1507,6 +1620,23 @@ button.danger {
     padding: 0.3rem 0.7rem;
   }
 
+  .status-stat {
+    min-width: 5.4rem;
+    padding: 0.35rem 0.85rem 0.35rem 0.6rem;
+  }
+
+  .status-stat-icon {
+    font-size: 1.55rem;
+  }
+
+  .status-stat-value {
+    font-size: 1.55rem;
+  }
+
+  .status-stat-label {
+    font-size: 0.7rem;
+  }
+
   .manage-panel {
     padding: 0.7rem 0.85rem;
   }
@@ -1651,19 +1781,49 @@ button.danger {
 
   .status-banner {
     gap: 0.2rem 0.35rem;
-    padding: 0.22rem 0.35rem;
+    padding: 0.28rem 0.4rem;
     border-width: 2px;
     border-radius: 8px;
   }
 
   .status-main {
+    gap: 0.25rem 0.4rem;
+  }
+
+  .status-hero {
+    gap: 0.22rem;
+    width: 100%;
+  }
+
+  .status-stat {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.18rem 0.4rem 0.18rem 0.28rem;
+    border-radius: 9px;
+    border-width: 2px;
+  }
+
+  .status-stat-icon {
+    font-size: 1.05rem;
+  }
+
+  .status-stat-value {
+    font-size: 1.05rem;
+  }
+
+  .status-stat-label {
+    font-size: 0.52rem;
+  }
+
+  .status-secondary {
     gap: 0.14rem;
+    width: 100%;
   }
 
   .status-chip {
-    font-size: 0.62rem;
-    padding: 0.1rem 0.32rem;
-    border-width: 2px;
+    font-size: 0.58rem;
+    padding: 0.08rem 0.28rem;
+    border-width: 1px;
   }
 
   .status-upgrade {
@@ -1906,8 +2066,25 @@ button.danger {
   }
 
   .status-chip {
-    font-size: 0.58rem;
-    padding: 0.08rem 0.28rem;
+    font-size: 0.55rem;
+    padding: 0.06rem 0.22rem;
+  }
+
+  .status-stat {
+    padding: 0.14rem 0.3rem 0.14rem 0.22rem;
+    border-radius: 8px;
+  }
+
+  .status-stat-icon {
+    font-size: 0.95rem;
+  }
+
+  .status-stat-value {
+    font-size: 0.95rem;
+  }
+
+  .status-stat-label {
+    font-size: 0.48rem;
   }
 
   button {
