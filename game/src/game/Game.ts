@@ -1324,15 +1324,30 @@ export class Game {
     if (t.hp <= 0) {
       t.alive = false;
       this.gold += t.def.gold;
+      // Every kill pays stars; bosses (mini + map) pay the bigger buffer reward
+      const starReward = t.def.boss ? 5 : 3;
+      this.stars += starReward;
       if (t.def.boss && isLevelBossWave(this.wave)) {
-        this.stars += 5;
         this.gold += 25;
         this.toast(`🏆 ${t.def.name} defeated! Map clear!`, true);
         this.booms.push({ kind: "beam", x, y, life: 1.4, radius: 80 });
-      } else if (Math.random() < 0.22) {
-        this.stars += 1;
+      } else if (t.def.boss) {
+        this.toast(`🏆 ${t.def.name} down! +${starReward}⭐`, true);
       }
-      this.floats.push({ x, y: y - 24, text: `+${t.def.gold}🪙`, color: "#c4782a", life: 1 });
+      this.floats.push({
+        x,
+        y: y - 24,
+        text: `+${starReward}⭐`,
+        color: "#ffd24a",
+        life: 1,
+      });
+      this.floats.push({
+        x: x + 8,
+        y: y - 38,
+        text: `+${t.def.gold}🪙`,
+        color: "#c4782a",
+        life: 1,
+      });
       this.creditBeaverKill(killerSlotId, t, x, y);
       this.creditEagleKill(killerSlotId, t, x, y);
     }
