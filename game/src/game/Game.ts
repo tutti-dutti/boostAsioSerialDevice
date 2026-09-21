@@ -999,9 +999,9 @@ export class Game {
     );
   }
 
-  /** Board friends can only be repositioned between waves */
+  /** Board friends can be repositioned between waves, or anytime while paused */
   canMoveUnits(): boolean {
-    return !this.gameOver && !this.isCombatActive();
+    return !this.gameOver && (!this.isCombatActive() || this.paused);
   }
 
   onPointerDown(e: PointerEvent) {
@@ -1010,7 +1010,7 @@ export class Game {
     this.canvas.setPointerCapture(e.pointerId);
 
     const hit = this.hitFriendSlot(x, y, this.friendHitRadius(e));
-    // Tap a placed friend to select; drag/move only between waves
+    // Tap a placed friend to select; drag/move between waves or while paused
     if (hit) {
       this.selectedBag = null;
       this.deployGhost = null;
@@ -1024,7 +1024,7 @@ export class Game {
         this.draggingSlot = null;
         this.dragMoved = false;
         this.dragOrigin = null;
-        this.toast("Wait for the next wave to move friends", true);
+        this.toast("Pause to move friends, or wait for the next wave", true);
       }
       this.onChange();
       return;

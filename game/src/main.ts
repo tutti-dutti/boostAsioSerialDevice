@@ -676,8 +676,10 @@ function refresh() {
       showUnitCombatStats(null, f);
     } else {
       selectHint.textContent = game.canMoveUnits()
-        ? "Move friends between waves. Equip from bag to deploy."
-        : "Wave in progress — move friends after it ends.";
+        ? game.paused
+          ? "Paused — drag friends to move. Equip from bag to deploy."
+          : "Move friends between waves. Equip from bag to deploy."
+        : "Wave in progress — Pause to move friends.";
       showEvolveLineage(null);
       showUnitCombatStats(null);
     }
@@ -688,8 +690,10 @@ function refresh() {
     showUnitCombatStats(null, f);
   } else {
     selectHint.textContent = game.canMoveUnits()
-      ? "Upgrade to try a 5% mythical evolve! Move friends between waves."
-      : "Wave in progress — move friends after it ends.";
+      ? game.paused
+        ? "Paused — drag friends to reposition."
+        : "Upgrade to try a 5% mythical evolve! Move friends between waves."
+      : "Wave in progress — Pause to move friends.";
     showEvolveLineage(null);
     showUnitCombatStats(null);
   }

@@ -1578,15 +1578,21 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   }
 
   if (s.paused) {
-    ctx.fillStyle = "rgba(20, 24, 36, 0.45)";
-    ctx.fillRect(0, 0, W, H);
+    // Light top banner only — keep the board clear so friends can be repositioned
+    ctx.fillStyle = "rgba(20, 24, 36, 0.72)";
+    ctx.beginPath();
+    ctx.roundRect(W / 2 - 170, 10, 340, 52, 12);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 210, 74, 0.55)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
     ctx.fillStyle = "#fff8ee";
-    ctx.font = "900 36px Fredoka, Nunito, sans-serif";
+    ctx.font = "900 22px Fredoka, Nunito, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Paused", W / 2, H / 2 - 8);
-    ctx.font = "700 16px Nunito, sans-serif";
-    ctx.fillStyle = "rgba(255, 248, 238, 0.9)";
-    ctx.fillText("Press Resume to continue", W / 2, H / 2 + 24);
+    ctx.fillText("Paused", W / 2, 32);
+    ctx.font = "700 13px Nunito, sans-serif";
+    ctx.fillStyle = "rgba(255, 248, 238, 0.92)";
+    ctx.fillText("Drag friends to move · Resume to continue", W / 2, 50);
   }
 }
 
