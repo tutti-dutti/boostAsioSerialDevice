@@ -145,7 +145,7 @@ export const SPEED_THIEVES: ThiefDef[] = [
 ];
 
 export const STRENGTH_THIEVES: ThiefDef[] = [
-  { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 160, speed: 24, gold: 3, size: 17, kind: "strength" },
+  { id: "raccoon", name: "Raccoon", emoji: "🦝", hp: 110, speed: 24, gold: 3, size: 17, kind: "strength" },
   { id: "pantrygoat", name: "Pantry Goat", emoji: "🐐", hp: 200, speed: 22, gold: 4, size: 18, kind: "strength" },
   { id: "pig", name: "Snack Pig", emoji: "🐷", hp: 255, speed: 18, gold: 5, size: 19, kind: "strength" },
   { id: "doughbadger", name: "Dough Badger", emoji: "🦡", hp: 290, speed: 17, gold: 5, size: 18, kind: "strength" },
