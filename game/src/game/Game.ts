@@ -1325,7 +1325,7 @@ export class Game {
       t.alive = false;
       this.gold += t.def.gold;
       // Every kill pays stars; bosses (mini + map) pay the bigger buffer reward
-      const starReward = t.def.boss ? 5 : 3;
+      const starReward = t.def.boss ? 5 : 2;
       this.stars += starReward;
       if (t.def.boss && isLevelBossWave(this.wave)) {
         this.gold += 25;
