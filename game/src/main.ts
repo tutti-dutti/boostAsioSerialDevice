@@ -521,7 +521,7 @@ homeAuthorBtn.addEventListener("click", (e) => {
   if (secretAuthorClickTimer) clearTimeout(secretAuthorClickTimer);
   secretAuthorClickTimer = setTimeout(() => {
     secretAuthorClicks = 0;
-  }, 2500);
+  }, 8000);
   if (secretAuthorClicks >= 5) {
     if (secretAuthorClickTimer) clearTimeout(secretAuthorClickTimer);
     secretAuthorClicks = 0;
