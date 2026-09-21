@@ -40,6 +40,8 @@ export interface ScoreStats {
 }
 
 export interface HighScore {
+  /** Stable id for edit / erase (assigned on save if missing) */
+  id?: string;
   name: string;
   /** Composite achievement points (ranking key) */
   points: number;
@@ -143,6 +145,10 @@ export function scoreValue(s: Pick<HighScore, "points" | "wave" | "gold" | "diff
   });
 }
 
+function makeScoreId(): string {
+  return `hs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function normalize(list: HighScore[]): HighScore[] {
   return list
     .filter((e) => e && typeof e.name === "string" && typeof e.wave === "number")
@@ -152,7 +158,11 @@ function normalize(list: HighScore[]): HighScore[] {
         typeof e.points === "number" && Number.isFinite(e.points)
           ? e.points
           : scoreValue({ ...e, difficulty });
-      return { ...e, difficulty, points };
+      const id =
+        typeof e.id === "string" && e.id.length > 0
+          ? e.id
+          : `legacy_${e.at}_${e.name}_${points}`;
+      return { ...e, id, difficulty, points };
     });
 }
 
@@ -265,6 +275,7 @@ export function submitHighScore(name: string, stats: ScoreStats & { points?: num
   rememberPlayerName(clean);
   const points = stats.points ?? computeAchievementScore(stats);
   const entry: HighScore = {
+    id: makeScoreId(),
     name: clean,
     points,
     wave: stats.wave,
@@ -286,6 +297,61 @@ export function submitHighScore(name: string, stats: ScoreStats & { points?: num
   list.push(entry);
   saveHighScores(list);
   return loadHighScores(stats.difficulty);
+}
+
+/** Admin: erase one score by id */
+export function deleteHighScore(id: string): HighScore[] {
+  const clean = id.trim();
+  if (!clean) return loadHighScores();
+  const list = loadAllHighScores().filter((s) => s.id !== clean);
+  saveHighScores(list);
+  return loadHighScores();
+}
+
+/** Admin: patch name / points / wave / difficulty on one score */
+export function updateHighScore(
+  id: string,
+  patch: Partial<Pick<HighScore, "name" | "points" | "wave" | "difficulty" | "kills" | "wavesCleared">>,
+): HighScore | null {
+  const clean = id.trim();
+  if (!clean) return null;
+  const list = loadAllHighScores();
+  const idx = list.findIndex((s) => s.id === clean);
+  if (idx < 0) return null;
+  const cur = list[idx]!;
+  const next: HighScore = { ...cur };
+  if (typeof patch.name === "string") next.name = patch.name.trim().slice(0, 16) || cur.name;
+  if (typeof patch.points === "number" && Number.isFinite(patch.points)) {
+    next.points = Math.max(0, Math.round(patch.points));
+  }
+  if (typeof patch.wave === "number" && Number.isFinite(patch.wave)) {
+    next.wave = Math.max(1, Math.round(patch.wave));
+  }
+  if (typeof patch.kills === "number" && Number.isFinite(patch.kills)) {
+    next.kills = Math.max(0, Math.round(patch.kills));
+  }
+  if (typeof patch.wavesCleared === "number" && Number.isFinite(patch.wavesCleared)) {
+    next.wavesCleared = Math.max(0, Math.round(patch.wavesCleared));
+  }
+  if (patch.difficulty && isDifficulty(patch.difficulty)) {
+    next.difficulty = patch.difficulty;
+  }
+  list[idx] = next;
+  saveHighScores(list);
+  return next;
+}
+
+/** Admin: wipe every high score this week */
+export function clearAllHighScores(): void {
+  ensureCurrentWeek();
+  localStorage.setItem(HS_KEY, JSON.stringify([]));
+}
+
+/** Admin: wipe one play level */
+export function clearHighScoresForMode(difficulty: Difficulty): HighScore[] {
+  const list = loadAllHighScores().filter((s) => (s.difficulty ?? "easy") !== difficulty);
+  saveHighScores(list);
+  return loadHighScores(difficulty);
 }
 
 export function formatScoreDate(at: number): string {

@@ -6,6 +6,9 @@ import { unlockAudio, setMuted, isMuted, playUnmuteChirp } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST, friendDamage, type PlacedFriend } from "./game/types";
 import {
+  clearAllHighScores,
+  clearHighScoresForMode,
+  deleteHighScore,
   formatPoints,
   formatScoreDate,
   formatWeeklyResetHint,
@@ -14,6 +17,7 @@ import {
   loadHighScores,
   scoreBreakdown,
   submitHighScore,
+  updateHighScore,
   type HighScore,
 } from "./game/highscores";
 import { DIFFICULTIES, isDifficulty, type Difficulty } from "./game/difficulty";
@@ -23,7 +27,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 
 app.innerHTML = `
   <section class="home" id="home">
-    <h1 class="home-brand">Cookie Guard <span class="home-by">by James Nguyen</span></h1>
+    <h1 class="home-brand">Cookie Guard <span class="home-by">by <button type="button" class="home-author" id="home-author" aria-label="James Nguyen">James Nguyen</button></span></h1>
     <p class="home-line">Animal friends</p>
     <div class="course-picker" id="home-courses">
       <p class="course-label">Choose a course</p>
@@ -219,6 +223,36 @@ app.innerHTML = `
       <button type="button" id="scores-close">Close</button>
     </div>
   </div>
+
+  <div class="secret-overlay hidden" id="secret-overlay" role="dialog" aria-modal="true" aria-labelledby="secret-title">
+    <div class="secret-card">
+      <h2 id="secret-title">SECRET MENU</h2>
+      <div id="secret-gate">
+        <p class="secret-lead">Enter the secret code</p>
+        <div class="secret-code-row">
+          <input id="secret-code" type="password" maxlength="40" placeholder="Secret code" autocomplete="off" spellcheck="false" />
+          <button class="green" id="secret-unlock-btn" type="button">Unlock</button>
+        </div>
+        <p class="hint" id="secret-gate-status"></p>
+      </div>
+      <div id="secret-admin" class="hidden">
+        <p class="secret-lead">High score admin — edit or erase entries</p>
+        <div class="mode-chips secret-mode-chips" id="secret-mode-chips" role="group" aria-label="Admin score play level">
+          <button class="mode-chip mode-easy selected" data-secret-mode="easy" type="button">Easy</button>
+          <button class="mode-chip mode-medium" data-secret-mode="medium" type="button">Medium</button>
+          <button class="mode-chip mode-hard" data-secret-mode="hard" type="button">Hard</button>
+        </div>
+        <div class="secret-admin-list" id="secret-admin-list"></div>
+        <p class="scores-empty hidden" id="secret-admin-empty">No scores for this level.</p>
+        <div class="secret-admin-actions">
+          <button class="danger" id="secret-clear-mode" type="button">Erase this level</button>
+          <button class="danger" id="secret-clear-all" type="button">Erase all scores</button>
+        </div>
+        <p class="hint" id="secret-admin-status"></p>
+      </div>
+      <button type="button" id="secret-close">Close</button>
+    </div>
+  </div>
 `;
 
 const home = document.querySelector<HTMLElement>("#home")!;
@@ -274,9 +308,42 @@ const confirmTitle = document.querySelector("#confirm-title")!;
 const confirmMessage = document.querySelector("#confirm-message")!;
 const confirmYesBtn = document.querySelector<HTMLButtonElement>("#confirm-yes")!;
 const confirmNoBtn = document.querySelector<HTMLButtonElement>("#confirm-no")!;
+const homeAuthorBtn = document.querySelector<HTMLButtonElement>("#home-author")!;
+const secretOverlay = document.querySelector("#secret-overlay")!;
+const secretGate = document.querySelector("#secret-gate")!;
+const secretAdmin = document.querySelector("#secret-admin")!;
+const secretCodeInput = document.querySelector<HTMLInputElement>("#secret-code")!;
+const secretUnlockBtn = document.querySelector<HTMLButtonElement>("#secret-unlock-btn")!;
+const secretGateStatus = document.querySelector("#secret-gate-status")!;
+const secretAdminList = document.querySelector("#secret-admin-list")!;
+const secretAdminEmpty = document.querySelector("#secret-admin-empty")!;
+const secretAdminStatus = document.querySelector("#secret-admin-status")!;
+const secretModeChips = document.querySelector("#secret-mode-chips")!;
 let scorePromptShown = false;
 let scoreSavedThisRun = false;
 let homeScoreMode: Difficulty = "easy";
+let secretScoreMode: Difficulty = "easy";
+let secretAuthorClicks = 0;
+let secretAuthorClickTimer: ReturnType<typeof setTimeout> | null = null;
+const SECRET_CODE = "chicken&waffles";
+const SECRET_UNLOCK_KEY = "cookie-guard-secret-hs-admin";
+
+function isSecretAdminUnlocked(): boolean {
+  try {
+    return sessionStorage.getItem(SECRET_UNLOCK_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setSecretAdminUnlocked(on: boolean) {
+  try {
+    if (on) sessionStorage.setItem(SECRET_UNLOCK_KEY, "1");
+    else sessionStorage.removeItem(SECRET_UNLOCK_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 let pausedForScores = false;
 let feedbackKind: FeedbackKind = "feedback";
 let feedbackListFilter: FeedbackKind | "all" = "all";
@@ -351,6 +418,215 @@ function refreshHomeScores() {
   homeScoresEmpty.classList.toggle("hidden", scores.length > 0);
   homeScoresList.classList.toggle("hidden", scores.length === 0);
 }
+
+function syncSecretPanel() {
+  const unlocked = isSecretAdminUnlocked();
+  secretGate.classList.toggle("hidden", unlocked);
+  secretAdmin.classList.toggle("hidden", !unlocked);
+  if (unlocked) {
+    secretGateStatus.textContent = "";
+    refreshSecretAdminList();
+  }
+}
+
+function openSecretMenu() {
+  secretAuthorClicks = 0;
+  secretCodeInput.value = "";
+  secretGateStatus.textContent = "";
+  secretAdminStatus.textContent = "";
+  secretScoreMode = homeScoreMode;
+  syncSecretPanel();
+  secretOverlay.classList.remove("hidden");
+  setTimeout(() => {
+    if (isSecretAdminUnlocked()) {
+      (document.querySelector("#secret-close") as HTMLButtonElement | null)?.focus();
+    } else {
+      secretCodeInput.focus();
+    }
+  }, 40);
+}
+
+function closeSecretMenu() {
+  secretOverlay.classList.add("hidden");
+  secretCodeInput.value = "";
+  secretGateStatus.textContent = "";
+  secretAdminStatus.textContent = "";
+}
+
+function tryUnlockSecret() {
+  const code = secretCodeInput.value;
+  if (code === SECRET_CODE) {
+    setSecretAdminUnlocked(true);
+    secretGateStatus.textContent = "";
+    secretAdminStatus.textContent = "Unlocked — edit or erase high scores below.";
+    syncSecretPanel();
+    return;
+  }
+  secretGateStatus.textContent = "Nope. Wrong code.";
+  secretCodeInput.select();
+}
+
+function refreshSecretAdminList() {
+  secretModeChips.querySelectorAll<HTMLButtonElement>("[data-secret-mode]").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.secretMode === secretScoreMode);
+  });
+  const scores = loadHighScores(secretScoreMode);
+  if (!scores.length) {
+    secretAdminList.innerHTML = "";
+    secretAdminEmpty.classList.remove("hidden");
+    return;
+  }
+  secretAdminEmpty.classList.add("hidden");
+  secretAdminList.innerHTML = scores
+    .map((s, i) => {
+      const id = s.id || "";
+      return `
+      <div class="secret-score-row" data-score-id="${escapeHtml(id)}">
+        <div class="secret-score-head">
+          <span class="score-rank">${i + 1}.</span>
+          <span class="secret-score-summary">${escapeHtml(s.name)} · ${formatPoints(s.points ?? 0)} · W${s.wave} · ${difficultyLabel(s.difficulty)}</span>
+        </div>
+        <div class="secret-score-edit">
+          <label>Name <input type="text" class="secret-edit-name" maxlength="16" value="${escapeHtml(s.name)}" /></label>
+          <label>Points <input type="number" class="secret-edit-points" min="0" step="1" value="${Math.round(s.points ?? 0)}" /></label>
+          <label>Wave <input type="number" class="secret-edit-wave" min="1" step="1" value="${s.wave | 0}" /></label>
+          <label>Mode
+            <select class="secret-edit-diff">
+              <option value="easy" ${(s.difficulty ?? "easy") === "easy" ? "selected" : ""}>Easy</option>
+              <option value="medium" ${s.difficulty === "medium" ? "selected" : ""}>Medium</option>
+              <option value="hard" ${s.difficulty === "hard" ? "selected" : ""}>Hard</option>
+            </select>
+          </label>
+        </div>
+        <div class="secret-score-actions">
+          <button type="button" class="green secret-save-btn" data-id="${escapeHtml(id)}">Save</button>
+          <button type="button" class="danger secret-erase-btn" data-id="${escapeHtml(id)}">Erase</button>
+        </div>
+      </div>`;
+    })
+    .join("");
+}
+
+function difficultyLabel(d?: Difficulty): string {
+  if (d === "medium") return "Medium";
+  if (d === "hard") return "Hard";
+  return "Easy";
+}
+
+homeAuthorBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  unlockAudio();
+  secretAuthorClicks += 1;
+  if (secretAuthorClickTimer) clearTimeout(secretAuthorClickTimer);
+  secretAuthorClickTimer = setTimeout(() => {
+    secretAuthorClicks = 0;
+  }, 2500);
+  if (secretAuthorClicks >= 5) {
+    if (secretAuthorClickTimer) clearTimeout(secretAuthorClickTimer);
+    secretAuthorClicks = 0;
+    openSecretMenu();
+  }
+});
+
+secretUnlockBtn.addEventListener("click", () => {
+  unlockAudio();
+  tryUnlockSecret();
+});
+
+secretCodeInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    tryUnlockSecret();
+  }
+});
+
+document.querySelector("#secret-close")!.addEventListener("click", () => {
+  unlockAudio();
+  closeSecretMenu();
+});
+
+secretModeChips.querySelectorAll<HTMLButtonElement>("[data-secret-mode]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    unlockAudio();
+    const mode = btn.dataset.secretMode;
+    if (isDifficulty(mode)) {
+      secretScoreMode = mode;
+      refreshSecretAdminList();
+    }
+  });
+});
+
+secretAdminList.addEventListener("click", (e) => {
+  const t = e.target as HTMLElement;
+  const saveBtn = t.closest<HTMLButtonElement>(".secret-save-btn");
+  const eraseBtn = t.closest<HTMLButtonElement>(".secret-erase-btn");
+  if (saveBtn) {
+    unlockAudio();
+    const id = saveBtn.dataset.id || "";
+    const row = saveBtn.closest(".secret-score-row");
+    if (!row || !id) return;
+    const name = (row.querySelector(".secret-edit-name") as HTMLInputElement).value;
+    const points = Number((row.querySelector(".secret-edit-points") as HTMLInputElement).value);
+    const wave = Number((row.querySelector(".secret-edit-wave") as HTMLInputElement).value);
+    const difficulty = (row.querySelector(".secret-edit-diff") as HTMLSelectElement).value;
+    const updated = updateHighScore(id, {
+      name,
+      points,
+      wave,
+      difficulty: isDifficulty(difficulty) ? difficulty : undefined,
+    });
+    if (!updated) {
+      secretAdminStatus.textContent = "Could not save that entry.";
+      return;
+    }
+    secretAdminStatus.textContent = `Saved ${updated.name} · ${formatPoints(updated.points)}.`;
+    homeScoreMode = (updated.difficulty ?? secretScoreMode) as Difficulty;
+    if (isDifficulty(updated.difficulty)) secretScoreMode = updated.difficulty;
+    refreshSecretAdminList();
+    refreshHomeScores();
+    return;
+  }
+  if (eraseBtn) {
+    unlockAudio();
+    const id = eraseBtn.dataset.id || "";
+    if (!id) return;
+    deleteHighScore(id);
+    secretAdminStatus.textContent = "Erased.";
+    refreshSecretAdminList();
+    refreshHomeScores();
+  }
+});
+
+document.querySelector("#secret-clear-mode")!.addEventListener("click", () => {
+  unlockAudio();
+  openConfirm({
+    title: "Erase this level?",
+    message: `Delete all ${DIFFICULTIES[secretScoreMode].label} high scores for this week?`,
+    confirmLabel: "Erase level",
+    onConfirm: () => {
+      clearHighScoresForMode(secretScoreMode);
+      secretAdminStatus.textContent = `${DIFFICULTIES[secretScoreMode].label} board cleared.`;
+      refreshSecretAdminList();
+      refreshHomeScores();
+    },
+  });
+});
+
+document.querySelector("#secret-clear-all")!.addEventListener("click", () => {
+  unlockAudio();
+  openConfirm({
+    title: "Erase all scores?",
+    message: "Delete every high score for this week (all difficulties)?",
+    confirmLabel: "Erase all",
+    onConfirm: () => {
+      clearAllHighScores();
+      secretAdminStatus.textContent = "All high scores erased.";
+      refreshSecretAdminList();
+      refreshHomeScores();
+    },
+  });
+});
 
 homeScoreChips.querySelectorAll<HTMLButtonElement>("[data-score-mode]").forEach((btn) => {
   btn.addEventListener("click", () => {
