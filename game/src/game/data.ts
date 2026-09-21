@@ -1,4 +1,5 @@
 import { WAVES_PER_MAP, getActiveCourseIndex, mapTierForWave } from "./path";
+import type { Difficulty } from "./difficulty";
 
 export type Rarity = "common" | "rare" | "legendary" | "mythical" | "god";
 
@@ -338,8 +339,9 @@ function miniBossForWave(wave: number, tier: number): ThiefDef {
  * Pick a thief for this wave.
  * Waves combine speed (fragile/fast) and strength (tanky/slow) targets.
  * Early level still weights toward weak speed bugs so players can win.
+ * Hard trims strength mix a bit so tank packs don't overwhelm income.
  */
-export function thiefForWave(wave: number): ThiefDef {
+export function thiefForWave(wave: number, difficulty: Difficulty = "easy"): ThiefDef {
   if (isLevelBossWave(wave)) return levelBossForWave(wave);
 
   const tier = mapTierForWave(wave);
@@ -350,7 +352,10 @@ export function thiefForWave(wave: number): ThiefDef {
     return miniBossForWave(wave, tier);
   }
 
-  const wantStrength = Math.random() < strengthChance(tier, local);
+  let chance = strengthChance(tier, local);
+  if (difficulty === "hard") chance *= 0.82;
+  else if (difficulty === "easy") chance *= 1.05;
+  const wantStrength = Math.random() < chance;
   const pool = wantStrength ? STRENGTH_THIEVES : SPEED_THIEVES;
   const unlock = roleUnlockIndex(tier, local, pool.length);
   const favorWeak = tier === 0 ? Math.max(0.45, 0.95 - local * 0.025) : Math.max(0.3, 0.7 - tier * 0.08);

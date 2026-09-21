@@ -230,12 +230,15 @@ export class Game {
   /**
    * HP multiplier that grows with board power (soft sqrt curve).
    * Weak boards stay near 1×; stacked mythicals / high levels push toward 2×+.
+   * Hard uses a gentler curve so upgrades don't snowball enemy HP past income.
    */
   defenseToughnessMult(): number {
     const power = this.defenseStrength();
     // Baseline ~a few basics; anything above that toughens enemies
     const excess = Math.max(0, power - 14);
-    return 1 + Math.sqrt(excess) * 0.11;
+    const curve =
+      this.difficulty === "hard" ? 0.075 : this.difficulty === "medium" ? 0.1 : 0.11;
+    return 1 + Math.sqrt(excess) * curve;
   }
 
   /** Announce when mythical pressure rises (e.g. after evolving) */
@@ -1178,7 +1181,7 @@ export class Game {
     this.autoWaveTimer = 0;
     // Credit the wave you're skipping the break for, then advance
     this.stars += 1;
-    this.gold += 3;
+    this.gold += Math.max(3, Math.round(3 * difficultyTuning(this.difficulty).gold));
     this.wave += 1;
     const extra = scaleWaveCount(waveCount(this.wave), this.difficulty);
     this.spawnLeft += extra;
@@ -1194,7 +1197,10 @@ export class Game {
       const boss = levelBossForWave(this.wave);
       this.toast(`⚔️ ${boss.emoji} ${boss.name}! Wave ${this.wave} incoming!`, true);
     } else {
-      this.toast(`Wave ${this.wave} incoming! (+1⭐ +3🪙)`, true);
+      this.toast(
+        `Wave ${this.wave} incoming! (+1⭐ +${Math.max(3, Math.round(3 * difficultyTuning(this.difficulty).gold))}🪙)`,
+        true,
+      );
     }
     this.save();
     this.onChange();
@@ -1220,7 +1226,7 @@ export class Game {
   }
 
   spawnThief() {
-    const base = thiefForWave(this.wave);
+    const base = thiefForWave(this.wave, this.difficulty);
     const scale = waveHpScale(this.wave);
     const spd = waveSpeedScale(this.wave);
     const diff = difficultyTuning(this.difficulty);
@@ -1625,7 +1631,8 @@ export class Game {
       this.waveWaiting = true;
       this.wave += 1;
       this.stars += 1;
-      this.gold += 3;
+      // Scale wave-clear gold with difficulty loot so Hard can fund upgrades
+      this.gold += Math.max(3, Math.round(3 * difficultyTuning(this.difficulty).gold));
       this.syncMapForWave(true);
       this.autoWaveTimer = Game.WAVE_BREAK_SEC;
       // Canvas banner already shows the countdown — skip a covering toast
