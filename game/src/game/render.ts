@@ -1563,7 +1563,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
     ctx.fillStyle = "rgba(232, 160, 74, 0.92)";
     ctx.font = "800 16px Nunito, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Tap grass to deploy — not on the path. Drag friends to move.", W / 2, H - 16);
+    ctx.fillText("Tap grass to deploy (trees OK) — not on the path. Drag friends to move.", W / 2, H - 16);
   }
 
   if (s.bossFight) {

@@ -130,17 +130,23 @@ function distToPathPoly(x: number, y: number, path: Vec2[]): number {
   return best;
 }
 
-/** Scatter theme landscaping off the path / cookie / gate */
+/**
+ * Scatter theme landscaping off the path / cookie / gate.
+ * Trees & props are cosmetic only — they must never sit in the path
+ * no-place band, so friends can be deployed right on top of them.
+ */
 export function scatterDecor(path: Vec2[], themeId: string, kinds: DecorKind[], count = 48): MapDecor[] {
   if (!kinds.length || path.length < 2) return [];
   const rnd = mulberry32(hashStr(themeId + ":decor") ^ (count * 2654435761));
   const gate = path[0];
   const cookie = path[path.length - 1];
   const out: MapDecor[] = [];
-  const minPath = 48;
-  const minPeer = 34;
+  // Stay outside default path clearance (~56) + a little canopy room so
+  // tapping a tree is a valid place spot, not a red "on path" ghost.
+  const minPath = 78;
+  const minPeer = 30;
   let tries = 0;
-  while (out.length < count && tries < count * 40) {
+  while (out.length < count && tries < count * 50) {
     tries++;
     const x = 28 + rnd() * (W - 56);
     const y = 28 + rnd() * (H - 56);
@@ -677,7 +683,8 @@ export function canPlaceAt(
 ): boolean {
   if (x < 30 || x > W - 30 || y < 30 || y > H - 30) return false;
   const foot = opts.footprint ?? 24;
-  // Hard block: never on or overlapping the path (icon edge included)
+  // Hard block: never on or overlapping the path (icon edge included).
+  // Map decor (trees, rocks, flowers, …) is cosmetic and never blocks placement.
   if (distanceToPath(x, y) < pathClearanceFor(foot)) return false;
   if (Math.hypot(x - COOKIE.x, y - COOKIE.y) < 52 + Math.max(0, foot - 24)) return false;
   if (Math.hypot(x - GATE.x, y - GATE.y) < 42 + Math.max(0, foot - 24)) return false;
