@@ -260,6 +260,7 @@ const playScreen = document.querySelector<HTMLElement>("#play-screen")!;
 const canvas = document.querySelector<HTMLCanvasElement>("#stage")!;
 const game = new Game(canvas);
 (window as unknown as { __cg: Game }).__cg = game;
+(window as unknown as { __getMap: typeof getActiveMap }).__getMap = getActiveMap;
 
 const statusMain = document.querySelector("#status-main")!;
 const statusUpgrade = document.querySelector("#status-upgrade")!;
