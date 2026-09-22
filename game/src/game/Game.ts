@@ -1085,7 +1085,7 @@ export class Game {
       if (this.isValidPlace(x, y, undefined, foot)) {
         this.deployAt(x, y);
       } else {
-        this.toast("Place on grass — not on the path!", true);
+        this.toast("Place on grass (trees OK) — not on the path!", true);
         this.onChange();
       }
       return;
@@ -1216,7 +1216,7 @@ export class Game {
     this.selectedBag = index;
     this.selectedSlot = null;
     const f = this.bag[index];
-    this.toast(`${f.emoji} Equipped — tap grass (not the path) to deploy`, true);
+    this.toast(`${f.emoji} Equipped — tap grass or trees (not the path) to deploy`, true);
     this.onChange();
   }
 
