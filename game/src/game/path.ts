@@ -148,11 +148,12 @@ export function scatterDecor(path: Vec2[], themeId: string, kinds: DecorKind[], 
   let tries = 0;
   while (out.length < count && tries < count * 50) {
     tries++;
-    const x = 28 + rnd() * (W - 56);
-    const y = 28 + rnd() * (H - 56);
+    // Keep a 36px inset so decor centers always pass canPlaceAt edge checks (x/y ≥ 30).
+    const x = 36 + rnd() * (W - 72);
+    const y = 36 + rnd() * (H - 72);
     if (distToPathPoly(x, y, path) < minPath) continue;
-    if (Math.hypot(x - gate.x, y - gate.y) < 55) continue;
-    if (Math.hypot(x - cookie.x, y - cookie.y) < 70) continue;
+    if (Math.hypot(x - gate.x, y - gate.y) < 58) continue;
+    if (Math.hypot(x - cookie.x, y - cookie.y) < 78) continue;
     if (out.some((d) => Math.hypot(d.x - x, d.y - y) < minPeer)) continue;
     const kind = kinds[Math.floor(rnd() * kinds.length)]!;
     const s = 0.7 + rnd() * 0.65;
