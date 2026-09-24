@@ -14,7 +14,7 @@ import {
   friendFootprintRadius,
   type FriendDef,
 } from "./data";
-import { COOKIE, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses, canPlaceAt, pathClearanceFor } from "./path";
+import { COOKIE, W, H, pathPoint, nearestProgress, mapTierForWave, mapLevelForWave, setActiveCourseMap, randomCourseIndex, nextCourseIndex, listCourses, canPlaceAt, pathClearanceFor } from "./path";
 import { draw, drawRangeHint } from "./render";
 import { playHit, playShoot, playSpell, playCookieMunch, shootSoundFor, playPoisonFart, playFoxWall, setBgmMode } from "./sound";
 import { funnyQuipFor } from "./quips";
@@ -71,6 +71,10 @@ export class Game {
   ctx: CanvasRenderingContext2D;
   slots: Slot[] = [];
   mapTier = 0;
+  /** Player-facing map level (1 = first 30 waves) */
+  get mapLevel(): number {
+    return mapLevelForWave(this.wave);
+  }
   /** Which base course theme is active (Forest, River, …) */
   courseIndex = 0;
   /** When true, each new map tier picks a different random course */
@@ -497,19 +501,23 @@ export class Game {
     this.draggingSlot = null;
     this.deployGhost = null;
     if (announce) {
-      const hard = this.mapTier > 0 ? " (harder!)" : "";
+      const level = mapLevelForWave(wave);
+      const hard = this.mapTier > 0 ? " — tougher foes!" : "";
       const roll = this.courseRandom ? " 🎲" : "";
-      this.toast(`🗺️ Course: ${map.name}${hard}${roll}`, true);
+      this.toast(`⬆️ Level ${level} · ${map.name}${hard}${roll}`, true);
     }
   }
 
   syncMapForWave(announce: boolean) {
     const next = mapTierForWave(this.wave);
-    // Always ensure map is loaded; recreate when tier changes
+    // Always ensure map is loaded; recreate when tier changes (after boss clear)
     if (next !== this.mapTier) {
       const changed = this.mapTier !== next;
-      if (changed && this.courseRandom) {
-        this.courseIndex = randomCourseIndex(this.courseIndex);
+      if (changed) {
+        // New level → new map (random catalog pick, or next in order)
+        this.courseIndex = this.courseRandom
+          ? randomCourseIndex(this.courseIndex)
+          : nextCourseIndex(this.courseIndex);
       }
       this.applyMapForWave(this.wave, announce && changed);
     } else if (this.mapTier === 0 && this.wave === 1 && !this.slots.length) {
@@ -1381,7 +1389,8 @@ export class Game {
       this.awardScore(killScorePoints(!!t.def.boss, this.difficulty));
       if (t.def.boss && isLevelBossWave(this.wave)) {
         this.gold += 25;
-        this.toast(`🏆 ${t.def.name} defeated! Map clear!`, true);
+        const nextLevel = mapLevelForWave(this.wave) + 1;
+        this.toast(`🏆 ${t.def.name} defeated! Level ${nextLevel} next!`, true);
         this.booms.push({ kind: "beam", x, y, life: 1.4, radius: 80 });
       } else if (t.def.boss) {
         this.toast(`🏆 ${t.def.name} down! +${starReward}⭐`, true);

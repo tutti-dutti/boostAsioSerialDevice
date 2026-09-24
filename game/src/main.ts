@@ -3,7 +3,7 @@ import { Game } from "./game/Game";
 import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, SUMMON_COST, LUCKY_SUMMON_COST, type FriendDef } from "./game/data";
 import { friendPortraitDataUrl, weaponRoleShort } from "./game/animalArt";
 import { unlockAudio, setMuted, isMuted, playUnmuteChirp, setBgmMode } from "./game/sound";
-import { getActiveMap, listCourses } from "./game/path";
+import { getActiveMap, listCourses, COURSE_CHIP_COUNT } from "./game/path";
 import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST, friendDamage, type PlacedFriend } from "./game/types";
 import {
   clearAllHighScores,
@@ -42,6 +42,10 @@ app.innerHTML = `
     <div class="course-picker" id="home-courses">
       <p class="course-label">Choose a course</p>
       <div class="course-chips" id="home-course-chips"></div>
+      <label class="course-more-wrap">
+        <span class="visually-hidden">More courses</span>
+        <select class="course-more" id="home-course-more" aria-label="More courses"></select>
+      </label>
       <button class="course-random" id="home-random-course" type="button">🎲 Random course</button>
     </div>
     <div class="mode-picker" id="home-modes">
@@ -307,8 +311,8 @@ const evolveIntoEl = document.querySelector("#evolve-into")!;
 const goldUpgradeLine = document.querySelector("#gold-upgrade-line")!;
 const upgradeBtn = document.querySelector<HTMLButtonElement>("#upgrade")!;
 const homeCourseChips = document.querySelector("#home-course-chips")!;
-const homeModeChips = document.querySelector("#home-mode-chips")!;
-const homeModeBlurb = document.querySelector("#home-mode-blurb")!;
+const homeCourseMore = document.querySelector<HTMLSelectElement>("#home-course-more")!;
+const homeModeChips = document.querySelector("#home-mode-chips")!;const homeModeBlurb = document.querySelector("#home-mode-blurb")!;
 const homeScoresList = document.querySelector("#home-scores-list")!;
 const homeScoresEmpty = document.querySelector("#home-scores-empty")!;
 const homeScoreChips = document.querySelector("#home-score-chips")!;
@@ -807,12 +811,14 @@ homeModeChips.querySelectorAll<HTMLButtonElement>(".mode-chip").forEach((btn) =>
 
 function renderCourseChips(container: Element) {
   const courses = listCourses();
-  container.innerHTML = courses
+  const featured = courses.slice(0, COURSE_CHIP_COUNT);
+  const rest = courses.slice(COURSE_CHIP_COUNT);
+  container.innerHTML = featured
     .map(
       (c) => `
-    <button class="course-chip ${game.courseIndex === c.index ? "selected" : ""}"
+    <button class="course-chip ${!game.courseRandom && game.courseIndex === c.index ? "selected" : ""}"
       data-course="${c.index}" type="button"
-      aria-pressed="${game.courseIndex === c.index ? "true" : "false"}">
+      aria-pressed="${!game.courseRandom && game.courseIndex === c.index ? "true" : "false"}">
       ${c.name}
     </button>`,
     )
@@ -824,6 +830,17 @@ function renderCourseChips(container: Element) {
       refreshCourses();
     };
   });
+
+  const moreSelected = !game.courseRandom && game.courseIndex >= COURSE_CHIP_COUNT;
+  homeCourseMore.innerHTML =
+    `<option value="" ${moreSelected ? "" : "selected"} disabled>More maps…</option>` +
+    rest
+      .map(
+        (c) =>
+          `<option value="${c.index}" ${!game.courseRandom && game.courseIndex === c.index ? "selected" : ""}>${c.name}</option>`,
+      )
+      .join("");
+  homeCourseMore.classList.toggle("selected", moreSelected);
 }
 
 function refreshCourses() {
@@ -832,11 +849,20 @@ function refreshCourses() {
   homeRandom.classList.toggle("selected", game.courseRandom);
 }
 
+homeCourseMore.addEventListener("change", () => {
+  unlockAudio();
+  const idx = Number(homeCourseMore.value);
+  if (!Number.isFinite(idx)) return;
+  game.selectCourse(idx, { random: false });
+  refreshCourses();
+});
+
 function refresh() {
   const courseName = `${getActiveMap().name}${game.courseRandom ? " 🎲" : ""}`;
   statusMain.innerHTML = `
     <div class="status-hero" aria-label="Resources">
       <span class="status-stat status-gold"><span class="status-stat-icon" aria-hidden="true">🪙</span><span class="status-stat-value">${game.gold}</span><span class="status-stat-label">Gold</span></span>
+      <span class="status-stat status-level"><span class="status-stat-icon" aria-hidden="true">🗺️</span><span class="status-stat-value">${game.mapLevel}</span><span class="status-stat-label">Level</span></span>
       <span class="status-stat status-stars"><span class="status-stat-icon" aria-hidden="true">⭐</span><span class="status-stat-value">${game.stars}</span><span class="status-stat-label">Stars</span></span>
       <span class="status-stat status-wave"><span class="status-stat-icon" aria-hidden="true">🌊</span><span class="status-stat-value">${game.wave}</span><span class="status-stat-label">Wave</span></span>
     </div>

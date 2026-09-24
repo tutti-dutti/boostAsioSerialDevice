@@ -405,10 +405,12 @@ export function waveHpScale(wave: number): number {
     return soft;
   }
 
-  const tierFloor = 1.1 + tier * 0.55;
+  const tierFloor = 1.25 + tier * 0.7;
   const localRamp =
-    (local - 1) * (0.095 + tier * 0.025) + Math.floor(local / 10) * (0.28 + tier * 0.12);
-  const base = tierFloor + localRamp;
+    (local - 1) * (0.095 + tier * 0.028) + Math.floor(local / 10) * (0.28 + tier * 0.12);
+  // New levels open already tough — don't soft-reset to early-map HP
+  const openingBoost = local <= 3 ? 0.22 + tier * 0.08 : 0;
+  const base = tierFloor + localRamp + openingBoost;
   if (isLevelBossWave(wave)) return base * (1.75 + tier * 0.14);
   return base;
 }

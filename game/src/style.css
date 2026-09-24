@@ -20,6 +20,18 @@
   display: none !important;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 html,
 body,
 #app {
@@ -296,6 +308,40 @@ body {
   flex-wrap: wrap;
   gap: 0.4rem;
   justify-content: center;
+}
+
+.course-more-wrap {
+  display: flex;
+  width: 100%;
+  max-width: 18rem;
+  justify-content: center;
+}
+
+.course-more {
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 0.88rem;
+  border: 3px solid #8aa878;
+  background: #e8f6dc;
+  color: var(--ink);
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  width: 100%;
+  max-width: 18rem;
+  cursor: pointer;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #4a6840 50%),
+    linear-gradient(135deg, #4a6840 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
+}
+
+.course-more.selected {
+  border-color: #e8a040;
+  background-color: #fff3d0;
+  box-shadow: 0 0 0 2px rgba(232, 160, 64, 0.35);
 }
 
 .course-chip {
@@ -592,6 +638,18 @@ body {
 .status-stat.status-gold .status-stat-label {
   opacity: 0.8;
   color: #4a2810;
+}
+
+.status-stat.status-level {
+  background: linear-gradient(180deg, #7ecf9a 0%, #3a8860 100%);
+  border-color: #a8e8c0;
+  color: #f4fff8;
+  box-shadow: 0 2px 0 rgba(20, 60, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.status-stat.status-level .status-stat-label {
+  opacity: 0.85;
+  color: #e0ffe8;
 }
 
 .status-stat.status-stars {

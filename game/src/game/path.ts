@@ -186,7 +186,8 @@ export function scatterDecor(path: Vec2[], themeId: string, kinds: DecorKind[], 
 function complexifyPath(base: Vec2[], complexity: number): Vec2[] {
   if (complexity <= 0) return base.map((p) => ({ ...p }));
   let path = base.map((p) => ({ ...p }));
-  const rounds = Math.min(complexity, 7);
+  // Higher map levels get more bend rounds → noticeably longer routes
+  const rounds = Math.min(Math.max(1, complexity), 14);
   for (let r = 0; r < rounds; r++) {
     const next: Vec2[] = [{ ...path[0] }];
     for (let i = 1; i < path.length; i++) {
@@ -196,7 +197,7 @@ function complexifyPath(base: Vec2[], complexity: number): Vec2[] {
       if (len > 85) {
         const nx = -(b.y - a.y) / len;
         const ny = (b.x - a.x) / len;
-        const amp = clamp(26 + r * 9, 26, 72) * (r % 2 === 0 ? 1 : -1);
+        const amp = clamp(26 + r * 9, 26, 78) * (r % 2 === 0 ? 1 : -1);
         const mid = {
           x: clamp((a.x + b.x) / 2 + nx * amp, 40, W - 40),
           y: clamp((a.y + b.y) / 2 + ny * amp, 40, H - 40),
@@ -232,8 +233,8 @@ function finalizeMap(seed: MapSeed): ArenaMap {
   return { ...seed, slots, decor };
 }
 
-/** Distinct base themes — 10 courses with unique paths & landscaping */
-const MAP_DEFS: ArenaMap[] = (
+/** Distinct base themes — 10 handcrafted courses with unique paths & landscaping */
+const HANDCRAFTED_MAP_SEEDS = (
   [
     {
       id: "forest",
@@ -485,9 +486,117 @@ const MAP_DEFS: ArenaMap[] = (
       ],
     },
   ] satisfies MapSeed[]
-).map(finalizeMap);
+);
+
+/** Theme kits reused when minting the expanded 50-course catalog */
+const THEME_KITS: {
+  id: string;
+  grassA: string;
+  grassB: string;
+  pathColor: string;
+  landscape: DecorKind[];
+}[] = HANDCRAFTED_MAP_SEEDS.map((m) => ({
+  id: m.id,
+  grassA: m.grassA,
+  grassB: m.grassB,
+  pathColor: m.pathColor,
+  landscape: m.landscape,
+}));
+
+/** Unique titles for generated courses (maps 11–50) */
+const EXTRA_COURSE_NAMES = [
+  "Pine Spiral",
+  "Brook Zigzag",
+  "Clover Coil",
+  "Ridge Run",
+  "Icicle Arcade",
+  "Reed Lattice",
+  "Dune Switchback",
+  "Bog Serpent",
+  "Blossom Knot",
+  "Lava Horseshoe",
+  "Oak Orbits",
+  "Tide Ladder",
+  "Honeycomb Trail",
+  "Gorge Steps",
+  "Aurora Fold",
+  "Shoji Maze",
+  "Mirage Bend",
+  "Fen Figure-Eight",
+  "Petal Ribbon",
+  "Ash Cathedral",
+  "Moss Helix",
+  "Current Cross",
+  "Daisy Circuit",
+  "Cliff Cascade",
+  "Snowshoe Loop",
+  "Grove Ladder",
+  "Sandglass Path",
+  "Willow Weave",
+  "Crimson Coil",
+  "Crystal Fan",
+  "Thicket Spiral",
+  "Delta Forks",
+  "Pollen Ring",
+  "Basalt Stairs",
+  "Frost Knot",
+  "Canopy Switch",
+  "Oasis Twist",
+  "Mire Coil",
+  "Lantern Trail",
+  "Cinder Labyrinth",
+] as const;
+
+/** Build a longer serpentine path; higher index → more jogs (longer map) */
+function generateCoursePath(index: number): Vec2[] {
+  const rnd = mulberry32(hashStr(`course-path:${index}`));
+  // Maps further in the catalog start with more segments (longer even at tier 0)
+  const jogs = 5 + Math.floor(index / 5) + (index % 3);
+  const pts: Vec2[] = [];
+  let x = 48;
+  let y = clamp(80 + rnd() * (H - 160), 56, H - 56);
+  pts.push({ x, y });
+  const dirFlip = rnd() > 0.5 ? 1 : -1;
+  for (let i = 0; i < jogs; i++) {
+    const targetX = clamp(48 + ((i + 1) / (jogs + 1)) * (W - 96), 48, W - 48);
+    const midY = clamp(y + dirFlip * (70 + rnd() * (90 + (index % 7) * 8)) * (i % 2 === 0 ? 1 : -1), 48, H - 48);
+    pts.push({ x: targetX, y });
+    pts.push({ x: targetX, y: midY });
+    x = targetX;
+    y = midY;
+  }
+  pts.push({ x: W - 48, y: clamp(y + (rnd() - 0.5) * 60, 48, H - 48) });
+  return pts;
+}
+
+function expandToFiftyCourses(base: MapSeed[]): MapSeed[] {
+  const out: MapSeed[] = base.map((m) => ({ ...m, path: m.path.map((p) => ({ ...p })) }));
+  for (let i = 0; i < EXTRA_COURSE_NAMES.length; i++) {
+    const catalogIndex = base.length + i;
+    const kit = THEME_KITS[catalogIndex % THEME_KITS.length]!;
+    const path = generateCoursePath(catalogIndex);
+    out.push({
+      id: `${kit.id}_${catalogIndex + 1}`,
+      name: EXTRA_COURSE_NAMES[i]!,
+      grassA: kit.grassA,
+      grassB: kit.grassB,
+      pathColor: kit.pathColor,
+      landscape: kit.landscape,
+      gate: { ...path[0] },
+      cookie: { ...path[path.length - 1] },
+      path,
+    });
+  }
+  return out;
+}
+
+// Expand the 10 handcrafted seeds into a 50-course catalog.
+const MAP_DEFS: ArenaMap[] = expandToFiftyCourses(HANDCRAFTED_MAP_SEEDS).map(finalizeMap);
 
 export const MAPS: ArenaMap[] = MAP_DEFS;
+
+/** How many course chips show on the home screen before the dropdown */
+export const COURSE_CHIP_COUNT = 5;
 
 export const COURSE_COUNT = MAP_DEFS.length;
 
@@ -501,6 +610,11 @@ export function mapTierForWave(wave: number): number {
   return Math.floor(Math.max(0, wave - 1) / WAVES_PER_MAP);
 }
 
+/** Player-facing map level (1 at waves 1–30, 2 at 31–60, …) */
+export function mapLevelForWave(wave: number): number {
+  return mapTierForWave(wave) + 1;
+}
+
 /** Theme cycle index (Forest → River → …) — legacy fallback */
 export function mapIndexForWave(wave: number): number {
   return mapTierForWave(wave) % MAP_DEFS.length;
@@ -509,6 +623,11 @@ export function mapIndexForWave(wave: number): number {
 function clampCourseIndex(index: number): number {
   const n = MAP_DEFS.length;
   return ((Math.floor(index) % n) + n) % n;
+}
+
+/** Next course after a boss clear (wraps through the 50-map catalog) */
+export function nextCourseIndex(current: number): number {
+  return (clampCourseIndex(current) + 1) % MAP_DEFS.length;
 }
 
 /** Pick a random course, optionally different from the current one */
@@ -527,11 +646,11 @@ export function buildMap(courseIndex: number, complexity: number): ArenaMap {
   const theme = MAP_DEFS[clampCourseIndex(courseIndex)];
   const tier = Math.max(0, Math.floor(complexity));
   const path = complexifyPath(theme.path, tier);
-  const stars = "★".repeat(Math.min(tier, 5));
+  const level = tier + 1;
   return {
     ...theme,
     id: `${theme.id}_t${tier}`,
-    name: tier === 0 ? theme.name : `${theme.name} ${stars}${tier > 5 ? `+${tier - 5}` : ""}`.trim(),
+    name: tier === 0 ? theme.name : `${theme.name} · L${level}`,
     path,
     slots: densifySlots(path, theme.slots, tier),
     gate: { ...path[0] },
