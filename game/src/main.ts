@@ -9,6 +9,7 @@ import {
   clearAllHighScores,
   clearHighScoresForMode,
   deleteHighScore,
+  difficultyBadge,
   formatPoints,
   formatScoreDate,
   formatWeeklyResetHint,
@@ -16,6 +17,7 @@ import {
   isHighScoreWorthy,
   loadHighScores,
   scoreBreakdown,
+  scoreMapLevel,
   submitHighScore,
   updateHighScore,
   type HighScore,
@@ -82,11 +84,7 @@ app.innerHTML = `
     <div class="home-scores" id="home-scores">
       <h2 class="scores-title">High Scores</h2>
       <p class="scores-week-hint" id="home-scores-week">${formatWeeklyResetHint()}</p>
-      <div class="mode-chips scores-mode-chips" id="home-score-chips" role="group" aria-label="Score play level">
-        <button class="mode-chip mode-easy selected" data-score-mode="easy" type="button">Easy</button>
-        <button class="mode-chip mode-medium" data-score-mode="medium" type="button">Medium</button>
-        <button class="mode-chip mode-hard" data-score-mode="hard" type="button">Hard</button>
-      </div>
+      <p class="scores-board-hint">Top 50 this week · all difficulties</p>
       <ol class="scores-list" id="home-scores-list"></ol>
       <p class="scores-empty hidden" id="home-scores-empty">No scores yet this week — kills &amp; cleared waves only!</p>
     </div>
@@ -312,10 +310,10 @@ const goldUpgradeLine = document.querySelector("#gold-upgrade-line")!;
 const upgradeBtn = document.querySelector<HTMLButtonElement>("#upgrade")!;
 const homeCourseChips = document.querySelector("#home-course-chips")!;
 const homeCourseMore = document.querySelector<HTMLSelectElement>("#home-course-more")!;
-const homeModeChips = document.querySelector("#home-mode-chips")!;const homeModeBlurb = document.querySelector("#home-mode-blurb")!;
+const homeModeChips = document.querySelector("#home-mode-chips")!;
+const homeModeBlurb = document.querySelector("#home-mode-blurb")!;
 const homeScoresList = document.querySelector("#home-scores-list")!;
 const homeScoresEmpty = document.querySelector("#home-scores-empty")!;
-const homeScoreChips = document.querySelector("#home-score-chips")!;
 const statVisitsEl = document.querySelector("#stat-visits")!;
 const statPlaysEl = document.querySelector("#stat-plays")!;
 const rateStarsEl = document.querySelector("#rate-stars")!;
@@ -362,7 +360,6 @@ const secretAdminStatus = document.querySelector("#secret-admin-status")!;
 const secretModeChips = document.querySelector("#secret-mode-chips")!;
 let scorePromptShown = false;
 let scoreSavedThisRun = false;
-let homeScoreMode: Difficulty = "easy";
 let secretScoreMode: Difficulty = "easy";
 let secretAuthorClicks = 0;
 let secretAuthorClickTimer: ReturnType<typeof setTimeout> | null = null;
@@ -434,10 +431,11 @@ function renderScoresList(container: Element, scores: HighScore[], compact = fal
       <span class="score-rank">${i + 1}.</span>
       <span class="score-name">${escapeHtml(s.name)}</span>
       <span class="score-wave">${formatPoints(s.points ?? 0)}</span>
+      <span class="score-level" title="Map level">L${scoreMapLevel(s)}</span>
       ${
         compact
-          ? `<span class="score-meta">${scoreBreakdown(s)}</span>`
-          : `<span class="score-meta">${scoreBreakdown(s)} · ${formatScoreDate(s.at)}</span>`
+          ? `<span class="score-meta">${difficultyBadge(s.difficulty)} · ${scoreBreakdown(s)}</span>`
+          : `<span class="score-meta">${difficultyBadge(s.difficulty)} · ${scoreBreakdown(s)} · ${formatScoreDate(s.at)}</span>`
       }
     </li>`,
     )
@@ -451,10 +449,7 @@ function escapeHtml(s: string) {
 function refreshHomeScores() {
   const weekHint = document.querySelector("#home-scores-week");
   if (weekHint) weekHint.textContent = formatWeeklyResetHint();
-  homeScoreChips.querySelectorAll<HTMLButtonElement>("[data-score-mode]").forEach((btn) => {
-    btn.classList.toggle("selected", btn.dataset.scoreMode === homeScoreMode);
-  });
-  const scores = loadHighScores(homeScoreMode);
+  const scores = loadHighScores();
   renderScoresList(homeScoresList, scores);
   homeScoresEmpty.classList.toggle("hidden", scores.length > 0);
   homeScoresList.classList.toggle("hidden", scores.length === 0);
@@ -475,7 +470,7 @@ function openSecretMenu() {
   secretCodeInput.value = "";
   secretGateStatus.textContent = "";
   secretAdminStatus.textContent = "";
-  secretScoreMode = homeScoreMode;
+  secretScoreMode = "easy";
   syncSecretPanel();
   secretOverlay.classList.remove("hidden");
   setTimeout(() => {
@@ -622,7 +617,6 @@ secretAdminList.addEventListener("click", (e) => {
       return;
     }
     secretAdminStatus.textContent = `Saved ${updated.name} · ${formatPoints(updated.points)}.`;
-    homeScoreMode = (updated.difficulty ?? secretScoreMode) as Difficulty;
     if (isDifficulty(updated.difficulty)) secretScoreMode = updated.difficulty;
     refreshSecretAdminList();
     refreshHomeScores();
@@ -669,25 +663,14 @@ document.querySelector("#secret-clear-all")!.addEventListener("click", () => {
   });
 });
 
-homeScoreChips.querySelectorAll<HTMLButtonElement>("[data-score-mode]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    unlockAudio();
-    const mode = btn.dataset.scoreMode;
-    if (isDifficulty(mode)) {
-      homeScoreMode = mode;
-      refreshHomeScores();
-    }
-  });
-});
-
 function setupGameOverScoreUi() {
   const best = game.bestScoreStats();
   const points = game.peakScore || game.currentScore();
-  overScoreLine.textContent = `Best score ${formatPoints(points)} — ${best.kills} kills · ${best.wavesCleared} waves cleared · Wave ${best.wave}`;
-  const scores = loadHighScores(game.difficulty);
+  overScoreLine.textContent = `Best score ${formatPoints(points)} — ${best.kills} kills · ${best.wavesCleared} waves cleared · Wave ${best.wave} · L${scoreMapLevel({ wave: best.wave, mapTier: best.mapTier })}`;
+  const scores = loadHighScores();
   renderScoresList(overScoresList, scores, true);
 
-  const worthy = !scoreSavedThisRun && isHighScoreWorthy(points, game.difficulty);
+  const worthy = !scoreSavedThisRun && isHighScoreWorthy(points);
   scoreSave.classList.toggle("hidden", !worthy);
   if (worthy && !scorePromptShown) {
     scorePromptShown = true;
@@ -706,22 +689,20 @@ function saveCurrentScore() {
   scoreSave.classList.add("hidden");
   scoreSaveStatus.textContent = `Saved ${formatPoints(game.peakScore)} — nice ${game.difficultyLabel} run, ${name}!`;
   renderScoresList(overScoresList, list, true);
-  homeScoreMode = game.difficulty;
   refreshHomeScores();
 }
 
 function refreshPlayScoresPanel() {
-  const mode = game.difficulty;
   const best = game.bestScoreStats();
   const points = game.peakScore || game.currentScore();
-  scoresLead.textContent = `${game.difficultyLabel} · kills & finished waves only · ${formatWeeklyResetHint()}`;
-  scoresRunLine.textContent = `Best this run: ${formatPoints(points)} · ${best.kills} kills · ${best.wavesCleared} cleared · Wave ${best.wave}`;
-  const scores = loadHighScores(mode);
+  scoresLead.textContent = `Top 50 · all difficulties · kills & finished waves only · ${formatWeeklyResetHint()}`;
+  scoresRunLine.textContent = `Best this run: ${formatPoints(points)} · ${best.kills} kills · ${best.wavesCleared} cleared · Wave ${best.wave} · L${scoreMapLevel({ wave: best.wave, mapTier: best.mapTier })}`;
+  const scores = loadHighScores();
   renderScoresList(playScoresList, scores, true);
   playScoresEmpty.classList.toggle("hidden", scores.length > 0);
   playScoresList.classList.toggle("hidden", scores.length === 0);
 
-  const worthy = isHighScoreWorthy(points, mode);
+  const worthy = isHighScoreWorthy(points);
   if (scoreSavedThisRun) {
     playScoreSaveLabel.textContent = "Already saved this run";
     playScoreSaveStatus.textContent = "Start a new game to save again.";
@@ -749,7 +730,7 @@ function openScoresMenu() {
   }
   scoresOverlay.classList.remove("hidden");
   const canSave =
-    !scoreSavedThisRun && isHighScoreWorthy(game.peakScore || game.currentScore(), game.difficulty);
+    !scoreSavedThisRun && isHighScoreWorthy(game.peakScore || game.currentScore());
   if (canSave) setTimeout(() => playScoreNameInput.focus(), 40);
   refresh();
 }
@@ -770,8 +751,8 @@ function savePlayScoreFromPanel() {
     return;
   }
   const points = game.peakScore || game.currentScore();
-  if (!isHighScoreWorthy(points, game.difficulty)) {
-    playScoreSaveStatus.textContent = "Not high enough for this level board yet.";
+  if (!isHighScoreWorthy(points)) {
+    playScoreSaveStatus.textContent = "Not high enough for the top 50 yet.";
     refreshPlayScoresPanel();
     return;
   }
@@ -783,7 +764,6 @@ function savePlayScoreFromPanel() {
   renderScoresList(playScoresList, list, true);
   playScoresEmpty.classList.add("hidden");
   playScoresList.classList.remove("hidden");
-  homeScoreMode = game.difficulty;
   refreshHomeScores();
   refreshPlayScoresPanel();
 }
@@ -802,7 +782,6 @@ homeModeChips.querySelectorAll<HTMLButtonElement>(".mode-chip").forEach((btn) =>
     const mode = btn.dataset.mode as Difficulty;
     if (isDifficulty(mode)) {
       game.setDifficulty(mode);
-      homeScoreMode = mode;
       refreshHomeScores();
     }
     refreshModes();
@@ -1177,7 +1156,6 @@ function showHome() {
   playScreen.classList.add("hidden");
   refreshCourses();
   refreshModes();
-  homeScoreMode = game.difficulty;
   refreshHomeScores();
   void fetchStats().then(applyStats);
 }
@@ -1235,7 +1213,7 @@ async function refreshFeedbackBoard() {
     btn.classList.toggle("selected", btn.dataset.filter === feedbackListFilter);
   });
   try {
-    const result = await fetchFeedbackList(feedbackListFilter, 24);
+    const result = await fetchFeedbackList(feedbackListFilter, 40);
     renderFeedbackBoard(result.entries, result.source);
   } catch {
     feedbackBoardMeta.textContent = "Could not load notes.";

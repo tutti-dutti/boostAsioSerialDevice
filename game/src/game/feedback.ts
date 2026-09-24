@@ -29,6 +29,7 @@ export function loadFeedback(): FeedbackEntry[] {
           typeof e.message === "string" &&
           e.message.trim().length > 0,
       )
+      .sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0))
       .slice(0, MAX_SAVED);
   } catch {
     return [];
@@ -45,10 +46,10 @@ export function rememberFeedback(entry: FeedbackEntry) {
   saveFeedbackList(list);
 }
 
-/** Fetch recent notes from the server; falls back to local history. */
+/** Fetch recent notes from the server; falls back to local history. Newest first. */
 export async function fetchFeedbackList(
   kind: FeedbackKind | "all" = "all",
-  limit = 24,
+  limit = 40,
 ): Promise<{ ok: boolean; entries: FeedbackEntry[]; source: "server" | "local" }> {
   try {
     const q = new URLSearchParams({ kind, limit: String(limit) });
@@ -71,7 +72,9 @@ export async function fetchFeedbackList(
           message: e.message.trim().slice(0, 2000),
           at: Number(e.at) || Date.now(),
           id: e.id,
-        }));
+        }))
+        .sort((a, b) => b.at - a.at)
+        .slice(0, limit);
       return { ok: true, entries, source: "server" };
     }
   } catch {
@@ -82,7 +85,11 @@ export async function fetchFeedbackList(
   if (kind === "feedback" || kind === "idea") {
     local = local.filter((e) => e.kind === kind);
   }
-  return { ok: true, entries: local.slice(0, limit), source: "local" };
+  return {
+    ok: true,
+    entries: local.sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0)).slice(0, limit),
+    source: "local",
+  };
 }
 
 /** Save to Firestore via Cloud Run API (also keep a local copy). */

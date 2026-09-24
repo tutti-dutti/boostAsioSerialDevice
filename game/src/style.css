@@ -1239,8 +1239,16 @@ button.danger {
   text-align: center;
   font-size: 0.78rem;
   color: rgba(90, 55, 30, 0.75);
-  margin: -0.15rem 0 0.55rem;
+  margin: -0.15rem 0 0.35rem;
   line-height: 1.35;
+}
+
+.scores-board-hint {
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--cookie-dark);
+  margin: 0 0 0.45rem;
 }
 
 .scores-list {
@@ -1252,22 +1260,26 @@ button.danger {
   border: 3px solid rgba(196, 120, 42, 0.35);
   border-radius: 14px;
   padding: 0.55rem 0.7rem;
+  max-height: min(22rem, 48vh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .scores-list-compact {
   margin: 0.5rem 0 0.85rem;
-  max-height: 8rem;
+  max-height: 10rem;
   overflow-y: auto;
   text-align: left;
 }
 
 .scores-list:not(.scores-list-compact) .score-row {
-  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto auto;
 }
 
 .score-row {
   display: grid;
-  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto auto;
   gap: 0.25rem 0.45rem;
   align-items: baseline;
   font-weight: 800;
@@ -1279,6 +1291,17 @@ button.danger {
   color: #8a4a10;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.score-level {
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #1a6040;
+  background: #d8f5e4;
+  border: 2px solid #6ab888;
+  border-radius: 999px;
+  padding: 0.1rem 0.4rem;
+  white-space: nowrap;
 }
 
 .score-meta {
@@ -1751,6 +1774,8 @@ button.danger {
 .feedback-card {
   width: min(28rem, 100%);
   max-height: min(92dvh, 52rem);
+  display: flex;
+  flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -1841,6 +1866,11 @@ button.danger {
   margin-top: 1rem;
   padding-top: 0.85rem;
   border-top: 3px solid rgba(42, 48, 64, 0.1);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 12rem;
+  overflow: hidden;
 }
 
 .feedback-board-head {
@@ -1850,6 +1880,7 @@ button.danger {
   justify-content: space-between;
   gap: 0.45rem;
   margin-bottom: 0.35rem;
+  flex: 0 0 auto;
 }
 
 .feedback-board-title {
@@ -1880,18 +1911,24 @@ button.danger {
 
 .feedback-board-meta {
   margin-bottom: 0.45rem;
+  flex: 0 0 auto;
 }
 
 .feedback-board-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0.15rem 0.25rem 0;
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  max-height: 14rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(28vh, 16rem);
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .feedback-note {

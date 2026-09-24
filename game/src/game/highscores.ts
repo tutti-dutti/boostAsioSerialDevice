@@ -5,8 +5,10 @@ const HS_KEY_V2 = "cookie-guard-highscores-v2";
 const HS_KEY_LEGACY = "cookie-guard-highscores-v1";
 const WEEK_KEY = "cookie-guard-hs-week-id";
 const NAME_KEY = "cookie-guard-player-name";
-/** Top scores kept per play level (Easy / Medium / Hard) */
-export const MAX_SCORES_PER_MODE = 8;
+/** Single merged weekly board size (all difficulties together) */
+export const MAX_SCORES = 50;
+/** @deprecated use MAX_SCORES — kept for older call sites */
+export const MAX_SCORES_PER_MODE = MAX_SCORES;
 
 /** Points awarded when an enemy dies (before difficulty weight) */
 export const SCORE_PER_KILL = 100;
@@ -218,34 +220,24 @@ function loadAllHighScores(): HighScore[] {
   }
 }
 
-function trimPerMode(list: HighScore[]): HighScore[] {
-  const modes: Difficulty[] = ["easy", "medium", "hard"];
-  const kept: HighScore[] = [];
-  for (const mode of modes) {
-    const slice = list
-      .filter((s) => (s.difficulty ?? "easy") === mode)
-      .sort((a, b) => scoreValue(b) - scoreValue(a) || b.at - a.at)
-      .slice(0, MAX_SCORES_PER_MODE);
-    kept.push(...slice);
-  }
-  return kept;
+function trimTopScores(list: HighScore[]): HighScore[] {
+  return [...list]
+    .sort((a, b) => scoreValue(b) - scoreValue(a) || b.at - a.at)
+    .slice(0, MAX_SCORES);
 }
 
 function saveHighScores(list: HighScore[]) {
   ensureCurrentWeek();
-  localStorage.setItem(HS_KEY, JSON.stringify(trimPerMode(list)));
+  localStorage.setItem(HS_KEY, JSON.stringify(trimTopScores(list)));
 }
 
-/** Scores for one play level, or all modes when omitted */
+/** Merged weekly board (all difficulties). Optional filter still supported for admin tools. */
 export function loadHighScores(difficulty?: Difficulty): HighScore[] {
   const all = loadAllHighScores();
-  if (!difficulty) {
-    return trimPerMode(all).sort((a, b) => scoreValue(b) - scoreValue(a) || b.at - a.at);
-  }
-  return all
-    .filter((s) => (s.difficulty ?? "easy") === difficulty)
-    .sort((a, b) => scoreValue(b) - scoreValue(a) || b.at - a.at)
-    .slice(0, MAX_SCORES_PER_MODE);
+  const filtered = difficulty
+    ? all.filter((s) => (s.difficulty ?? "easy") === difficulty)
+    : all;
+  return trimTopScores(filtered);
 }
 
 export function getSavedPlayerName(): string {
@@ -261,11 +253,20 @@ export function formatPoints(n: number): string {
   return Math.round(n).toLocaleString();
 }
 
-/** True if this run's points make the top board for that play level */
-export function isHighScoreWorthy(points: number, difficulty: Difficulty = "easy"): boolean {
+/** Map level for a score row (1-based). Falls back from wave when mapTier is missing. */
+export function scoreMapLevel(s: Pick<HighScore, "mapTier" | "wave">): number {
+  if (typeof s.mapTier === "number" && Number.isFinite(s.mapTier)) {
+    return Math.max(1, Math.floor(s.mapTier) + 1);
+  }
+  const wave = Math.max(1, s.wave | 0);
+  return Math.floor((wave - 1) / 30) + 1;
+}
+
+/** True if this run's points make the merged top-50 board */
+export function isHighScoreWorthy(points: number, _difficulty?: Difficulty): boolean {
   if (points <= 0) return false;
-  const list = loadHighScores(difficulty);
-  if (list.length < MAX_SCORES_PER_MODE) return true;
+  const list = loadHighScores();
+  if (list.length < MAX_SCORES) return true;
   const worst = list[list.length - 1]!;
   return points > scoreValue(worst);
 }
@@ -296,7 +297,7 @@ export function submitHighScore(name: string, stats: ScoreStats & { points?: num
   const list = loadAllHighScores();
   list.push(entry);
   saveHighScores(list);
-  return loadHighScores(stats.difficulty);
+  return loadHighScores();
 }
 
 /** Admin: erase one score by id */

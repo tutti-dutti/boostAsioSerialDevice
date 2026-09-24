@@ -285,7 +285,7 @@ app.get("/api/feedback", async (req, res) => {
     const entries = [];
 
     for (const file of sorted) {
-      if (entries.length >= limit * 2) break; // fetch extra before kind filter
+      if (entries.length >= limit * 3) break; // fetch extra before kind filter + timestamp sort
       if (!String(file.name).endsWith(".json")) continue;
       try {
         const [buf] = await file.download();
@@ -302,13 +302,13 @@ app.get("/api/feedback", async (req, res) => {
           message: message.slice(0, 2000),
           at: Number(doc.at) || Date.parse(doc.createdAt) || Date.now(),
         });
-        if (entries.length >= limit) break;
       } catch (err) {
         console.warn("feedback read skip", file.name, err?.message || err);
       }
     }
 
-    res.json({ ok: true, entries });
+    entries.sort((a, b) => Number(b.at) - Number(a.at));
+    res.json({ ok: true, entries: entries.slice(0, limit) });
   } catch (err) {
     console.error("feedback list failed", err);
     res.status(500).json({ ok: false, error: "Could not load notes right now.", entries: [] });
