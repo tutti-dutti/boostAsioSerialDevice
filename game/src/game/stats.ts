@@ -175,15 +175,30 @@ export async function submitRating(
       | (Partial<GameStats> & { ok?: boolean; stars?: number; error?: string })
       | null;
 
-    if (!res.ok || !data?.ok) {
-      return { ok: false, error: data?.error || "Could not save rating." };
+    if (res.ok && data?.ok) {
+      rememberMyRating(n);
+      const stats = parseStats(data) || loadLocalStats();
+      saveLocalStats(stats);
+      return { ok: true, stats, stars: n };
     }
-
-    rememberMyRating(n);
-    const stats = parseStats(data) || loadLocalStats();
-    saveLocalStats(stats);
-    return { ok: true, stats, stars: n };
   } catch {
-    return { ok: false, error: "Network error — try again in a moment." };
+    /* fall through to local */
   }
+
+  // Offline / preview fallback — keep a device-local rating + avg
+  const prev = getMyRating();
+  const local = loadLocalStats();
+  if (prev >= 1 && prev <= 5 && local.ratingCount > 0) {
+    local.ratingSum = Math.max(0, (local.ratingSum || local.ratingAvg * local.ratingCount) - prev + n);
+  } else {
+    local.ratingSum = (local.ratingSum || local.ratingAvg * local.ratingCount) + n;
+    local.ratingCount += 1;
+  }
+  // Keep sum field for adjustments even though GameStats uses avg
+  const sum = Math.max(0, Number((local as GameStats & { ratingSum?: number }).ratingSum) || n);
+  (local as GameStats & { ratingSum?: number }).ratingSum = sum;
+  local.ratingAvg = local.ratingCount > 0 ? Math.round((sum / local.ratingCount) * 10) / 10 : 0;
+  rememberMyRating(n);
+  saveLocalStats(local);
+  return { ok: true, stats: local, stars: n };
 }
