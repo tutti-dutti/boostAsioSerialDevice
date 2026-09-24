@@ -1638,7 +1638,7 @@ function bossDangerAtmosphere(ctx: CanvasRenderingContext2D, time: number) {
   const pulse = 0.55 + Math.sin(time * 3.2) * 0.2;
   ctx.save();
   // Full-map red tint
-  ctx.globalAlpha = 0.22 + pulse * 0.12;
+  ctx.globalAlpha = 0.32 + pulse * 0.18;
   ctx.fillStyle = "#8a1018";
   ctx.fillRect(0, 0, W, H);
 
