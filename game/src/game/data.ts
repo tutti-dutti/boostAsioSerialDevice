@@ -158,10 +158,10 @@ export const STRENGTH_THIEVES: ThiefDef[] = [
 
 /** Mid-map checkpoint foes (every 10 waves) */
 export const MINI_BOSSES: ThiefDef[] = [
-  { id: "miniboss_pig", name: "Boss Pig", emoji: "🐷", hp: 360, speed: 20, gold: 18, size: 24, kind: "boss", boss: true },
-  { id: "miniboss_crow", name: "Sugar Baron", emoji: "🐦‍⬛", hp: 480, speed: 34, gold: 18, size: 22, kind: "boss", boss: true },
-  { id: "miniboss_ox", name: "Baker Ox", emoji: "🐂", hp: 640, speed: 16, gold: 22, size: 26, kind: "boss", boss: true },
-  { id: "boss", name: "King Raccoon", emoji: "👑", hp: 560, speed: 28, gold: 30, size: 28, kind: "boss", boss: true },
+  { id: "miniboss_pig", name: "Boss Pig", emoji: "🐗", hp: 360, speed: 20, gold: 18, size: 24, kind: "boss", boss: true },
+  { id: "miniboss_crow", name: "Sugar Baron", emoji: "🦅", hp: 480, speed: 34, gold: 18, size: 22, kind: "boss", boss: true },
+  { id: "miniboss_ox", name: "Baker Ox", emoji: "🐃", hp: 640, speed: 16, gold: 22, size: 26, kind: "boss", boss: true },
+  { id: "boss", name: "King Raccoon", emoji: "😈", hp: 560, speed: 28, gold: 30, size: 28, kind: "boss", boss: true },
 ];
 
 export const THIEVES: ThiefDef[] = [
@@ -172,13 +172,13 @@ export const THIEVES: ThiefDef[] = [
 
 /** End-of-map bosses (fought on waves 30, 60, 90, …) */
 export const LEVEL_BOSSES: ThiefDef[] = [
-  { id: "boss_forest", name: "King Raccoon", emoji: "👑", hp: 880, speed: 24, gold: 60, size: 34, kind: "boss", boss: true },
-  { id: "boss_river", name: "Tide Thief", emoji: "🌊", hp: 1450, speed: 27, gold: 70, size: 34, kind: "boss", boss: true },
+  { id: "boss_forest", name: "King Raccoon", emoji: "😈", hp: 880, speed: 24, gold: 60, size: 34, kind: "boss", boss: true },
+  { id: "boss_river", name: "Tide Thief", emoji: "🐙", hp: 1450, speed: 27, gold: 70, size: 34, kind: "boss", boss: true },
   { id: "boss_meadow", name: "Meadow Tyrant", emoji: "🐗", hp: 1650, speed: 22, gold: 80, size: 36, kind: "boss", boss: true },
   { id: "boss_canyon", name: "Canyon King", emoji: "🦂", hp: 1900, speed: 25, gold: 90, size: 36, kind: "boss", boss: true },
-  { id: "boss_bakery", name: "Oven Overlord", emoji: "🍪", hp: 1750, speed: 23, gold: 85, size: 35, kind: "boss", boss: true },
-  { id: "boss_pantry", name: "Pantry Phantom", emoji: "👻", hp: 1580, speed: 30, gold: 75, size: 33, kind: "boss", boss: true },
-  { id: "boss_frost", name: "Frostbite Bandit", emoji: "🧊", hp: 1820, speed: 21, gold: 88, size: 35, kind: "boss", boss: true },
+  { id: "boss_bakery", name: "Oven Overlord", emoji: "👹", hp: 1750, speed: 23, gold: 85, size: 35, kind: "boss", boss: true },
+  { id: "boss_pantry", name: "Pantry Phantom", emoji: "☠️", hp: 1580, speed: 30, gold: 75, size: 33, kind: "boss", boss: true },
+  { id: "boss_frost", name: "Frostbite Bandit", emoji: "🐺", hp: 1820, speed: 21, gold: 88, size: 35, kind: "boss", boss: true },
   { id: "boss_spice", name: "Spice Drake", emoji: "🐉", hp: 2100, speed: 26, gold: 100, size: 38, kind: "boss", boss: true },
 ];
 

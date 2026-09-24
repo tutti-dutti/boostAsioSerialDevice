@@ -1188,57 +1188,157 @@ function deployGhost(
   ctx.restore();
 }
 
+/** Evil boss silhouette — horns, crimson body, glowing eyes */
+function drawEvilBoss(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  emoji: string,
+  time: number,
+) {
+  const pulse = 0.55 + Math.sin(time * 6) * 0.35;
+  // Outer menace aura
+  const aura = ctx.createRadialGradient(x, y, r * 0.2, x, y, r * 2.4);
+  aura.addColorStop(0, `rgba(180, 20, 30, ${0.35 * pulse})`);
+  aura.addColorStop(0.55, `rgba(90, 0, 20, ${0.18 * pulse})`);
+  aura.addColorStop(1, "rgba(40, 0, 0, 0)");
+  ctx.fillStyle = aura;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Spiked rim
+  ctx.fillStyle = "#1a0508";
+  ctx.beginPath();
+  const spikes = 10;
+  for (let i = 0; i < spikes; i++) {
+    const a0 = (i / spikes) * Math.PI * 2 - Math.PI / 2;
+    const a1 = ((i + 0.5) / spikes) * Math.PI * 2 - Math.PI / 2;
+    const outer = r + 7 + (i % 2 === 0 ? 4 : 0);
+    if (i === 0) ctx.moveTo(x + Math.cos(a0) * outer, y + Math.sin(a0) * outer);
+    else ctx.lineTo(x + Math.cos(a0) * outer, y + Math.sin(a0) * outer);
+    ctx.lineTo(x + Math.cos(a1) * (r + 2), y + Math.sin(a1) * (r + 2));
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Horns
+  ctx.fillStyle = "#2a0a10";
+  ctx.strokeStyle = "#8a1020";
+  ctx.lineWidth = 1.5;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + side * (r * 0.35), y - r * 0.55);
+    ctx.quadraticCurveTo(
+      x + side * (r * 1.15),
+      y - r * 1.55,
+      x + side * (r * 0.55),
+      y - r * 1.05,
+    );
+    ctx.quadraticCurveTo(
+      x + side * (r * 0.85),
+      y - r * 0.7,
+      x + side * (r * 0.25),
+      y - r * 0.35,
+    );
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Dark crimson body
+  const body = ctx.createRadialGradient(x - 3, y - 5, 2, x, y, r);
+  body.addColorStop(0, "#6a2030");
+  body.addColorStop(0.45, "#3a0810");
+  body.addColorStop(1, "#120408");
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#c02838";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(255, 60, 40, 0.55)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(x, y, r + 3.5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Glowing eyes
+  for (const side of [-1, 1]) {
+    const ex = x + side * (r * 0.38);
+    const ey = y - r * 0.12;
+    const eye = ctx.createRadialGradient(ex, ey, 0.5, ex, ey, 5);
+    eye.addColorStop(0, "#fff0a0");
+    eye.addColorStop(0.35, "#ff4020");
+    eye.addColorStop(1, "rgba(120, 0, 0, 0)");
+    ctx.fillStyle = eye;
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, 4.5, 3.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.font = `${Math.round(r * 1.15)}px serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(emoji, x, y + 1);
+}
+
 function thieves(
   ctx: CanvasRenderingContext2D,
   list: Thief[],
   pos: Map<string, { x: number; y: number }>,
+  time = 0,
 ) {
   for (const t of list) {
     if (!t.alive) continue;
     const p = pos.get(t.uid);
     if (!p) continue;
-    const r = t.def.boss ? 18 : 13;
+    const r = t.def.boss ? 22 : 13;
     const kind = t.def.kind ?? "strength";
     castShadow(ctx, p.x, p.y + 2, r * 0.9, r * 0.38, 0.9);
 
-    const fill =
-      t.def.boss ? "#e8c15a" : kind === "speed" ? "#dff6ff" : "#ffe8d4";
-    const rim =
-      t.def.boss ? "#8a6020" : kind === "speed" ? "#2a88b0" : "#b06028";
-    const body = ctx.createRadialGradient(p.x - 3, p.y - 4, 2, p.x, p.y, r);
-    body.addColorStop(0, "#ffffffaa");
-    body.addColorStop(0.4, fill);
-    body.addColorStop(1, fill);
-    ctx.fillStyle = body;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = rim;
-    ctx.lineWidth = 2.8;
-    ctx.stroke();
-    // Dark outline for silhouette pop
-    ctx.strokeStyle = "rgba(20,24,36,0.35)";
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r + 1.2, 0, Math.PI * 2);
-    ctx.stroke();
+    if (t.def.boss) {
+      drawEvilBoss(ctx, p.x, p.y, r, t.def.emoji, time);
+    } else {
+      const fill = kind === "speed" ? "#dff6ff" : "#ffe8d4";
+      const rim = kind === "speed" ? "#2a88b0" : "#b06028";
+      const body = ctx.createRadialGradient(p.x - 3, p.y - 4, 2, p.x, p.y, r);
+      body.addColorStop(0, "#ffffffaa");
+      body.addColorStop(0.4, fill);
+      body.addColorStop(1, fill);
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = rim;
+      ctx.lineWidth = 2.8;
+      ctx.stroke();
+      // Dark outline for silhouette pop
+      ctx.strokeStyle = "rgba(20,24,36,0.35)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r + 1.2, 0, Math.PI * 2);
+      ctx.stroke();
 
-    ctx.font = `${t.def.boss ? 22 : 18}px serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(t.def.emoji, p.x, p.y);
+      ctx.font = `18px serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(t.def.emoji, p.x, p.y);
+    }
 
     // Bordered HP bar — red track / green remaining (KR style)
     const pct = Math.max(0, Math.min(1, t.hp / t.maxHp));
-    const bw = t.def.boss ? 30 : 24;
-    const bh = t.def.boss ? 6 : 5;
+    const bw = t.def.boss ? 36 : 24;
+    const bh = t.def.boss ? 7 : 5;
     const bx = p.x - bw / 2;
-    const by = p.y - r - 11;
+    const by = p.y - r - (t.def.boss ? 16 : 11);
     ctx.fillStyle = "#2a1820";
     ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
     ctx.fillStyle = "#c03030";
     ctx.fillRect(bx, by, bw, bh);
-    ctx.fillStyle = kind === "speed" ? "#4ec4f0" : "#6ecf5a";
+    ctx.fillStyle = t.def.boss ? "#e8a020" : kind === "speed" ? "#4ec4f0" : "#6ecf5a";
     ctx.fillRect(bx, by, bw * pct, bh);
     ctx.strokeStyle = "rgba(255,255,255,0.35)";
     ctx.lineWidth = 1;
@@ -1533,15 +1633,45 @@ function ensureGroundCache(): HTMLCanvasElement {
   return c;
 }
 
+/** Crimson danger wash over the map during boss fights */
+function bossDangerAtmosphere(ctx: CanvasRenderingContext2D, time: number) {
+  const pulse = 0.55 + Math.sin(time * 3.2) * 0.2;
+  ctx.save();
+  // Full-map red tint
+  ctx.globalAlpha = 0.22 + pulse * 0.12;
+  ctx.fillStyle = "#8a1018";
+  ctx.fillRect(0, 0, W, H);
+
+  // Pulsing edge vignette
+  const vig = ctx.createRadialGradient(W / 2, H / 2, 80, W / 2, H / 2, 520);
+  vig.addColorStop(0, "rgba(120, 0, 10, 0)");
+  vig.addColorStop(0.55, `rgba(90, 0, 8, ${0.12 * pulse})`);
+  vig.addColorStop(1, `rgba(40, 0, 0, ${0.55 + pulse * 0.2})`);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+
+  // Soft blood-horizon wash at top
+  const top = ctx.createLinearGradient(0, 0, 0, 120);
+  top.addColorStop(0, `rgba(160, 20, 30, ${0.35 + pulse * 0.15})`);
+  top.addColorStop(1, "rgba(120, 10, 20, 0)");
+  ctx.fillStyle = top;
+  ctx.fillRect(0, 0, W, 130);
+  ctx.restore();
+}
+
 export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
   const cache = ensureGroundCache();
   ctx.drawImage(cache, 0, 0, cache.width, cache.height, 0, 0, W, H);
+  if (s.bossFight) {
+    bossDangerAtmosphere(ctx, s.time);
+  }
   walls(ctx, s.walls);
   dams(ctx, s.dams || []);
   poisonClouds(ctx, s.poisonClouds || [], s.time);
   slots(ctx, s.slots, s.selectedSlot, s.time);
   deployGhost(ctx, s.deployGhost, !!s.deployMode);
-  thieves(ctx, s.thieves, s.thiefPos);
+  thieves(ctx, s.thieves, s.thiefPos, s.time);
   shots(ctx, s.shots);
   booms(ctx, s.booms);
   cookie(ctx, s.cookieHp, s.cookieMax, s.cookieBiteFlash ?? 0, s.cookieBites ?? [], s.cookieBitePulse ?? -1);
@@ -1570,7 +1700,9 @@ export function draw(ctx: CanvasRenderingContext2D, s: DrawState) {
     const pulse = 0.75 + Math.sin(s.time * 5) * 0.25;
     ctx.save();
     ctx.globalAlpha = pulse;
-    ctx.fillStyle = "#c04030";
+    ctx.fillStyle = "#ff5040";
+    ctx.shadowColor = "rgba(180, 0, 20, 0.85)";
+    ctx.shadowBlur = 12;
     ctx.font = "900 28px Fredoka, Nunito, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("⚔️ BOSS FIGHT ⚔️", W / 2, 48);

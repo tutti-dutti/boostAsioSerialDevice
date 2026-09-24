@@ -73,10 +73,151 @@ export function setMuted(m: boolean) {
     unlockAudio();
   }
   if (master) master.gain.value = m ? 0 : 0.35;
+  if (m) {
+    silenceBgmVoices();
+  } else if (bgmMode !== "off") {
+    // Restart loop so unmute brings music back immediately
+    const mode = bgmMode;
+    bgmMode = "off";
+    setBgmMode(mode);
+  }
 }
 
 export function isMuted() {
   return muted;
+}
+
+export type BgmMode = "off" | "calm" | "danger";
+
+let bgmMode: BgmMode = "off";
+let bgmStep = 0;
+let bgmTimer: ReturnType<typeof setInterval> | null = null;
+let droneOsc: OscillatorNode | null = null;
+let droneGain: GainNode | null = null;
+let pulseOsc: OscillatorNode | null = null;
+let pulseGain: GainNode | null = null;
+
+function silenceBgmVoices() {
+  stopDroneNodes();
+  if (bgmTimer != null) {
+    clearInterval(bgmTimer);
+    bgmTimer = null;
+  }
+}
+
+function stopDroneNodes() {
+  try {
+    droneOsc?.stop();
+  } catch {
+    /* already stopped */
+  }
+  try {
+    pulseOsc?.stop();
+  } catch {
+    /* already stopped */
+  }
+  droneOsc = null;
+  droneGain = null;
+  pulseOsc = null;
+  pulseGain = null;
+}
+
+function startDrone(freq: number, gain: number, type: OscillatorType = "sawtooth") {
+  const c = ensure();
+  if (!c || !master || muted) return;
+  stopDroneNodes();
+  const t0 = c.currentTime;
+  droneOsc = c.createOscillator();
+  droneGain = c.createGain();
+  droneOsc.type = type;
+  droneOsc.frequency.value = freq;
+  droneGain.gain.setValueAtTime(0.0001, t0);
+  droneGain.gain.linearRampToValueAtTime(gain, t0 + 0.4);
+  droneOsc.connect(droneGain);
+  droneGain.connect(master);
+  droneOsc.start(t0);
+
+  // Soft pulse under the drone for danger heartbeat
+  if (bgmMode === "danger") {
+    pulseOsc = c.createOscillator();
+    pulseGain = c.createGain();
+    pulseOsc.type = "sine";
+    pulseOsc.frequency.value = freq * 0.5;
+    pulseGain.gain.value = gain * 0.55;
+    pulseOsc.connect(pulseGain);
+    pulseGain.connect(master);
+    pulseOsc.start(t0);
+  }
+}
+
+function bgmPluck(freq: number, dur: number, type: OscillatorType, gain: number) {
+  if (muted || bgmMode === "off") return;
+  const c = ensure();
+  if (!c || !master || c.state === "suspended") return;
+  const t0 = c.currentTime;
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g);
+  g.connect(master);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.02);
+}
+
+const CALM_NOTES = [262, 294, 330, 392, 330, 294, 262, 196]; // C major walk
+const DANGER_NOTES = [110, 131, 147, 165, 147, 131, 104, 98]; // low minor menace
+
+function tickBgm() {
+  if (muted || bgmMode === "off") return;
+  const c = ensure();
+  if (!c || c.state === "suspended") return;
+
+  if (bgmMode === "calm") {
+    const n = CALM_NOTES[bgmStep % CALM_NOTES.length]!;
+    bgmPluck(n, 0.28, "triangle", 0.045);
+    if (bgmStep % 4 === 0) bgmPluck(n * 0.5, 0.4, "sine", 0.03);
+  } else if (bgmMode === "danger") {
+    const n = DANGER_NOTES[bgmStep % DANGER_NOTES.length]!;
+    bgmPluck(n, 0.18, "sawtooth", 0.07);
+    bgmPluck(n * 1.5, 0.12, "square", 0.035);
+    // Dissonant stab every 4th beat
+    if (bgmStep % 4 === 0) {
+      bgmPluck(n * 1.41, 0.22, "sawtooth", 0.055);
+      noiseBurst(0.06, 0.04, 400);
+    }
+    // Heartbeat thump
+    if (bgmStep % 2 === 0) {
+      bgmPluck(55, 0.14, "sine", 0.1);
+    }
+  }
+  bgmStep += 1;
+}
+
+/** Switch looping synth BGM — calm exploration vs danger boss theme */
+export function setBgmMode(mode: BgmMode) {
+  if (mode === bgmMode) return;
+  bgmMode = mode;
+  silenceBgmVoices();
+  bgmStep = 0;
+  if (mode === "off" || muted) return;
+
+  unlockAudio();
+  if (mode === "calm") {
+    startDrone(98, 0.018, "sine");
+    bgmTimer = setInterval(tickBgm, 420);
+  } else {
+    startDrone(55, 0.04, "sawtooth");
+    bgmTimer = setInterval(tickBgm, 280);
+  }
+  tickBgm();
+}
+
+export function getBgmMode(): BgmMode {
+  return bgmMode;
 }
 
 function tone(

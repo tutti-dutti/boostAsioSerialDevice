@@ -16,7 +16,7 @@ import {
 } from "./data";
 import { COOKIE, W, H, pathPoint, nearestProgress, mapTierForWave, setActiveCourseMap, randomCourseIndex, listCourses, canPlaceAt, pathClearanceFor } from "./path";
 import { draw, drawRangeHint } from "./render";
-import { playHit, playShoot, playSpell, playCookieMunch, shootSoundFor, playPoisonFart, playFoxWall } from "./sound";
+import { playHit, playShoot, playSpell, playCookieMunch, shootSoundFor, playPoisonFart, playFoxWall, setBgmMode } from "./sound";
 import { funnyQuipFor } from "./quips";
 import {
   difficultyTuning,
@@ -2126,6 +2126,15 @@ export class Game {
       if (!t.alive) continue;
       thiefPos.set(t.uid, pathPoint(t.progress));
     }
+    const bossFight =
+      this.thieves.some((t) => t.alive && t.def.boss) ||
+      (isLevelBossWave(this.wave) && this.waveInProgress);
+    // Calm loop while playing; switch to danger theme for boss fights
+    if (this.running && !this.gameOver) {
+      setBgmMode(bossFight ? "danger" : "calm");
+    } else {
+      setBgmMode("off");
+    }
     draw(this.ctx, {
       slots: this.slots,
       thieves: this.thieves,
@@ -2144,7 +2153,7 @@ export class Game {
       selectedSlot: this.selectedSlot,
       time: this.time,
       wave: this.wave,
-      bossFight: isLevelBossWave(this.wave) && this.waveInProgress,
+      bossFight,
       deployMode: this.selectedBag != null,
       waveWaiting: this.waveWaiting,
       paused: this.paused,

@@ -2,7 +2,7 @@ import "./style.css";
 import { Game } from "./game/Game";
 import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, SUMMON_COST, LUCKY_SUMMON_COST, type FriendDef } from "./game/data";
 import { friendPortraitDataUrl, weaponRoleShort } from "./game/animalArt";
-import { unlockAudio, setMuted, isMuted, playUnmuteChirp } from "./game/sound";
+import { unlockAudio, setMuted, isMuted, playUnmuteChirp, setBgmMode } from "./game/sound";
 import { getActiveMap, listCourses } from "./game/path";
 import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST, friendDamage, type PlacedFriend } from "./game/types";
 import {
@@ -1145,6 +1145,7 @@ void fetchStats().then(applyStats);
 function showHome() {
   game.running = false;
   game.setPaused(false);
+  setBgmMode("off");
   closeScoresMenu();
   home.classList.remove("hidden");
   playScreen.classList.add("hidden");
