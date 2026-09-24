@@ -22,6 +22,16 @@ import {
 } from "./game/highscores";
 import { DIFFICULTIES, isDifficulty, type Difficulty } from "./game/difficulty";
 import { submitFeedback, fetchFeedbackList, kindLabel, type FeedbackKind, type FeedbackEntry } from "./game/feedback";
+import {
+  fetchStats,
+  formatCount,
+  formatRatingAvg,
+  getMyRating,
+  recordPlay,
+  recordVisit,
+  submitRating,
+  type GameStats,
+} from "./game/stats";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -46,6 +56,25 @@ app.innerHTML = `
     <button class="home-play" id="play-btn" type="button">Play</button>
     <button class="home-feedback" id="home-feedback-btn" type="button">Feedback &amp; ideas</button>
     <p class="home-note">No ads. Just the game.</p>
+    <div class="home-community" id="home-community" aria-live="polite">
+      <div class="home-counts">
+        <span class="home-count"><strong id="stat-visits">0</strong> visits</span>
+        <span class="home-count-sep" aria-hidden="true">·</span>
+        <span class="home-count"><strong id="stat-plays">0</strong> plays</span>
+      </div>
+      <div class="home-rate" id="home-rate">
+        <p class="home-rate-label">Rate the game</p>
+        <div class="rate-stars" id="rate-stars" role="group" aria-label="Rate Cookie Guard from 1 to 5 stars">
+          <button type="button" class="rate-star" data-stars="1" aria-label="1 star">★</button>
+          <button type="button" class="rate-star" data-stars="2" aria-label="2 stars">★</button>
+          <button type="button" class="rate-star" data-stars="3" aria-label="3 stars">★</button>
+          <button type="button" class="rate-star" data-stars="4" aria-label="4 stars">★</button>
+          <button type="button" class="rate-star" data-stars="5" aria-label="5 stars">★</button>
+        </div>
+        <p class="home-rate-avg" id="rate-avg">No ratings yet</p>
+        <p class="hint home-rate-status" id="rate-status"></p>
+      </div>
+    </div>
     <div class="home-scores" id="home-scores">
       <h2 class="scores-title">High Scores</h2>
       <p class="scores-week-hint" id="home-scores-week">${formatWeeklyResetHint()}</p>
@@ -283,6 +312,13 @@ const homeModeBlurb = document.querySelector("#home-mode-blurb")!;
 const homeScoresList = document.querySelector("#home-scores-list")!;
 const homeScoresEmpty = document.querySelector("#home-scores-empty")!;
 const homeScoreChips = document.querySelector("#home-score-chips")!;
+const statVisitsEl = document.querySelector("#stat-visits")!;
+const statPlaysEl = document.querySelector("#stat-plays")!;
+const rateStarsEl = document.querySelector("#rate-stars")!;
+const rateAvgEl = document.querySelector("#rate-avg")!;
+const rateStatusEl = document.querySelector("#rate-status")!;
+let myRating = getMyRating();
+let ratingBusy = false;
 const overScoreLine = document.querySelector("#over-score-line")!;
 const scoreSave = document.querySelector("#score-save")!;
 const scoreNameInput = document.querySelector<HTMLInputElement>("#score-name")!;
@@ -1049,6 +1085,63 @@ refresh();
 refreshModes();
 refreshHomeScores();
 
+function applyStats(stats: GameStats) {
+  statVisitsEl.textContent = formatCount(stats.visits);
+  statPlaysEl.textContent = formatCount(stats.plays);
+  rateAvgEl.textContent = formatRatingAvg(stats.ratingAvg, stats.ratingCount);
+  paintRateStars();
+}
+
+function paintRateStars() {
+  rateStarsEl.querySelectorAll<HTMLButtonElement>(".rate-star").forEach((btn) => {
+    const n = Number(btn.dataset.stars) || 0;
+    const on = myRating > 0 && n <= myRating;
+    btn.classList.toggle("filled", on);
+    btn.setAttribute("aria-pressed", on && n === myRating ? "true" : "false");
+  });
+}
+
+rateStarsEl.querySelectorAll<HTMLButtonElement>(".rate-star").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    unlockAudio();
+    if (ratingBusy) return;
+    const stars = Number(btn.dataset.stars) || 0;
+    if (stars < 1 || stars > 5) return;
+    ratingBusy = true;
+    rateStatusEl.textContent = "Saving…";
+    paintRateStars();
+    // Optimistic highlight while saving
+    myRating = stars;
+    paintRateStars();
+    const result = await submitRating(stars);
+    ratingBusy = false;
+    if (!result.ok) {
+      rateStatusEl.textContent = result.error;
+      myRating = getMyRating();
+      paintRateStars();
+      return;
+    }
+    myRating = result.stars;
+    applyStats(result.stats);
+    rateStatusEl.textContent = `Thanks — you rated ${result.stars}★`;
+  });
+  btn.addEventListener("mouseenter", () => {
+    if (ratingBusy) return;
+    const hover = Number(btn.dataset.stars) || 0;
+    rateStarsEl.querySelectorAll<HTMLButtonElement>(".rate-star").forEach((b) => {
+      const n = Number(b.dataset.stars) || 0;
+      b.classList.toggle("preview", n <= hover);
+    });
+  });
+});
+rateStarsEl.addEventListener("mouseleave", () => {
+  rateStarsEl.querySelectorAll(".rate-star").forEach((b) => b.classList.remove("preview"));
+});
+
+paintRateStars();
+void recordVisit().then(applyStats);
+void fetchStats().then(applyStats);
+
 function showHome() {
   game.running = false;
   game.setPaused(false);
@@ -1059,6 +1152,7 @@ function showHome() {
   refreshModes();
   homeScoreMode = game.difficulty;
   refreshHomeScores();
+  void fetchStats().then(applyStats);
 }
 
 function showPlay() {
@@ -1074,6 +1168,7 @@ function showPlay() {
   game.setPaused(false);
   game.paint();
   refresh();
+  void recordPlay().then(applyStats);
 }
 
 document.querySelector("#play-btn")!.addEventListener("click", showPlay);
@@ -1237,6 +1332,7 @@ document.querySelector("#retry-btn")!.addEventListener("click", () => {
   scoreSavedThisRun = false;
   game.reset();
   over.classList.add("hidden");
+  void recordPlay().then(applyStats);
 });
 
 document.querySelector("#save-score-btn")!.addEventListener("click", () => {
