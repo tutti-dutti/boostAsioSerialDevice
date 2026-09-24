@@ -12,8 +12,16 @@ export interface GameStats {
   ratingCount: number;
 }
 
+interface LocalStatsBlob extends GameStats {
+  ratingSum: number;
+}
+
 function emptyStats(): GameStats {
   return { visits: 0, plays: 0, ratingAvg: 0, ratingCount: 0 };
+}
+
+function emptyLocal(): LocalStatsBlob {
+  return { ...emptyStats(), ratingSum: 0 };
 }
 
 export function getDeviceId(): string {
@@ -49,25 +57,42 @@ export function rememberMyRating(stars: number) {
   }
 }
 
-function loadLocalStats(): GameStats {
+function loadLocalStats(): LocalStatsBlob {
   try {
     const raw = localStorage.getItem(LOCAL_STATS_KEY);
-    if (!raw) return emptyStats();
-    const data = JSON.parse(raw) as Partial<GameStats>;
+    if (!raw) return emptyLocal();
+    const data = JSON.parse(raw) as Partial<LocalStatsBlob>;
+    const ratingCount = Math.max(0, Math.floor(Number(data.ratingCount) || 0));
+    const ratingSum =
+      Math.max(0, Number(data.ratingSum) || 0) ||
+      Math.max(0, (Number(data.ratingAvg) || 0) * ratingCount);
     return {
       visits: Math.max(0, Math.floor(Number(data.visits) || 0)),
       plays: Math.max(0, Math.floor(Number(data.plays) || 0)),
-      ratingAvg: Math.max(0, Number(data.ratingAvg) || 0),
-      ratingCount: Math.max(0, Math.floor(Number(data.ratingCount) || 0)),
+      ratingCount,
+      ratingSum,
+      ratingAvg: ratingCount > 0 ? Math.round((ratingSum / ratingCount) * 10) / 10 : 0,
     };
   } catch {
-    return emptyStats();
+    return emptyLocal();
   }
 }
 
-function saveLocalStats(stats: GameStats) {
+function saveLocalStats(stats: GameStats & { ratingSum?: number }) {
   try {
-    localStorage.setItem(LOCAL_STATS_KEY, JSON.stringify(stats));
+    const ratingCount = Math.max(0, Math.floor(stats.ratingCount || 0));
+    const ratingSum =
+      typeof stats.ratingSum === "number"
+        ? Math.max(0, stats.ratingSum)
+        : Math.max(0, (stats.ratingAvg || 0) * ratingCount);
+    const blob: LocalStatsBlob = {
+      visits: Math.max(0, Math.floor(stats.visits || 0)),
+      plays: Math.max(0, Math.floor(stats.plays || 0)),
+      ratingCount,
+      ratingSum,
+      ratingAvg: ratingCount > 0 ? Math.round((ratingSum / ratingCount) * 10) / 10 : 0,
+    };
+    localStorage.setItem(LOCAL_STATS_KEY, JSON.stringify(blob));
   } catch {
     /* ignore */
   }
@@ -178,7 +203,10 @@ export async function submitRating(
     if (res.ok && data?.ok) {
       rememberMyRating(n);
       const stats = parseStats(data) || loadLocalStats();
-      saveLocalStats(stats);
+      saveLocalStats({
+        ...stats,
+        ratingSum: stats.ratingAvg * stats.ratingCount,
+      });
       return { ok: true, stats, stars: n };
     }
   } catch {
@@ -189,15 +217,13 @@ export async function submitRating(
   const prev = getMyRating();
   const local = loadLocalStats();
   if (prev >= 1 && prev <= 5 && local.ratingCount > 0) {
-    local.ratingSum = Math.max(0, (local.ratingSum || local.ratingAvg * local.ratingCount) - prev + n);
+    local.ratingSum = Math.max(0, local.ratingSum - prev + n);
   } else {
-    local.ratingSum = (local.ratingSum || local.ratingAvg * local.ratingCount) + n;
+    local.ratingSum += n;
     local.ratingCount += 1;
   }
-  // Keep sum field for adjustments even though GameStats uses avg
-  const sum = Math.max(0, Number((local as GameStats & { ratingSum?: number }).ratingSum) || n);
-  (local as GameStats & { ratingSum?: number }).ratingSum = sum;
-  local.ratingAvg = local.ratingCount > 0 ? Math.round((sum / local.ratingCount) * 10) / 10 : 0;
+  local.ratingAvg =
+    local.ratingCount > 0 ? Math.round((local.ratingSum / local.ratingCount) * 10) / 10 : 0;
   rememberMyRating(n);
   saveLocalStats(local);
   return { ok: true, stats: local, stars: n };
