@@ -1056,15 +1056,21 @@ function refresh() {
   (document.querySelector("#lucky") as HTMLButtonElement).disabled = game.stars < LUCKY_SUMMON_COST;
   const startBtn = document.querySelector("#start-wave") as HTMLButtonElement;
   startBtn.disabled = !game.canStartWave();
-  if (game.isCombatActive()) {
+  if (game.isBossFightActive()) {
+    startBtn.textContent = "Boss fight…";
+    startBtn.title = "Defeat the boss before calling the next wave";
+  } else if (game.isCombatActive()) {
     startBtn.textContent = `Next Wave ${game.nextWaveToStart()}`;
+    startBtn.title = "Call the next wave early";
   } else if (game.canStartWave()) {
     startBtn.textContent =
       game.autoWaveTimer > 0
         ? `Start Now (${Math.ceil(game.autoWaveTimer)})`
         : `Start Wave ${game.wave}`;
+    startBtn.title = "Start the next wave";
   } else {
     startBtn.textContent = `Start Wave ${game.wave}`;
+    startBtn.title = "";
   }
 
   const pauseLabel = game.paused ? "Resume" : "Pause";

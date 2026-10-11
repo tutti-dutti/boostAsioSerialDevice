@@ -1057,6 +1057,17 @@ export class Game {
     );
   }
 
+  /**
+   * Level boss wave in progress, and/or any boss still alive on the board.
+   * Matches the paint()/BGM bossFight signal.
+   */
+  isBossFightActive(): boolean {
+    return (
+      this.thieves.some((t) => t.alive && t.def.boss) ||
+      (isLevelBossWave(this.wave) && this.waveInProgress)
+    );
+  }
+
   /** Board friends can be repositioned between waves, or anytime while paused */
   canMoveUnits(): boolean {
     return !this.gameOver && (!this.isCombatActive() || this.paused);
@@ -1231,6 +1242,8 @@ export class Game {
   /** True when the Start Wave button should be enabled */
   canStartWave() {
     if (this.gameOver) return false;
+    // Boss fights lock next-wave / early-call until the boss is cleared
+    if (this.isBossFightActive()) return false;
     // Between waves — start the waiting wave
     if (
       this.waveWaiting &&
@@ -1252,6 +1265,10 @@ export class Game {
   /** Player presses Start Wave (or Next Wave during combat) */
   requestStartWave() {
     if (this.gameOver) return;
+    if (this.isBossFightActive()) {
+      this.toast("Defeat the boss first — can't call the next wave!", true);
+      return;
+    }
     if (this.isCombatActive()) {
       this.callNextWaveEarly();
       return;
@@ -1269,6 +1286,10 @@ export class Game {
    */
   callNextWaveEarly() {
     if (this.gameOver || !this.isCombatActive()) return;
+    if (this.isBossFightActive()) {
+      this.toast("Defeat the boss first — can't call the next wave!", true);
+      return;
+    }
     this.paused = false;
     this.autoWaveTimer = 0;
     // Credit the wave you're skipping the break for, then advance
@@ -1299,6 +1320,8 @@ export class Game {
   }
 
   startWave() {
+    // Never stack a new wave on top of an active boss fight
+    if (this.isBossFightActive()) return;
     this.waveWaiting = false;
     this.waveInProgress = true;
     this.spawnLeft = scaleWaveCount(waveCount(this.wave), this.difficulty);
@@ -2143,9 +2166,7 @@ export class Game {
       if (!t.alive) continue;
       thiefPos.set(t.uid, pathPoint(t.progress));
     }
-    const bossFight =
-      this.thieves.some((t) => t.alive && t.def.boss) ||
-      (isLevelBossWave(this.wave) && this.waveInProgress);
+    const bossFight = this.isBossFightActive();
     // Calm loop while playing; switch to danger theme for boss fights
     if (this.running && !this.gameOver) {
       setBgmMode(bossFight ? "danger" : "calm");
