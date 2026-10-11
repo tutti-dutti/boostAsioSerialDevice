@@ -85,6 +85,30 @@ export function beaverDamMaxHp(level: number): number {
   return 36 + Math.max(1, level) * 10;
 }
 
+/** Max reinforce stacks on one primary dam (size / HP soft cap) */
+export const BEAVER_DAM_MAX_STACKS = 5;
+
+/** HP added when reinforcing an existing dam (scales with beaver level) */
+export function beaverDamReinforceHp(level: number): number {
+  return Math.round(beaverDamMaxHp(level) * 0.65);
+}
+
+/** Visual scale for a dam at the given stack count (1 = base size) */
+export function beaverDamScale(stacks: number): number {
+  const s = Math.max(1, Math.min(BEAVER_DAM_MAX_STACKS, stacks | 0));
+  // Soft cap: ~1.0 → ~1.72 at max stacks
+  return 1 + (s - 1) * 0.18;
+}
+
+/**
+ * Durability buff: thieves deal less chew damage per stack.
+ * At max stacks, damage taken is ~55% of base.
+ */
+export function beaverDamDamageTakenMul(stacks: number): number {
+  const s = Math.max(1, Math.min(BEAVER_DAM_MAX_STACKS, stacks | 0));
+  return 1 / (1 + (s - 1) * 0.2);
+}
+
 /** Orbit radius = shoot radius for flyers */
 export function flyerOrbitRadius(f: PlacedFriend): number {
   return friendRange(f);
@@ -192,6 +216,8 @@ export interface Dam {
   hp: number;
   maxHp: number;
   ownerSlotId: number;
+  /** Reinforce stacks (1 = fresh dam). Caps at BEAVER_DAM_MAX_STACKS. */
+  stacks: number;
 }
 
 /** Skunk fart poison cloud lingering on the board */

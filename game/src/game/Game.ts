@@ -44,7 +44,10 @@ import {
   isBeaverBuilder,
   beaverKillPoints,
   beaverDamMaxHp,
+  beaverDamReinforceHp,
+  beaverDamDamageTakenMul,
   BEAVER_DAM_COST,
+  BEAVER_DAM_MAX_STACKS,
   isDumplingPanda,
   nextDumplingDelay,
   isEagleBomber,
@@ -668,6 +671,7 @@ export class Game {
         hp: d.hp,
         maxHp: d.maxHp,
         ownerSlotId: d.ownerSlotId,
+        stacks: d.stacks ?? 1,
       })),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -776,6 +780,13 @@ export class Game {
               hp: d.hp,
               maxHp: d.maxHp || d.hp,
               ownerSlotId: d.ownerSlotId ?? -1,
+              stacks: Math.max(
+                1,
+                Math.min(
+                  BEAVER_DAM_MAX_STACKS,
+                  typeof d.stacks === "number" ? (d.stacks | 0) : 1,
+                ),
+              ),
             }))
         : [];
       // Always wait for Start Wave after loading a save
@@ -1552,11 +1563,21 @@ export class Game {
     return slot;
   }
 
+  /** Primary dam is the oldest living dam on the board (index 0). */
+  primaryDam(): Dam | null {
+    return this.dams.find((d) => d.hp > 0) ?? null;
+  }
+
   canBuildDam(): boolean {
     const slot = this.selectedBeaver();
     if (!slot?.friend) return false;
-    if (this.dams.length >= MAX_DAMS) return false;
-    return (slot.friend.beaverPoints ?? 0) >= BEAVER_DAM_COST;
+    if ((slot.friend.beaverPoints ?? 0) < BEAVER_DAM_COST) return false;
+    const primary = this.primaryDam();
+    if (primary) {
+      // Can reinforce until the stack soft cap
+      return (primary.stacks ?? 1) < BEAVER_DAM_MAX_STACKS;
+    }
+    return this.dams.length < MAX_DAMS;
   }
 
   buildBeaverDam() {
@@ -1565,13 +1586,47 @@ export class Game {
       this.toast("Select a beaver first", true);
       return;
     }
-    if (this.dams.length >= MAX_DAMS) {
-      this.toast("Too many dams — wait for enemies to smash one", true);
-      return;
-    }
     const points = slot.friend.beaverPoints ?? 0;
     if (points < BEAVER_DAM_COST) {
       this.toast(`Need ${BEAVER_DAM_COST}🪵 (have ${points})`, true);
+      return;
+    }
+
+    const primary = this.primaryDam();
+    if (primary) {
+      const stacks = primary.stacks ?? 1;
+      if (stacks >= BEAVER_DAM_MAX_STACKS) {
+        this.toast(`🦫 Dam fully reinforced (×${BEAVER_DAM_MAX_STACKS})`, true);
+        return;
+      }
+      slot.friend.beaverPoints = points - BEAVER_DAM_COST;
+      const add = beaverDamReinforceHp(slot.friend.level);
+      primary.stacks = stacks + 1;
+      primary.maxHp += add;
+      primary.hp = Math.min(primary.maxHp, primary.hp + add);
+      primary.ownerSlotId = slot.id;
+      this.booms.push({
+        kind: "dam",
+        x: primary.x,
+        y: primary.y,
+        life: 0.95,
+        radius: 40 + primary.stacks * 6,
+      });
+      this.floats.push({
+        x: primary.x,
+        y: primary.y - 22,
+        text: `Dam +${add} HP · ×${primary.stacks}`,
+        color: "#c9a66b",
+        life: 1.15,
+      });
+      this.toast(`🦫 Dam reinforced! ×${primary.stacks} (bigger & tougher)`, true);
+      this.save();
+      this.onChange();
+      return;
+    }
+
+    if (this.dams.length >= MAX_DAMS) {
+      this.toast("Too many dams — wait for enemies to smash one", true);
       return;
     }
     slot.friend.beaverPoints = points - BEAVER_DAM_COST;
@@ -1585,6 +1640,7 @@ export class Game {
       hp: maxHp,
       maxHp,
       ownerSlotId: slot.id,
+      stacks: 1,
     });
     this.booms.push({ kind: "dam", x: p.x, y: p.y, life: 0.9, radius: 44 });
     this.toast(`🦫 Dam built! Blocks the path`, true);
@@ -1848,7 +1904,7 @@ export class Game {
           t.blockedTimer = Math.max(t.blockedTimer, 0.25);
           const dps =
             t.def.boss ? 22 : t.def.kind === "strength" ? 14 : 7;
-          dam.hp -= dps * dt;
+          dam.hp -= dps * beaverDamDamageTakenMul(dam.stacks ?? 1) * dt;
           if (dam.hp <= 0) {
             dam.hp = 0;
             smashed.push(dam);

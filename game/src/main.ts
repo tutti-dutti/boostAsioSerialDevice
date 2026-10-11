@@ -4,7 +4,7 @@ import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, SUMMON_COST
 import { friendPortraitDataUrl, weaponRoleShort } from "./game/animalArt";
 import { unlockAudio, setMuted, isMuted, playUnmuteChirp, setBgmMode } from "./game/sound";
 import { getActiveMap, listCourses, COURSE_CHIP_COUNT } from "./game/path";
-import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST, friendDamage, type PlacedFriend } from "./game/types";
+import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, BEAVER_DAM_MAX_STACKS, isEagleBomber, EAGLE_LAND_COST, friendDamage, type PlacedFriend } from "./game/types";
 import {
   clearAllHighScores,
   clearHighScoresForMode,
@@ -1079,7 +1079,17 @@ function refresh() {
   if (beaverSlot?.friend) {
     beaverRow.classList.remove("hidden");
     const pts = beaverSlot.friend.beaverPoints ?? 0;
-    buildDamBtn.textContent = `Build Dam (${pts}/${BEAVER_DAM_COST}🪵)`;
+    const primary = game.primaryDam();
+    if (primary) {
+      const stacks = primary.stacks ?? 1;
+      if (stacks >= BEAVER_DAM_MAX_STACKS) {
+        buildDamBtn.textContent = `Dam Max ×${stacks}`;
+      } else {
+        buildDamBtn.textContent = `Reinforce Dam ×${stacks} (${pts}/${BEAVER_DAM_COST}🪵)`;
+      }
+    } else {
+      buildDamBtn.textContent = `Build Dam (${pts}/${BEAVER_DAM_COST}🪵)`;
+    }
     buildDamBtn.disabled = !game.canBuildDam() || game.gameOver;
   } else {
     beaverRow.classList.add("hidden");

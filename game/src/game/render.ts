@@ -2,7 +2,7 @@ import { COOKIE, GATE, PATH, W, H, getActiveMap, type MapDecor } from "./path";
 import { evolveLineage, friendDisplayScale, friendFootprintRadius } from "./data";
 import { drawFriendPortrait } from "./animalArt";
 import type { Boom, CookieBite, Dam, FloatText, PlacedFriend, PoisonCloud, Shot, Slot, Thief, Wall } from "./types";
-import { flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
+import { beaverDamScale, BEAVER_DAM_MAX_STACKS, flyerOrbitRadius, flyerWorldPos, friendRange } from "./types";
 
 /** Strip complexity suffix (`forest_t2` → `forest`) */
 function baseThemeId(mapId: string): string {
@@ -1421,34 +1421,50 @@ function walls(ctx: CanvasRenderingContext2D, list: Wall[]) {
 
 function dams(ctx: CanvasRenderingContext2D, list: Dam[]) {
   for (const d of list) {
+    const stacks = Math.max(1, Math.min(BEAVER_DAM_MAX_STACKS, d.stacks ?? 1));
+    const scale = beaverDamScale(stacks);
     const hpPct = Math.max(0, d.hp / d.maxHp);
+    const hw = 26 * scale;
+    const hh = 16 * scale;
+    const barW = 44 * scale;
     ctx.globalAlpha = 0.85;
-    ctx.fillStyle = "#6a4828";
-    ctx.strokeStyle = "#c9a66b";
-    ctx.lineWidth = 3;
+    ctx.fillStyle = stacks >= 4 ? "#5a3a1c" : "#6a4828";
+    ctx.strokeStyle = stacks >= 3 ? "#e8c878" : "#c9a66b";
+    ctx.lineWidth = 3 + (stacks - 1) * 0.4;
     ctx.beginPath();
-    ctx.roundRect(d.x - 26, d.y - 16, 52, 32, 8);
+    ctx.roundRect(d.x - hw, d.y - hh, hw * 2, hh * 2, 8 * scale);
     ctx.fill();
     ctx.stroke();
     // log stripes
     ctx.strokeStyle = "rgba(40, 24, 12, 0.35)";
     ctx.lineWidth = 2;
-    for (const ox of [-12, 0, 12]) {
+    const stripeStep = 12 * scale;
+    for (const ox of [-stripeStep, 0, stripeStep]) {
       ctx.beginPath();
-      ctx.moveTo(d.x + ox, d.y - 12);
-      ctx.lineTo(d.x + ox, d.y + 12);
+      ctx.moveTo(d.x + ox, d.y - hh * 0.75);
+      ctx.lineTo(d.x + ox, d.y + hh * 0.75);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
-    ctx.font = "20px serif";
+    ctx.font = `${Math.round(20 * scale)}px serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("🪵", d.x, d.y);
+    if (stacks > 1) {
+      ctx.font = `bold ${Math.round(11 * Math.min(1.25, scale))}px sans-serif`;
+      ctx.fillStyle = "#f0d48a";
+      ctx.strokeStyle = "rgba(20,14,8,0.75)";
+      ctx.lineWidth = 3;
+      const label = `×${stacks}`;
+      ctx.strokeText(label, d.x, d.y - hh - 6);
+      ctx.fillText(label, d.x, d.y - hh - 6);
+    }
     // HP bar
+    const barY = d.y + hh + 2;
     ctx.fillStyle = "rgba(20,16,12,0.55)";
-    ctx.fillRect(d.x - 22, d.y + 18, 44, 6);
+    ctx.fillRect(d.x - barW / 2, barY, barW, 6);
     ctx.fillStyle = hpPct > 0.35 ? "#7ecf6a" : "#e07050";
-    ctx.fillRect(d.x - 22, d.y + 18, 44 * hpPct, 6);
+    ctx.fillRect(d.x - barW / 2, barY, barW * hpPct, 6);
   }
 }
 
