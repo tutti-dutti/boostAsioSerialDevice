@@ -42,9 +42,14 @@ import {
   damageVsThief,
   friendDamage,
   isBeaverBuilder,
+  isBambooWallBuilder,
+  isDamPointEarner,
   beaverKillPoints,
   beaverDamMaxHp,
+  bambooWallMaxHp,
+  bambooWallContactDps,
   BEAVER_DAM_COST,
+  BAMBOO_WALL_COST,
   isDumplingPanda,
   nextDumplingDelay,
   isEagleBomber,
@@ -668,6 +673,8 @@ export class Game {
         hp: d.hp,
         maxHp: d.maxHp,
         ownerSlotId: d.ownerSlotId,
+        kind: d.kind,
+        contactDps: d.contactDps,
       })),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -769,14 +776,24 @@ export class Game {
         ? data.dams
             .filter((d: Dam) => d && typeof d.progress === "number" && d.hp > 0)
             .slice(0, MAX_DAMS)
-            .map((d: Dam) => ({
-              x: d.x,
-              y: d.y,
-              progress: d.progress,
-              hp: d.hp,
-              maxHp: d.maxHp || d.hp,
-              ownerSlotId: d.ownerSlotId ?? -1,
-            }))
+            .map((d: Dam) => {
+              const kind = d.kind === "bamboo" ? "bamboo" : "beaver";
+              return {
+                x: d.x,
+                y: d.y,
+                progress: d.progress,
+                hp: d.hp,
+                maxHp: d.maxHp || d.hp,
+                ownerSlotId: d.ownerSlotId ?? -1,
+                kind,
+                contactDps:
+                  typeof d.contactDps === "number"
+                    ? d.contactDps
+                    : kind === "bamboo"
+                      ? bambooWallContactDps(1)
+                      : 0,
+              };
+            })
         : [];
       // Always wait for Start Wave after loading a save
       this.waveWaiting = true;
@@ -1353,6 +1370,7 @@ export class Game {
       poisonTimer: 0,
       poisonDps: 0,
       poisonAcc: 0,
+      wallContactAcc: 0,
       alive: true,
     });
   }
@@ -1418,18 +1436,23 @@ export class Game {
   creditBeaverKill(killerSlotId: number | undefined, t: Thief, x: number, y: number) {
     if (killerSlotId == null) return;
     const slot = this.slots.find((s) => s.id === killerSlotId);
-    if (!slot?.friend || !isBeaverBuilder(slot.friend)) return;
+    if (!slot?.friend || !isDamPointEarner(slot.friend)) return;
     const pts = beaverKillPoints(t.def);
     const before = slot.friend.beaverPoints ?? 0;
     slot.friend.beaverPoints = before + pts;
+    const bamboo = isBambooWallBuilder(slot.friend);
     this.floats.push({
       x,
       y: y - 38,
       text: `+${pts}🪵`,
-      color: "#8a6040",
+      color: bamboo ? "#4a8a48" : "#8a6040",
       life: 1,
     });
-    if (before < BEAVER_DAM_COST && (slot.friend.beaverPoints ?? 0) >= BEAVER_DAM_COST) {
+    if (bamboo) {
+      if (before < BAMBOO_WALL_COST && (slot.friend.beaverPoints ?? 0) >= BAMBOO_WALL_COST) {
+        this.toast(`🐼 Bamboo wall ready! Tap Build bamboo wall (${BAMBOO_WALL_COST}🪵)`, true);
+      }
+    } else if (before < BEAVER_DAM_COST && (slot.friend.beaverPoints ?? 0) >= BEAVER_DAM_COST) {
       this.toast(`🦫 Dam ready! Tap Build Dam (${BEAVER_DAM_COST}🪵)`, true);
     }
     this.onChange();
@@ -1552,11 +1575,24 @@ export class Game {
     return slot;
   }
 
+  selectedBambooBuilder(): Slot | null {
+    const slot = this.slotById(this.selectedSlot);
+    if (!slot?.friend || !isBambooWallBuilder(slot.friend)) return null;
+    return slot;
+  }
+
   canBuildDam(): boolean {
     const slot = this.selectedBeaver();
     if (!slot?.friend) return false;
     if (this.dams.length >= MAX_DAMS) return false;
     return (slot.friend.beaverPoints ?? 0) >= BEAVER_DAM_COST;
+  }
+
+  canBuildBambooWall(): boolean {
+    const slot = this.selectedBambooBuilder();
+    if (!slot?.friend) return false;
+    if (this.dams.length >= MAX_DAMS) return false;
+    return (slot.friend.beaverPoints ?? 0) >= BAMBOO_WALL_COST;
   }
 
   buildBeaverDam() {
@@ -1585,9 +1621,47 @@ export class Game {
       hp: maxHp,
       maxHp,
       ownerSlotId: slot.id,
+      kind: "beaver",
+      contactDps: 0,
     });
     this.booms.push({ kind: "dam", x: p.x, y: p.y, life: 0.9, radius: 44 });
     this.toast(`🦫 Dam built! Blocks the path`, true);
+    this.save();
+    this.onChange();
+  }
+
+  buildBambooWall() {
+    const slot = this.selectedBambooBuilder();
+    if (!slot?.friend) {
+      this.toast("Select a Giant Panda first", true);
+      return;
+    }
+    if (this.dams.length >= MAX_DAMS) {
+      this.toast("Too many walls — wait for enemies to smash one", true);
+      return;
+    }
+    const points = slot.friend.beaverPoints ?? 0;
+    if (points < BAMBOO_WALL_COST) {
+      this.toast(`Need ${BAMBOO_WALL_COST}🪵 (have ${points})`, true);
+      return;
+    }
+    slot.friend.beaverPoints = points - BAMBOO_WALL_COST;
+    const prog = Math.min(0.92, nearestProgress(slot.x, slot.y) + 0.08);
+    const p = pathPoint(prog);
+    const maxHp = bambooWallMaxHp(slot.friend.level);
+    const contactDps = bambooWallContactDps(slot.friend.level);
+    this.dams.push({
+      x: p.x,
+      y: p.y,
+      progress: prog,
+      hp: maxHp,
+      maxHp,
+      ownerSlotId: slot.id,
+      kind: "bamboo",
+      contactDps,
+    });
+    this.booms.push({ kind: "bamboo", x: p.x, y: p.y, life: 0.95, radius: 48 });
+    this.toast(`🐼 Bamboo wall built! Blocks & pokes thieves`, true);
     this.save();
     this.onChange();
   }
@@ -1839,7 +1913,7 @@ export class Game {
         }
       }
 
-      // Beaver dam — stop and chew
+      // Beaver dam / bamboo wall — stop and chew
       for (const dam of this.dams) {
         if (dam.hp <= 0) continue;
         const gate = dam.progress - 0.012;
@@ -1849,6 +1923,16 @@ export class Game {
           const dps =
             t.def.boss ? 22 : t.def.kind === "strength" ? 14 : 7;
           dam.hp -= dps * dt;
+          // Bamboo walls poke thieves that touch them
+          if (dam.kind === "bamboo" && dam.contactDps > 0 && t.alive) {
+            t.wallContactAcc += dam.contactDps * dt;
+            while (t.wallContactAcc >= 1 && t.alive) {
+              const tick = Math.floor(t.wallContactAcc);
+              t.wallContactAcc -= tick;
+              const p = pathPoint(t.progress);
+              this.hurt(t, tick, p.x, p.y, false, false, false, dam.ownerSlotId);
+            }
+          }
           if (dam.hp <= 0) {
             dam.hp = 0;
             smashed.push(dam);
@@ -1919,12 +2003,31 @@ export class Game {
       }
     }
     if (smashed.length) {
+      let anyBamboo = false;
+      let anyBeaver = false;
       for (const dam of smashed) {
-        this.booms.push({ kind: "dam", x: dam.x, y: dam.y, life: 0.7, radius: 36 });
-        this.floats.push({ x: dam.x, y: dam.y - 16, text: "Dam smashed!", color: "#8a6040", life: 1.1 });
+        const bamboo = dam.kind === "bamboo";
+        if (bamboo) anyBamboo = true;
+        else anyBeaver = true;
+        this.booms.push({
+          kind: bamboo ? "bamboo" : "dam",
+          x: dam.x,
+          y: dam.y,
+          life: 0.7,
+          radius: 36,
+        });
+        this.floats.push({
+          x: dam.x,
+          y: dam.y - 16,
+          text: bamboo ? "Bamboo smashed!" : "Dam smashed!",
+          color: bamboo ? "#4a8a48" : "#8a6040",
+          life: 1.1,
+        });
       }
       this.dams = this.dams.filter((d) => d.hp > 0);
-      this.toast("🪵 Dam destroyed!", true);
+      if (anyBamboo && !anyBeaver) this.toast("🎋 Bamboo wall destroyed!", true);
+      else if (anyBeaver && !anyBamboo) this.toast("🪵 Dam destroyed!", true);
+      else this.toast("🪵 Walls destroyed!", true);
       this.onChange();
     } else {
       this.dams = this.dams.filter((d) => d.hp > 0);

@@ -4,7 +4,7 @@ import { rarityLabel, weaponRoleFor, weaponRoleLabel, evolveLineage, SUMMON_COST
 import { friendPortraitDataUrl, weaponRoleShort } from "./game/animalArt";
 import { unlockAudio, setMuted, isMuted, playUnmuteChirp, setBgmMode } from "./game/sound";
 import { getActiveMap, listCourses, COURSE_CHIP_COUNT } from "./game/path";
-import { upgradeCost, isBeaverBuilder, BEAVER_DAM_COST, isEagleBomber, EAGLE_LAND_COST, friendDamage, type PlacedFriend } from "./game/types";
+import { upgradeCost, isBambooWallBuilder, isDamPointEarner, BEAVER_DAM_COST, BAMBOO_WALL_COST, isEagleBomber, EAGLE_LAND_COST, friendDamage, type PlacedFriend } from "./game/types";
 import {
   clearAllHighScores,
   clearHighScoresForMode,
@@ -156,6 +156,9 @@ app.innerHTML = `
         </div>
         <div class="manage-row beaver-dam-row hidden" id="beaver-dam-row">
           <button class="dam-btn" id="build-dam" type="button">Build Dam (5🪵)</button>
+        </div>
+        <div class="manage-row bamboo-wall-row hidden" id="bamboo-wall-row">
+          <button class="bamboo-btn" id="build-bamboo" type="button">Build bamboo wall (6🪵)</button>
         </div>
         <div class="manage-row eagle-land-row hidden" id="eagle-land-row">
           <button class="eagle-btn" id="eagle-land" type="button">Land &amp; Bomb (6⭐)</button>
@@ -994,12 +997,16 @@ function refresh() {
       if (f.def.ability === "heavyHit") extra += " · HEAVY HIT";
       if (f.def.ability === "poisonFart") extra += " · poison FARTs!";
       extra += ` · ${weaponRoleLabel(weaponRoleFor(f.def))}`;
-      if (f.def.id === "giantpanda") extra += " · MEGA Giant Panda!";
+      if (f.def.id === "giantpanda") extra += " · MEGA Giant Panda · bamboo walls!";
       else if (f.def.rarity === "mythical") extra += " · MYTHICAL form!";
       else if (f.def.rarity === "god") extra += " · GOD TIER!";
-      if (isBeaverBuilder(f)) {
+      if (isDamPointEarner(f)) {
         const pts = f.beaverPoints ?? 0;
-        extra += ` · ${pts}/${BEAVER_DAM_COST}🪵 dam points`;
+        if (isBambooWallBuilder(f)) {
+          extra += ` · ${pts}/${BAMBOO_WALL_COST}🪵 bamboo points`;
+        } else {
+          extra += ` · ${pts}/${BEAVER_DAM_COST}🪵 dam points`;
+        }
       }
       if (isEagleBomber(f)) {
         const pts = f.eaglePoints ?? 0;
@@ -1083,6 +1090,18 @@ function refresh() {
     buildDamBtn.disabled = !game.canBuildDam() || game.gameOver;
   } else {
     beaverRow.classList.add("hidden");
+  }
+
+  const bambooRow = document.querySelector("#bamboo-wall-row")!;
+  const buildBambooBtn = document.querySelector("#build-bamboo") as HTMLButtonElement;
+  const bambooSlot = game.selectedBambooBuilder();
+  if (bambooSlot?.friend) {
+    bambooRow.classList.remove("hidden");
+    const pts = bambooSlot.friend.beaverPoints ?? 0;
+    buildBambooBtn.textContent = `Build bamboo wall (${pts}/${BAMBOO_WALL_COST}🪵)`;
+    buildBambooBtn.disabled = !game.canBuildBambooWall() || game.gameOver;
+  } else {
+    bambooRow.classList.add("hidden");
   }
 
   const eagleRow = document.querySelector("#eagle-land-row")!;
@@ -1407,6 +1426,10 @@ document.querySelector("#sell")!.addEventListener("click", () => game.sellSelect
 document.querySelector("#build-dam")!.addEventListener("click", () => {
   unlockAudio();
   game.buildBeaverDam();
+});
+document.querySelector("#build-bamboo")!.addEventListener("click", () => {
+  unlockAudio();
+  game.buildBambooWall();
 });
 document.querySelector("#eagle-land")!.addEventListener("click", () => {
   unlockAudio();

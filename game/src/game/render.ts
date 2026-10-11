@@ -1421,34 +1421,77 @@ function walls(ctx: CanvasRenderingContext2D, list: Wall[]) {
 
 function dams(ctx: CanvasRenderingContext2D, list: Dam[]) {
   for (const d of list) {
+    const bamboo = d.kind === "bamboo";
     const hpPct = Math.max(0, d.hp / d.maxHp);
-    ctx.globalAlpha = 0.85;
-    ctx.fillStyle = "#6a4828";
-    ctx.strokeStyle = "#c9a66b";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.roundRect(d.x - 26, d.y - 16, 52, 32, 8);
-    ctx.fill();
-    ctx.stroke();
-    // log stripes
-    ctx.strokeStyle = "rgba(40, 24, 12, 0.35)";
-    ctx.lineWidth = 2;
-    for (const ox of [-12, 0, 12]) {
+    // Bamboo walls are visually larger (2× HP / tougher look)
+    const hw = bamboo ? 30 : 26;
+    const hh = bamboo ? 18 : 16;
+    const barW = bamboo ? 52 : 44;
+    ctx.globalAlpha = 0.88;
+    if (bamboo) {
+      ctx.fillStyle = "#3d7a3a";
+      ctx.strokeStyle = "#b8e070";
+      ctx.lineWidth = 3.5;
       ctx.beginPath();
-      ctx.moveTo(d.x + ox, d.y - 12);
-      ctx.lineTo(d.x + ox, d.y + 12);
+      ctx.roundRect(d.x - hw, d.y - hh, hw * 2, hh * 2, 7);
+      ctx.fill();
       ctx.stroke();
+      // upright bamboo stalks
+      ctx.strokeStyle = "rgba(20, 60, 24, 0.45)";
+      ctx.lineWidth = 2.4;
+      for (const ox of [-14, -5, 5, 14]) {
+        ctx.beginPath();
+        ctx.moveTo(d.x + ox, d.y - hh + 3);
+        ctx.lineTo(d.x + ox, d.y + hh - 3);
+        ctx.stroke();
+        // node rings
+        ctx.strokeStyle = "rgba(180, 220, 100, 0.55)";
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(d.x + ox - 3, d.y - 4);
+        ctx.lineTo(d.x + ox + 3, d.y - 4);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(d.x + ox - 3, d.y + 5);
+        ctx.lineTo(d.x + ox + 3, d.y + 5);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(20, 60, 24, 0.45)";
+        ctx.lineWidth = 2.4;
+      }
+      // soft leaf tip
+      ctx.fillStyle = "rgba(120, 200, 90, 0.55)";
+      ctx.beginPath();
+      ctx.ellipse(d.x + 10, d.y - hh - 2, 8, 4, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#6a4828";
+      ctx.strokeStyle = "#c9a66b";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(d.x - hw, d.y - hh, hw * 2, hh * 2, 8);
+      ctx.fill();
+      ctx.stroke();
+      // log stripes
+      ctx.strokeStyle = "rgba(40, 24, 12, 0.35)";
+      ctx.lineWidth = 2;
+      for (const ox of [-12, 0, 12]) {
+        ctx.beginPath();
+        ctx.moveTo(d.x + ox, d.y - 12);
+        ctx.lineTo(d.x + ox, d.y + 12);
+        ctx.stroke();
+      }
     }
     ctx.globalAlpha = 1;
-    ctx.font = "20px serif";
+    ctx.font = bamboo ? "22px serif" : "20px serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("🪵", d.x, d.y);
+    ctx.fillText(bamboo ? "🎋" : "🪵", d.x, d.y);
     // HP bar
+    const barY = d.y + hh + 2;
     ctx.fillStyle = "rgba(20,16,12,0.55)";
-    ctx.fillRect(d.x - 22, d.y + 18, 44, 6);
+    ctx.fillRect(d.x - barW / 2, barY, barW, 6);
     ctx.fillStyle = hpPct > 0.35 ? "#7ecf6a" : "#e07050";
-    ctx.fillRect(d.x - 22, d.y + 18, 44 * hpPct, 6);
+    ctx.fillRect(d.x - barW / 2, barY, barW * hpPct, 6);
   }
 }
 
@@ -1536,6 +1579,7 @@ function booms(ctx: CanvasRenderingContext2D, list: Boom[]) {
       floppy: "#5eb8e0",
       wall: "#c4782a",
       dam: "#8a6040",
+      bamboo: "#4a9a48",
       dumpling: "#f0c878",
       bomb: "#e07030",
       fart: "#5a9060",

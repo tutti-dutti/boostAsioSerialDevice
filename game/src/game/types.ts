@@ -42,15 +42,31 @@ export interface PlacedFriend {
 /** Kill points needed for a beaver to build one dam */
 export const BEAVER_DAM_COST = 5;
 
+/** Kill points needed for a panda to build one bamboo wall (slightly above beaver) */
+export const BAMBOO_WALL_COST = 6;
+
 /** Kill points needed for an eagle to land and bomb */
 export const EAGLE_LAND_COST = 6;
 
 /** How long the eagle stays landed dropping bombs */
 export const EAGLE_LAND_DURATION = 7.5;
 
+export type DamKind = "beaver" | "bamboo";
+
 export function isBeaverBuilder(f: PlacedFriend | FriendDef): boolean {
   const id = "def" in f ? f.def.id : f.id;
-  return id === "beaver" || id === "giantpanda";
+  return id === "beaver";
+}
+
+/** Giant Panda (beaver evolve) builds lasting bamboo walls */
+export function isBambooWallBuilder(f: PlacedFriend | FriendDef): boolean {
+  const id = "def" in f ? f.def.id : f.id;
+  return id === "giantpanda";
+}
+
+/** Earns 🪵 points toward dams / bamboo walls */
+export function isDamPointEarner(f: PlacedFriend | FriendDef): boolean {
+  return isBeaverBuilder(f) || isBambooWallBuilder(f);
 }
 
 /** Kung Fu Panda–style dumpling throwers */
@@ -83,6 +99,16 @@ export function beaverKillPoints(thief: ThiefDef): number {
 
 export function beaverDamMaxHp(level: number): number {
   return 36 + Math.max(1, level) * 10;
+}
+
+/** Bamboo wall HP — 2× a standard single beaver dam */
+export function bambooWallMaxHp(level: number): number {
+  return beaverDamMaxHp(level) * 2;
+}
+
+/** Contact damage per second while enemies chew a bamboo wall */
+export function bambooWallContactDps(level: number): number {
+  return 10 + Math.max(1, level) * 4;
 }
 
 /** Orbit radius = shoot radius for flyers */
@@ -126,6 +152,8 @@ export interface Thief {
   poisonAcc: number;
   /** Slot that applied the current poison (kill credit) */
   poisonOwnerSlotId?: number;
+  /** Accrues bamboo-wall contact damage toward the next float tick */
+  wallContactAcc: number;
   alive: boolean;
 }
 
@@ -160,7 +188,7 @@ export interface FloatText {
 }
 
 export interface Boom {
-  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy" | "dam" | "dumpling" | "bomb" | "fart";
+  kind: "crumb" | "frost" | "zap" | "floppy" | "wall" | "beam" | "freeze" | "heavy" | "dam" | "bamboo" | "dumpling" | "bomb" | "fart";
   x: number;
   y: number;
   life: number;
@@ -184,7 +212,7 @@ export interface Wall {
   progress: number;
 }
 
-/** Beaver dam on the path — blocks thieves until smashed */
+/** Beaver dam / bamboo wall on the path — blocks thieves until smashed */
 export interface Dam {
   x: number;
   y: number;
@@ -192,6 +220,10 @@ export interface Dam {
   hp: number;
   maxHp: number;
   ownerSlotId: number;
+  /** beaver = log dam; bamboo = panda wall (stronger + contact damage) */
+  kind: DamKind;
+  /** Contact DPS for bamboo walls (0 for beaver dams) */
+  contactDps: number;
 }
 
 /** Skunk fart poison cloud lingering on the board */

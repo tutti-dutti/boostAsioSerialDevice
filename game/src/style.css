@@ -1024,6 +1024,25 @@ button.dam-btn:disabled {
   display: none;
 }
 
+button.bamboo-btn {
+  width: 100%;
+  background: linear-gradient(180deg, #9ed86a, #4a9a40);
+  border-color: #2a6828;
+  color: #143014;
+  font-size: 1.05rem;
+  padding: 0.75rem 1rem;
+}
+
+button.bamboo-btn:disabled {
+  background: #d0c8b8;
+  border-color: #a09888;
+  color: #6a6050;
+}
+
+.bamboo-wall-row.hidden {
+  display: none;
+}
+
 button.eagle-btn {
   width: 100%;
   background: linear-gradient(180deg, #ffe08a, #d0a040);
@@ -2289,6 +2308,7 @@ button.danger {
   }
 
   button.dam-btn,
+  button.bamboo-btn,
   button.eagle-btn {
     font-size: 0.68rem;
     padding: 0.26rem 0.36rem;
@@ -2454,6 +2474,7 @@ button.danger {
   }
 
   button.dam-btn,
+  button.bamboo-btn,
   button.eagle-btn {
     font-size: 0.62rem;
     padding: 0.2rem 0.28rem;
