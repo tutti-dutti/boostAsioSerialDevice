@@ -1639,10 +1639,10 @@ export class Game {
       ownerSlotId: slot.id,
     });
     this.booms.push({ kind: "fart", x, y, life: 0.85, radius: radius * 0.7 });
-    f.speech = { text: Math.random() < 0.5 ? "Phew!" : "Toot!", life: 1.6 };
+    f.speech = { text: Math.random() < 0.5 ? "Phew!" : "Stinky!", life: 1.6 };
     this.floats.push({ x, y: y - 20, text: "💨", color: "#5a8060", life: 0.9 });
     playPoisonFart();
-    if (Math.random() < 0.35) this.toast(`${f.def.emoji} Toxic cloud!`, true);
+    if (Math.random() < 0.35) this.toast(`${f.def.emoji} Stinky cloud!`, true);
   }
 
   /** Kung Fu Panda style — randomly hurl dumplings at thieves */
