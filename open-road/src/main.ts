@@ -1,0 +1,171 @@
+import "./style.css";
+import { LAKE, ROADS, SPAWN } from "./drive/mapData";
+import { DriveGame, type FrameInfo } from "./drive/Game";
+
+const app = document.querySelector<HTMLDivElement>("#app");
+if (!app) throw new Error("Missing #app");
+
+app.innerHTML = `
+  <canvas id="view"></canvas>
+  <section id="home" class="home">
+    <p class="eyebrow">Open world</p>
+    <h1>Open Road</h1>
+    <p class="lede">One red car. A big map. A loud engine.</p>
+    <button id="play" class="play" type="button">Drive</button>
+    <ul class="tips">
+      <li><b>W</b> gas</li>
+      <li><b>S</b> brake</li>
+      <li><b>A D</b> steer</li>
+      <li><b>Space</b> slide</li>
+    </ul>
+    <p class="note">Turn your sound on. The engine is made live in the game. Stay on the road to go fast.</p>
+  </section>
+  <div id="hud" class="hud is-hidden">
+    <header class="top">
+      <div>
+        <div class="brand">Open Road</div>
+        <div class="sub">Comet · <span id="surface">Road</span> · <span id="cam-name">Chase</span></div>
+      </div>
+      <div class="top-buttons">
+        <button id="cam-btn" type="button">Camera</button>
+        <button id="horn-btn" type="button">Horn</button>
+        <button id="reset-btn" type="button">Reset</button>
+        <button id="menu-btn" type="button">Menu</button>
+      </div>
+    </header>
+    <canvas id="map" class="map" width="180" height="180"></canvas>
+    <div id="toast" class="toast"></div>
+    <div id="engine" class="engine">Engine off</div>
+    <footer class="bottom">
+      <p class="hints">W gas · S brake / reverse · A D steer · Space slide · C camera · H horn · R reset</p>
+      <div class="cluster">
+        <div class="rpm"><div id="rpm-bar"></div></div>
+        <div id="speed" class="speed">0</div>
+        <div class="unit">MPH</div>
+        <div id="gear" class="gear">N</div>
+      </div>
+    </footer>
+    <div class="touch">
+      <button data-hold="left" type="button">Left</button>
+      <button data-hold="brake" type="button">Brake</button>
+      <button data-hold="handbrake" type="button">Slide</button>
+      <button data-hold="throttle" type="button">Gas</button>
+      <button data-hold="right" type="button">Right</button>
+    </div>
+  </div>
+`;
+
+const canvas = document.querySelector<HTMLCanvasElement>("#view");
+const home = document.querySelector<HTMLElement>("#home");
+const hud = document.querySelector<HTMLElement>("#hud");
+const playBtn = document.querySelector<HTMLButtonElement>("#play");
+if (!canvas || !home || !hud || !playBtn) throw new Error("Missing game UI");
+
+const speedEl = document.querySelector<HTMLElement>("#speed")!;
+const gearEl = document.querySelector<HTMLElement>("#gear")!;
+const surfaceEl = document.querySelector<HTMLElement>("#surface")!;
+const camEl = document.querySelector<HTMLElement>("#cam-name")!;
+const toastEl = document.querySelector<HTMLElement>("#toast")!;
+const engineEl = document.querySelector<HTMLElement>("#engine")!;
+const rpmBar = document.querySelector<HTMLElement>("#rpm-bar")!;
+const mapCanvas = document.querySelector<HTMLCanvasElement>("#map")!;
+const mapCtx = mapCanvas.getContext("2d")!;
+
+const game = new DriveGame(canvas, (info) => {
+  paintHud(info);
+  paintMap(info);
+});
+
+function paintHud(info: FrameInfo) {
+  speedEl.textContent = String(info.mph);
+  gearEl.textContent = info.gear;
+  surfaceEl.textContent = info.surface;
+  camEl.textContent = info.camera;
+  engineEl.textContent = info.audioOn ? "Engine on" : "Engine off";
+  const pct = Math.max(0, Math.min(1, info.rpm / info.redline));
+  rpmBar.style.width = `${pct * 100}%`;
+  rpmBar.classList.toggle("hot", pct > 0.86);
+  toastEl.textContent = info.toast;
+  toastEl.classList.toggle("show", info.toast.length > 0);
+}
+
+function paintMap(info: FrameInfo) {
+  const w = mapCanvas.width;
+  const h = mapCanvas.height;
+  const scale = w / 900;
+  const X = (x: number) => w / 2 + x * scale;
+  const Y = (z: number) => h / 2 + z * scale;
+  mapCtx.clearRect(0, 0, w, h);
+  mapCtx.fillStyle = "#1d4a28";
+  mapCtx.fillRect(0, 0, w, h);
+  mapCtx.lineCap = "round";
+  for (const road of ROADS) {
+    mapCtx.strokeStyle = road.grip < 0.85 ? "#8a6238" : "#8d939a";
+    mapCtx.lineWidth = road.width > 16 ? 4 : 3;
+    mapCtx.beginPath();
+    mapCtx.moveTo(X(road.x1), Y(road.z1));
+    mapCtx.lineTo(X(road.x2), Y(road.z2));
+    mapCtx.stroke();
+  }
+  mapCtx.fillStyle = "#2a8eaf";
+  mapCtx.beginPath();
+  mapCtx.arc(X(LAKE.x), Y(LAKE.z), LAKE.r * scale, 0, Math.PI * 2);
+  mapCtx.fill();
+  mapCtx.fillStyle = "#ffe08a";
+  mapCtx.fillRect(X(SPAWN.x) - 2, Y(SPAWN.z) - 2, 4, 4);
+  mapCtx.save();
+  mapCtx.translate(X(info.x), Y(info.z));
+  mapCtx.rotate(-info.yaw);
+  mapCtx.fillStyle = "#ff3355";
+  mapCtx.beginPath();
+  mapCtx.moveTo(0, 7);
+  mapCtx.lineTo(4.5, -5);
+  mapCtx.lineTo(-4.5, -5);
+  mapCtx.closePath();
+  mapCtx.fill();
+  mapCtx.restore();
+}
+
+const showPlay = () => {
+  home.classList.add("is-hidden");
+  hud.classList.remove("is-hidden");
+};
+
+const showMenu = () => {
+  game.pause();
+  hud.classList.add("is-hidden");
+  home.classList.remove("is-hidden");
+  playBtn.textContent = "Resume";
+};
+
+playBtn.addEventListener("click", () => {
+  showPlay();
+  void game.start();
+});
+
+document.querySelector("#menu-btn")?.addEventListener("click", showMenu);
+document.querySelector("#reset-btn")?.addEventListener("click", () => game.reset());
+document.querySelector("#horn-btn")?.addEventListener("click", () => game.horn());
+document.querySelector("#cam-btn")?.addEventListener("click", () => game.cycleCam());
+
+for (const el of document.querySelectorAll<HTMLButtonElement>("[data-hold]")) {
+  const name = el.dataset.hold;
+  if (!name) continue;
+  const down = (event: Event) => {
+    event.preventDefault();
+    game.hold(name, true);
+  };
+  const up = (event: Event) => {
+    event.preventDefault();
+    game.hold(name, false);
+  };
+  el.addEventListener("pointerdown", down);
+  el.addEventListener("pointerup", up);
+  el.addEventListener("pointerleave", up);
+  el.addEventListener("pointercancel", up);
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLElement) target.blur();
+});
