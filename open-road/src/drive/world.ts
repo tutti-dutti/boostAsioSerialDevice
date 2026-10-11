@@ -80,13 +80,13 @@ function roadGeometry(x1: number, z1: number, x2: number, z2: number, width: num
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
   geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
-  geo.setIndex([0, 1, 2, 0, 2, 3]);
+  geo.setIndex([0, 2, 1, 0, 3, 2]);
   return geo;
 }
 
 function roadMaterial(dirt: boolean) {
   const tex = canvasTex((g, w, h) => {
-    g.fillStyle = dirt ? "#6a4a2e" : "#3a3e44";
+    g.fillStyle = dirt ? "#8a6240" : "#6e747c";
     g.fillRect(0, 0, w, h);
     noiseFill(g, w, h, dirt ? 22 : 16);
     if (dirt) return;
@@ -433,7 +433,7 @@ function addTrees(object: THREE.Group, colliders: Collider[]) {
   const rand = mulberry32(11);
   const spots: { x: number; z: number; s: number }[] = [];
   let guard = 0;
-  while (spots.length < 160 && guard < 6000) {
+  while (spots.length < 80 && guard < 4000) {
     guard += 1;
     let x: number;
     let z: number;
@@ -483,10 +483,9 @@ function addTrees(object: THREE.Group, colliders: Collider[]) {
     new THREE.MeshStandardMaterial({ color: 0x3d9442, roughness: 0.85 }),
     spots.length,
   );
-  trunks.castShadow = true;
-  trunks.receiveShadow = true;
-  leaves.castShadow = true;
-  tops.castShadow = true;
+  trunks.castShadow = false;
+  leaves.castShadow = false;
+  tops.castShadow = false;
 
   const dummy = new THREE.Object3D();
   spots.forEach((p, i) => {

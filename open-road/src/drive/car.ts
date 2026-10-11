@@ -100,13 +100,10 @@ export function createCar(): CarVisual {
   const chassis = new THREE.Group();
   root.add(chassis);
 
-  const paint = new THREE.MeshPhysicalMaterial({
+  const paint = new THREE.MeshStandardMaterial({
     color: 0xe10600,
-    metalness: 0.45,
-    roughness: 0.28,
-    clearcoat: 1,
-    clearcoatRoughness: 0.08,
-    envMapIntensity: 1.1,
+    metalness: 0.35,
+    roughness: 0.38,
   });
   const dark = new THREE.MeshStandardMaterial({ color: 0x141618, roughness: 0.55, metalness: 0.2 });
   const glass = new THREE.MeshStandardMaterial({
@@ -161,15 +158,6 @@ export function createCar(): CarVisual {
     plate.position.set(0, 0.5, -2.12);
     plate.rotation.y = Math.PI;
     chassis.add(plate);
-  }
-
-  for (const x of [-0.55, 0.55]) {
-    const spot = new THREE.SpotLight(0xfff4d2, 5, 34, 0.5, 0.4, 1.1);
-    spot.position.set(x, 0.55, 2.1);
-    const target = new THREE.Object3D();
-    target.position.set(x, 0.15, 14);
-    chassis.add(spot, target);
-    spot.target = target;
   }
 
   const radius = 0.36;

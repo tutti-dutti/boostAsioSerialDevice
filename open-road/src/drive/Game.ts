@@ -1,6 +1,4 @@
 import * as THREE from "three";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { Sky } from "three/addons/objects/Sky.js";
 import { EngineAudio } from "./audio";
 import { createCar } from "./car";
 import {
@@ -69,46 +67,22 @@ export class DriveGame {
 
   constructor(canvas: HTMLCanvasElement, onFrame: (info: FrameInfo) => void) {
     this.onFrame = onFrame;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
+    this.renderer.setPixelRatio(1);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMappingExposure = 1.08;
 
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.15, 2500);
     this.resize();
 
-    const sky = new Sky();
-    sky.scale.setScalar(450000);
-    const uniforms = sky.material.uniforms;
-    uniforms.turbidity.value = 7;
-    uniforms.rayleigh.value = 1.35;
-    uniforms.mieCoefficient.value = 0.006;
-    uniforms.mieDirectionalG.value = 0.82;
-    uniforms.sunPosition.value.copy(this.sunDir);
-    this.scene.add(sky);
-    this.scene.fog = new THREE.Fog(0xf0b48a, 140, 760);
+    this.scene.background = new THREE.Color(0x8ecfff);
+    this.scene.fog = new THREE.Fog(0x9fd4f5, 90, 520);
 
-    const hemi = new THREE.HemisphereLight(0xffd2a8, 0x3d6b32, 0.75);
+    const hemi = new THREE.HemisphereLight(0xfff0dc, 0x4e8a46, 1.15);
     this.scene.add(hemi);
-    this.sun = new THREE.DirectionalLight(0xffc48a, 3.4);
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
-    this.sun.shadow.camera.near = 8;
-    this.sun.shadow.camera.far = 180;
-    this.sun.shadow.camera.left = -30;
-    this.sun.shadow.camera.right = 30;
-    this.sun.shadow.camera.top = 30;
-    this.sun.shadow.camera.bottom = -30;
-    this.sun.shadow.bias = -0.0006;
-    this.sun.shadow.normalBias = 0.04;
+    this.sun = new THREE.DirectionalLight(0xfff8ee, 3.1);
     this.scene.add(this.sun, this.sun.target);
-
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmrem.dispose();
 
     this.scene.add(this.world.object, this.visual.root);
     this.placeCar();
@@ -237,9 +211,18 @@ export class DriveGame {
   }
 
   private frame = (now: number) => {
-    const dt = Math.min(0.05, (now - this.last) / 1000);
+    const dt = Math.min(0.2, (now - this.last) / 1000);
     this.last = now;
-    if (this.running) this.step(dt);
+    if (this.running) {
+      const slice = 1 / 60;
+      let left = dt;
+      let steps = 0;
+      while (left > 0.0001 && steps < 12) {
+        this.step(Math.min(slice, left));
+        left -= slice;
+        steps += 1;
+      }
+    }
     this.draw(dt);
     if (this.running) requestAnimationFrame(this.frame);
     else this.looping = false;
@@ -290,7 +273,7 @@ export class DriveGame {
     this.placeCamera(dt);
     this.followSun();
 
-    const targetFov = this.camMode === "hood" ? 78 : 60 + Math.min(14, Math.abs(this.car.speed) * 0.2);
+    const targetFov = this.camMode === "hood" ? 74 : 58 + Math.min(6, Math.abs(this.car.speed) * 0.06);
     this.camera.fov += (targetFov - this.camera.fov) * (1 - Math.exp(-3 * dt));
     this.camera.updateProjectionMatrix();
 
@@ -318,8 +301,8 @@ export class DriveGame {
     const fx = Math.sin(this.car.yaw);
     const fz = Math.cos(this.car.yaw);
     if (this.camMode === "chase") {
-      this.desired.set(this.car.x - fx * 8.2, 3.2, this.car.z - fz * 8.2);
-      this.look.set(this.car.x + fx * 6, 1.05, this.car.z + fz * 6);
+      this.desired.set(this.car.x - fx * 7.2, 2.7, this.car.z - fz * 7.2);
+      this.look.set(this.car.x + fx * 5, 0.9, this.car.z + fz * 5);
     } else if (this.camMode === "bumper") {
       this.desired.set(this.car.x - fx * 4.3, 1.65, this.car.z - fz * 4.3);
       this.look.set(this.car.x + fx * 8, 0.9, this.car.z + fz * 8);
