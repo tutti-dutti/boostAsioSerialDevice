@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.22.0",
+    "express": "^4.21.2"
   },
   "devDependencies": {
     "typescript": "~6.0.2",
