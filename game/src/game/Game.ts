@@ -1869,7 +1869,15 @@ export class Game {
       t.progress = next;
       if (t.progress >= 1) {
         t.alive = false;
-        const baseDmg = t.def.boss ? (isLevelBossWave(this.wave) ? 8 : 4) : 1;
+        // Full-health thieves take a bigger bite; weakened ones nibble
+        const healthy = t.hp > t.maxHp / 2;
+        const baseDmg = t.def.boss
+          ? isLevelBossWave(this.wave)
+            ? 8
+            : 4
+          : healthy
+            ? 5
+            : 1;
         const dmg = Math.max(
           1,
           Math.round(
