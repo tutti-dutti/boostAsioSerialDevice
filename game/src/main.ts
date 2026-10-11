@@ -864,7 +864,7 @@ function refresh() {
       <span class="status-stat status-gold"><span class="status-stat-icon" aria-hidden="true">🪙</span><span class="status-stat-value">${game.gold}</span><span class="status-stat-label">Gold</span></span>
       <span class="status-stat status-level"><span class="status-stat-icon" aria-hidden="true">🗺️</span><span class="status-stat-value">${game.mapLevel}</span><span class="status-stat-label">Level</span></span>
       <span class="status-stat status-stars"><span class="status-stat-icon" aria-hidden="true">⭐</span><span class="status-stat-value">${game.stars}</span><span class="status-stat-label">Stars</span></span>
-      <span class="status-stat status-wave"><span class="status-stat-icon" aria-hidden="true">🌊</span><span class="status-stat-value">${game.wave}</span><span class="status-stat-label">Wave</span></span>
+      <span class="status-stat status-wave"><span class="status-stat-icon" aria-hidden="true">🌊</span><span class="status-stat-value">${game.waveOnMap}</span><span class="status-stat-label">Wave</span></span>
     </div>
     <div class="status-secondary">
       <span class="status-chip status-score">🏆 ${formatPoints(game.peakScore || game.currentScore())}</span>
@@ -1057,14 +1057,17 @@ function refresh() {
   const startBtn = document.querySelector("#start-wave") as HTMLButtonElement;
   startBtn.disabled = !game.canStartWave();
   if (game.isCombatActive()) {
-    startBtn.textContent = `Next Wave ${game.nextWaveToStart()}`;
+    startBtn.textContent = `Next Wave ${game.nextWaveOnMapToStart()}`;
+    startBtn.title = "Call the next wave early";
   } else if (game.canStartWave()) {
     startBtn.textContent =
       game.autoWaveTimer > 0
         ? `Start Now (${Math.ceil(game.autoWaveTimer)})`
-        : `Start Wave ${game.wave}`;
+        : `Start Wave ${game.waveOnMap}`;
+    startBtn.title = "Start the next wave";
   } else {
-    startBtn.textContent = `Start Wave ${game.wave}`;
+    startBtn.textContent = `Start Wave ${game.waveOnMap}`;
+    startBtn.title = "";
   }
 
   const pauseLabel = game.paused ? "Resume" : "Pause";

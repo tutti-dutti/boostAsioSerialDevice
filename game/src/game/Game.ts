@@ -10,6 +10,7 @@ import {
   waveSpeedScale,
   isLevelBossWave,
   levelBossForWave,
+  waveInLevel,
   weaponRoleFor,
   friendFootprintRadius,
   type FriendDef,
@@ -71,9 +72,15 @@ export class Game {
   ctx: CanvasRenderingContext2D;
   slots: Slot[] = [];
   mapTier = 0;
-  /** Player-facing map level (1 = first 30 waves) */
-  get mapLevel(): number {
-    return mapLevelForWave(this.wave);
+  /**
+   * Player-facing map level (1+). Advances on boss → new map; never decreases
+   * mid-run. Only New Game / Home→Play / reset() snaps this back to 1.
+   * Kept as explicit state so course/map swaps cannot soft-reset progression.
+   */
+  mapLevel = 1;
+  /** Wave number within the current map (1..WAVES_PER_MAP) for HUD / Start Wave */
+  get waveOnMap(): number {
+    return waveInLevel(this.wave);
   }
   /** Which base course theme is active (Forest, River, …) */
   courseIndex = 0;
@@ -453,6 +460,15 @@ export class Game {
     f.speech = { text: funnyQuipFor(f.def), life: 2.5 };
   }
 
+  /**
+   * Keep mapLevel in lockstep with wave tier, but never decrease mid-run.
+   * Course picks / map swaps call this after applying the new layout.
+   */
+  private syncMapLevelFromWave(wave: number) {
+    const fromWave = mapLevelForWave(wave);
+    if (fromWave > this.mapLevel) this.mapLevel = fromWave;
+  }
+
   /** Switch course layout; keep free-placed friends if still off the path */
   applyMapForWave(wave: number, announce: boolean) {
     const kept = this.slots.filter((s) => s.friend).map((s) => ({
@@ -462,6 +478,8 @@ export class Game {
     }));
     const map = setActiveCourseMap(this.courseIndex, wave);
     this.mapTier = mapTierForWave(wave);
+    // Level follows wave tier upward only — never snap back when the course changes
+    this.syncMapLevelFromWave(wave);
     this.slots = [];
     const overflow: FriendDef[] = [];
     for (const item of kept) {
@@ -501,10 +519,9 @@ export class Game {
     this.draggingSlot = null;
     this.deployGhost = null;
     if (announce) {
-      const level = mapLevelForWave(wave);
       const hard = this.mapTier > 0 ? " — tougher foes!" : "";
       const roll = this.courseRandom ? " 🎲" : "";
-      this.toast(`⬆️ Level ${level} · ${map.name}${hard}${roll}`, true);
+      this.toast(`⬆️ Level ${this.mapLevel} · ${map.name}${hard}${roll}`, true);
     }
   }
 
@@ -518,11 +535,16 @@ export class Game {
         this.courseIndex = this.courseRandom
           ? randomCourseIndex(this.courseIndex)
           : nextCourseIndex(this.courseIndex);
+        // Advance Level with the tier change before/with the layout swap
+        this.mapLevel = Math.max(this.mapLevel, next + 1);
       }
       this.applyMapForWave(this.wave, announce && changed);
     } else if (this.mapTier === 0 && this.wave === 1 && !this.slots.length) {
       // ensure active map lengths exist on fresh start
       setActiveCourseMap(this.courseIndex, this.wave);
+    } else {
+      // Same tier (e.g. mid-map): still allow Level to catch up if wave jumped ahead
+      this.syncMapLevelFromWave(this.wave);
     }
   }
 
@@ -639,6 +661,8 @@ export class Game {
       gold: this.gold,
       stars: this.stars,
       wave: this.wave,
+      mapLevel: this.mapLevel,
+      mapTier: this.mapTier,
       cookieHp: this.cookieHp,
       cookieMax: this.cookieMax,
       cookieBites: this.cookieBites,
@@ -682,6 +706,13 @@ export class Game {
       this.gold = data.gold ?? 20;
       this.stars = data.stars ?? 5;
       this.wave = data.wave ?? 1;
+      // Prefer saved mapLevel; never load a lower Level than the wave implies
+      const fromWave = mapLevelForWave(this.wave);
+      const savedLevel =
+        typeof data.mapLevel === "number" && data.mapLevel >= 1
+          ? Math.floor(data.mapLevel)
+          : fromWave;
+      this.mapLevel = Math.max(fromWave, savedLevel);
       this.cookieHp = data.cookieHp ?? 55;
       this.cookieMax = data.cookieMax ?? 55;
       this.kills = typeof data.kills === "number" ? Math.max(0, data.kills | 0) : 0;
@@ -807,6 +838,8 @@ export class Game {
     this.dams = [];
     this.poisonClouds = [];
     this.wave = 1;
+    this.mapLevel = 1;
+    this.mapTier = 0;
     this.kills = 0;
     this.wavesCleared = 0;
     this.scorePoints = 0;
@@ -826,6 +859,7 @@ export class Game {
     this.paused = false;
     if (this.courseRandom) this.courseIndex = randomCourseIndex(this.courseIndex);
     this.applyMapForWave(1, false);
+    this.mapLevel = 1; // applyMapForWave only raises Level — force fresh-run floor
     this.onChange();
   }
 
@@ -1244,9 +1278,14 @@ export class Game {
     return this.isCombatActive();
   }
 
-  /** Wave number the Start button will launch */
+  /** Absolute wave number the Start button will launch */
   nextWaveToStart(): number {
     return this.isCombatActive() ? this.wave + 1 : this.wave;
+  }
+
+  /** Within-map wave (1..30) shown on the Start / Next Wave button */
+  nextWaveOnMapToStart(): number {
+    return waveInLevel(this.nextWaveToStart());
   }
 
   /** Player presses Start Wave (or Next Wave during combat) */
@@ -1287,10 +1326,10 @@ export class Game {
     this.syncMapForWave(true);
     if (isLevelBossWave(this.wave)) {
       const boss = levelBossForWave(this.wave);
-      this.toast(`⚔️ ${boss.emoji} ${boss.name}! Wave ${this.wave} incoming!`, true);
+      this.toast(`⚔️ ${boss.emoji} ${boss.name}! Wave ${this.waveOnMap} incoming!`, true);
     } else {
       this.toast(
-        `Wave ${this.wave} incoming! (+1⭐ +${Math.max(3, Math.round(3 * difficultyTuning(this.difficulty).gold))}🪙)`,
+        `Wave ${this.waveOnMap} incoming! (+1⭐ +${Math.max(3, Math.round(3 * difficultyTuning(this.difficulty).gold))}🪙)`,
         true,
       );
     }
@@ -1389,7 +1428,7 @@ export class Game {
       this.awardScore(killScorePoints(!!t.def.boss, this.difficulty));
       if (t.def.boss && isLevelBossWave(this.wave)) {
         this.gold += 25;
-        const nextLevel = mapLevelForWave(this.wave) + 1;
+        const nextLevel = Math.max(this.mapLevel + 1, mapLevelForWave(this.wave) + 1);
         this.toast(`🏆 ${t.def.name} defeated! Level ${nextLevel} next!`, true);
         this.booms.push({ kind: "beam", x, y, life: 1.4, radius: 80 });
       } else if (t.def.boss) {
@@ -2161,7 +2200,8 @@ export class Game {
       cookieBitePulse: this.cookieBitePulse,
       selectedSlot: this.selectedSlot,
       time: this.time,
-      wave: this.wave,
+      // Canvas banner uses within-map wave so a new Level can show Wave 1
+      wave: this.waveOnMap,
       bossFight,
       deployMode: this.selectedBag != null,
       waveWaiting: this.waveWaiting,

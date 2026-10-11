@@ -610,7 +610,11 @@ export function mapTierForWave(wave: number): number {
   return Math.floor(Math.max(0, wave - 1) / WAVES_PER_MAP);
 }
 
-/** Player-facing map level (1 at waves 1–30, 2 at 31–60, …) */
+/**
+ * Player-facing map level implied by absolute wave (1 at waves 1–30, 2 at 31–60, …).
+ * Game.mapLevel tracks the live run Level and only moves with this upward
+ * (or resets on New Game) so in-run map swaps never snap Level back to 1.
+ */
 export function mapLevelForWave(wave: number): number {
   return mapTierForWave(wave) + 1;
 }
