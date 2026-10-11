@@ -11,3 +11,14 @@ npm run dev
 ```
 
 See `game/README.md` for how to play.
+
+## Deploy to Google Cloud (GCP)
+
+Host on **Cloud Run**:
+
+```bash
+export GCP_PROJECT_ID=your-gcp-project-id
+bash scripts/deploy-gcp.sh
+```
+
+Full steps: [`game/DEPLOY.md`](game/DEPLOY.md)
