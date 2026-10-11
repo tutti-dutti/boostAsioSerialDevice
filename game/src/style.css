@@ -796,10 +796,15 @@ body {
 
 .action-banner .wave-btn,
 .action-banner .pause-btn,
+.action-banner .speed-btn,
 .action-banner .new-game-btn {
   width: auto;
   flex: 0 0 auto;
   min-width: 6.5rem;
+}
+
+.action-banner .speed-btn {
+  min-width: 5.5rem;
 }
 
 .action-banner .new-game-btn {
@@ -1003,6 +1008,20 @@ button.pause-btn.is-paused {
   background: linear-gradient(180deg, #8ad4ff, #4aa8e8);
   border-color: #2878b0;
   color: #103048;
+}
+
+button.speed-btn {
+  background: linear-gradient(180deg, #d8ebe4, #a8cfc0);
+  border-color: #5a9078;
+  color: #183828;
+  font-size: 0.95rem;
+  padding: 0.55rem 0.85rem;
+}
+
+button.speed-btn.is-fast {
+  background: linear-gradient(180deg, #ffc878, #f09040);
+  border-color: #c06820;
+  color: #3a2008;
 }
 
 button.dam-btn {
@@ -2004,7 +2023,8 @@ button.danger {
   }
 
   button.wave-btn,
-  button.pause-btn {
+  button.pause-btn,
+  button.speed-btn {
     font-size: 1.05rem;
     padding: 0.65rem 1rem;
     min-height: 2.85rem;
@@ -2191,6 +2211,7 @@ button.danger {
 
   .action-banner .wave-btn,
   .action-banner .pause-btn,
+  .action-banner .speed-btn,
   .action-banner .new-game-btn {
     min-width: 0;
     flex: 0 1 auto;
@@ -2447,6 +2468,7 @@ button.danger {
 
   .action-banner .wave-btn,
   .action-banner .pause-btn,
+  .action-banner .speed-btn,
   .action-banner .new-game-btn {
     font-size: 0.62rem;
     padding: 0.18rem 0.28rem;

@@ -110,6 +110,7 @@ app.innerHTML = `
       <button class="new-game-btn" id="new-game" type="button">New game</button>
       <button class="wave-btn" id="start-wave" type="button">Start Wave</button>
       <button class="pause-btn" id="pause-action" type="button">Pause</button>
+      <button class="speed-btn" id="speed-action" type="button" aria-pressed="false">Speed: 1x</button>
       <button class="spell" id="crumb" type="button">Crumb 5🪙</button>
       <button class="spell" id="frost" type="button">Frost 4🪙</button>
       <button class="spell" id="zap" type="button">Zap 6🪙</button>
@@ -1333,6 +1334,45 @@ muteBtn.addEventListener("click", () => {
   if (!next) playUnmuteChirp();
 });
 
+const SPEED_KEY = "cookie-guard-speed-v1";
+type GameSpeed = 1 | 2;
+
+function loadSpeedPreference(): GameSpeed {
+  try {
+    if (localStorage.getItem(SPEED_KEY) === "2") return 2;
+  } catch {
+    /* ignore */
+  }
+  return 1;
+}
+
+function saveSpeedPreference(speed: GameSpeed) {
+  try {
+    localStorage.setItem(SPEED_KEY, String(speed));
+  } catch {
+    /* ignore */
+  }
+}
+
+let gameSpeed: GameSpeed = loadSpeedPreference();
+const speedBtn = document.querySelector<HTMLButtonElement>("#speed-action")!;
+
+function syncSpeedLabel() {
+  speedBtn.textContent = gameSpeed === 2 ? "Speed: 2x" : "Speed: 1x";
+  speedBtn.classList.toggle("is-fast", gameSpeed === 2);
+  speedBtn.setAttribute("aria-pressed", gameSpeed === 2 ? "true" : "false");
+}
+syncSpeedLabel();
+
+function onSpeedClick() {
+  unlockAudio();
+  gameSpeed = gameSpeed === 2 ? 1 : 2;
+  saveSpeedPreference(gameSpeed);
+  syncSpeedLabel();
+  game.toast(gameSpeed === 2 ? "Speed: 2x" : "Speed: 1x", true);
+}
+speedBtn.addEventListener("click", onSpeedClick);
+
 document.querySelector("#play-scores-btn")!.addEventListener("click", () => {
   openScoresMenu();
 });
@@ -1501,7 +1541,8 @@ function refreshToastOnly() {
 let last = performance.now();
 let lastAutoWaveCeil = -1;
 function loop(now: number) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  // Cap real-frame dt, then apply speed multiplier (pause still freezes combat in Game.update)
+  const dt = Math.min(0.05, (now - last) / 1000) * gameSpeed;
   last = now;
   game.update(dt);
   // Never full-refresh every frame for toasts — that rebuilt UI during the summon
