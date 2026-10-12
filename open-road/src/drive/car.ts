@@ -91,10 +91,20 @@ export async function loadCarModel(url: string, look: CarLook): Promise<CarVisua
     throw new Error(`No wheels found in ${url}`);
   }
 
-  const tailLights = look.realistic ? finishRealistic(root, look) : [];
-  if (!look.realistic) {
+  let tailLights: THREE.MeshStandardMaterial[] = [];
+  if (look.realistic) {
+    tailLights = finishRealistic(root, look);
+  } else {
     tintChassis(chassis, look.color);
     dressBody(chassis, look);
+    root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const mat of list) {
+        if (mat instanceof THREE.MeshStandardMaterial && mat.name === "light-tail") tailLights.push(mat);
+      }
+    });
   }
   root.scale.setScalar(look.scale);
   root.updateMatrixWorld(true);
@@ -183,10 +193,21 @@ function tintChassis(chassis: THREE.Group, color: number) {
   chassis.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
+    const name = (mesh.name || mesh.parent?.name || "").toLowerCase();
+    // Leave glass / lights / spoilers alone when named; tint the body paint.
+    if (name.includes("glass") || name.includes("window") || name.includes("light")) return;
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const tinted = materials.map((material) => {
       const next = material.clone();
-      if (next instanceof THREE.MeshStandardMaterial) next.color.setHex(color);
+      if (next instanceof THREE.MeshStandardMaterial || next instanceof THREE.MeshPhysicalMaterial) {
+        next.color.setHex(color);
+        next.metalness = Math.max(next.metalness ?? 0, 0.35);
+        next.roughness = Math.min(next.roughness ?? 0.5, 0.45);
+        if (carEnvironment) {
+          next.envMap = carEnvironment;
+          next.envMapIntensity = 0.85;
+        }
+      }
       return next;
     });
     mesh.material = Array.isArray(mesh.material) ? tinted : tinted[0];
@@ -197,7 +218,13 @@ function dressBody(chassis: THREE.Group, look: CarLook) {
   const box = new THREE.Box3().setFromObject(chassis);
   if (box.isEmpty()) return;
   const size = box.getSize(new THREE.Vector3());
-  const paint = new THREE.MeshStandardMaterial({ color: look.color, roughness: 0.45 });
+  const paint = new THREE.MeshStandardMaterial({
+    color: look.color,
+    roughness: 0.35,
+    metalness: 0.4,
+    envMap: carEnvironment ?? undefined,
+    envMapIntensity: 0.8,
+  });
   if (look.spoiler) {
     const wing = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.86, 0.05, 0.16), paint);
     wing.position.set(0, box.max.y + 0.04, box.min.z + size.z * 0.06);
@@ -212,5 +239,28 @@ function dressBody(chassis: THREE.Group, look: CarLook) {
     );
     bar.position.set(0, box.max.y + 0.06, (box.min.z + box.max.z) * 0.5);
     chassis.add(bar);
+  }
+
+  // Bright lamps so every Kenney base has clear headlights and taillights.
+  const headMat = new THREE.MeshStandardMaterial({
+    color: 0xfff6e4,
+    emissive: 0xfff1cc,
+    emissiveIntensity: 1.6,
+    roughness: 0.25,
+  });
+  const tailMat = new THREE.MeshStandardMaterial({
+    name: "light-tail",
+    color: 0xff1a1a,
+    emissive: 0xff1a1a,
+    emissiveIntensity: 1.2,
+    roughness: 0.3,
+  });
+  for (const side of [-1, 1]) {
+    const head = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.12, size.y * 0.1, 0.06), headMat);
+    head.position.set(side * size.x * 0.28, box.min.y + size.y * 0.38, box.max.z + 0.01);
+    chassis.add(head);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.14, size.y * 0.08, 0.05), tailMat);
+    tail.position.set(side * size.x * 0.3, box.min.y + size.y * 0.4, box.min.z - 0.01);
+    chassis.add(tail);
   }
 }
