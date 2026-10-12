@@ -117,6 +117,14 @@ const VOICE: Record<
   },
 };
 
+type SynthLayer = {
+  oscs: OscillatorNode[];
+  gains: GainNode[];
+  bus: GainNode;
+  noiseGain: GainNode;
+  noiseFilter: BiquadFilterNode;
+};
+
 export class EngineAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -126,8 +134,11 @@ export class EngineAudio {
   private windGain: GainNode | null = null;
   private skidGain: GainNode | null = null;
   private whooshGain: GainNode | null = null;
-  private oscs: OscillatorNode[] = [];
-  private oscGains: GainNode[] = [];
+  private bassGain: GainNode | null = null;
+  private bassOscs: OscillatorNode[] = [];
+  private idleLayer: SynthLayer | null = null;
+  private midLayer: SynthLayer | null = null;
+  private highLayer: SynthLayer | null = null;
   private lastGear = "";
   private music: HTMLAudioElement | null = null;
   private voice: EngineVoice = "v12";
@@ -140,8 +151,18 @@ export class EngineAudio {
   private lambLoading: Promise<void> | null = null;
   private revUntil = 0;
   private lastRpm = 900;
-  /** Latest Lambchop mix values, for tests. */
-  debug = { rate: 0, loopVol: 0, revVol: 0, looping: false, ready: false };
+  /** Latest mix values, for tests. */
+  debug = {
+    rate: 0,
+    loopVol: 0,
+    revVol: 0,
+    looping: false,
+    ready: false,
+    idle: 0,
+    mid: 0,
+    high: 0,
+    filterHz: 0,
+  };
 
   get on() {
     return this.ctx?.state === "running";
@@ -197,6 +218,10 @@ export class EngineAudio {
     this.windGain.gain.setTargetAtTime(0.0001, now, 0.05);
     this.skidGain.gain.setTargetAtTime(0.0001, now, 0.03);
     this.whooshGain?.gain.setTargetAtTime(0.0001, now, 0.03);
+    this.bassGain?.gain.setTargetAtTime(0.0001, now, 0.03);
+    this.idleLayer?.bus.gain.setTargetAtTime(0.0001, now, 0.03);
+    this.midLayer?.bus.gain.setTargetAtTime(0.0001, now, 0.03);
+    this.highLayer?.bus.gain.setTargetAtTime(0.0001, now, 0.03);
     this.lambLoopGain?.gain.setTargetAtTime(0.0001, now, 0.03);
     this.lambRevGain?.gain.setTargetAtTime(0.0001, now, 0.03);
   }
@@ -284,6 +309,42 @@ export class EngineAudio {
     this.debug.revVol = 0.62;
   }
 
+  private makeLayer(
+    ctx: AudioContext,
+    dest: AudioNode,
+    noise: AudioBufferSourceNode,
+    detunes: number[],
+    noiseHz: number,
+  ): SynthLayer {
+    const bus = ctx.createGain();
+    bus.gain.value = 0.0001;
+    bus.connect(dest);
+    const oscs: OscillatorNode[] = [];
+    const gains: GainNode[] = [];
+    for (const cents of detunes) {
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.detune.value = cents;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.12;
+      osc.connect(gain);
+      gain.connect(bus);
+      osc.start();
+      oscs.push(osc);
+      gains.push(gain);
+    }
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = "bandpass";
+    noiseFilter.frequency.value = noiseHz;
+    noiseFilter.Q.value = 0.7;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.value = 0.04;
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(bus);
+    return { oscs, gains, bus, noiseGain, noiseFilter };
+  }
+
   private build() {
     const ctx = new AudioContext();
     this.ctx = ctx;
@@ -307,34 +368,51 @@ export class EngineAudio {
 
     const filter = ctx.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.value = 220;
-    filter.Q.value = 0.55;
+    filter.frequency.value = 900;
+    filter.Q.value = 0.45;
     this.filter = filter;
 
     const shaper = ctx.createWaveShaper();
-    shaper.curve = distortionCurve(5);
+    shaper.curve = distortionCurve(3.2);
     shaper.oversample = "2x";
 
     engineGain.connect(filter);
     filter.connect(shaper);
     shaper.connect(master);
 
-    for (let i = 0; i < 4; i++) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      gain.gain.value = 0.1;
-      osc.connect(gain);
-      gain.connect(engineGain);
-      osc.start();
-      this.oscs.push(osc);
-      this.oscGains.push(gain);
-    }
-    this.applyVoiceMix();
-
     const noise = ctx.createBufferSource();
     noise.buffer = noiseBuffer(ctx);
     noise.loop = true;
     noise.start();
+
+    // Three RPM layers: idle rumble, mid loop, high scream — detuned saws + filtered noise.
+    this.idleLayer = this.makeLayer(ctx, engineGain, noise, [-18, -7, 0, 9, 17], 180);
+    this.midLayer = this.makeLayer(ctx, engineGain, noise, [-14, -5, 0, 6, 14], 520);
+    this.highLayer = this.makeLayer(ctx, engineGain, noise, [-11, -4, 0, 5, 12], 1400);
+
+    // Deep bass under everything.
+    const bassGain = ctx.createGain();
+    bassGain.gain.value = 0.0001;
+    this.bassGain = bassGain;
+    bassGain.connect(master);
+    for (const cents of [-12, 0, 10]) {
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.detune.value = cents;
+      const g = ctx.createGain();
+      g.gain.value = 0.18;
+      const lp = ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 140;
+      lp.Q.value = 0.5;
+      osc.connect(g);
+      g.connect(lp);
+      lp.connect(bassGain);
+      osc.start();
+      this.bassOscs.push(osc);
+    }
+
+    this.applyVoiceMix();
 
     const exhaustFilter = ctx.createBiquadFilter();
     exhaustFilter.type = "bandpass";
@@ -382,9 +460,30 @@ export class EngineAudio {
 
   private applyVoiceMix() {
     const profile = VOICE[this.voice];
-    for (let i = 0; i < this.oscs.length; i++) {
-      this.oscs[i].type = profile.kinds[i];
-      if (this.oscGains[i]) this.oscGains[i].gain.value = profile.levels[i];
+    const layers = [this.idleLayer, this.midLayer, this.highLayer];
+    for (const layer of layers) {
+      if (!layer) continue;
+      for (let i = 0; i < layer.oscs.length; i++) {
+        layer.oscs[i].type = "sawtooth";
+        // Keep levels even; layer bus gains do the RPM crossfade.
+        layer.gains[i].gain.value = 0.1 + profile.growl * 0.05;
+      }
+      layer.noiseGain.gain.value = 0.025 + profile.bright * 0.04;
+    }
+  }
+
+  /** Pitch factor from RPM, hard-clamped to 0.8x–1.6x. */
+  private pitchFromRpm(rpm: number) {
+    const rpmN = Math.max(0, Math.min(1, (rpm - 850) / 6750));
+    return 0.8 + rpmN * 0.8;
+  }
+
+  private setLayerPitch(layer: SynthLayer | null, baseHz: number, pitch: number, now: number) {
+    if (!layer) return;
+    const detuneMults = [0.92, 0.97, 1, 1.04, 1.09];
+    for (let i = 0; i < layer.oscs.length; i++) {
+      const freq = Math.max(28, baseHz * pitch * (detuneMults[i] ?? 1));
+      layer.oscs[i].frequency.setTargetAtTime(freq, now, 0.035);
     }
   }
 
@@ -440,22 +539,66 @@ export class EngineAudio {
       this.lastRpm = rpm;
     } else {
       const profile = VOICE[this.voice];
-      const firing = (rpm * profile.cyl) / 120;
-      const mults = this.voice === "ev" ? [1, 1.5, 2.2, 3.3] : [0.5, 1, 2, 4];
-      for (let i = 0; i < this.oscs.length; i++) {
-        const freq = Math.max(20, profile.base * 0.35 + firing * mults[i]);
-        this.oscs[i].frequency.setTargetAtTime(freq, now, 0.04);
+      const rpmN = Math.max(0, Math.min(1, (rpm - 850) / 6750));
+      let pitch = this.pitchFromRpm(rpm);
+      if (opts.gear !== this.lastGear && this.lastGear !== "" && rpm < this.lastRpm - 180) {
+        pitch *= 0.94;
       }
-      const load = 0.3 + opts.throttle * 0.95;
-      const idleQuiet = this.voice === "ev" ? 0.03 : 0.07;
-      this.engineGain.gain.setTargetAtTime(audible * (idleQuiet + load * 0.12), now, 0.05);
-      this.filter.frequency.setTargetAtTime(
-        profile.base + rpm * profile.bright + opts.throttle * 700,
+      pitch = Math.max(0.8, Math.min(1.6, pitch));
+
+      // Fundamental from firing order, then pitch-scaled within 0.8–1.6.
+      const firing = (rpm * profile.cyl) / 120;
+      const idleBase = profile.base * 0.45 + firing * 0.22;
+      const midBase = profile.base * 0.7 + firing * 0.55;
+      const highBase = profile.base * 0.55 + firing * 1.05;
+      this.setLayerPitch(this.idleLayer, idleBase, pitch, now);
+      this.setLayerPitch(this.midLayer, midBase, pitch, now);
+      this.setLayerPitch(this.highLayer, highBase, pitch, now);
+
+      for (const osc of this.bassOscs) {
+        osc.frequency.setTargetAtTime(Math.max(32, (profile.base * 0.28 + firing * 0.12) * pitch), now, 0.04);
+      }
+
+      // Smooth RPM crossfade: idle → mid → high scream.
+      const idleMix = Math.max(0, 1 - rpmN * 1.6);
+      const midMix = Math.max(0, 1 - Math.abs(rpmN - 0.45) * 2.4);
+      const highMix = Math.max(0, (rpmN - 0.35) / 0.65);
+      const gas = opts.throttle;
+      // Loop is always running; gas brings volume up immediately (no gaps).
+      const driven = audible * (0.22 + gas * 0.78 + rpmN * 0.15);
+      const idleVol = Math.max(0.0001, driven * (0.55 * idleMix + 0.12));
+      const midVol = Math.max(0.0001, driven * (0.7 * midMix + gas * 0.15));
+      const highVol = Math.max(0.0001, driven * (0.85 * highMix + gas * 0.2 * rpmN));
+      this.idleLayer?.bus.gain.setTargetAtTime(idleVol, now, 0.04);
+      this.midLayer?.bus.gain.setTargetAtTime(midVol, now, 0.04);
+      this.highLayer?.bus.gain.setTargetAtTime(highVol, now, 0.04);
+
+      const masterEng = this.voice === "ev" ? 0.45 : this.voice === "v12" ? 0.72 : 0.62;
+      this.engineGain.gain.setTargetAtTime(Math.max(0.0001, audible * masterEng), now, 0.04);
+      this.bassGain?.gain.setTargetAtTime(
+        Math.max(0.0001, audible * (0.14 + gas * 0.18 + rpmN * 0.08)),
         now,
         0.05,
       );
+
+      // Low-pass keeps high RPM smooth; gas opens it a bit so it breathes.
+      const filterHz =
+        (this.voice === "v12" ? 700 : 600) +
+        rpmN * (this.voice === "v12" ? 1400 : 1600) +
+        gas * 900 -
+        (this.voice === "v12" ? rpmN * rpmN * 200 : 0);
+      this.filter.frequency.setTargetAtTime(filterHz, now, 0.05);
+      this.debug.rate = pitch;
+      this.debug.loopVol = driven;
+      this.debug.looping = driven > 0.05;
+      this.debug.idle = idleVol;
+      this.debug.mid = midVol;
+      this.debug.high = highVol;
+      this.debug.filterHz = filterHz;
+      this.lastRpm = rpm;
+
       this.exhaustGain.gain.setTargetAtTime(
-        audible * (profile.growl * 0.35 + (rpm / 8000) * profile.growl + opts.throttle * 0.06),
+        audible * (profile.growl * 0.35 + rpmN * profile.growl + gas * 0.06),
         now,
         0.05,
       );
