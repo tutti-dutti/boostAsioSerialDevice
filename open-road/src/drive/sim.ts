@@ -254,14 +254,17 @@ export function stepCar(
   if (car.grind > 0 || (setup.clutchNeeded && !setup.auto && input.clutch)) throttle *= 0.08;
 
   const gearMul = GEAR_POWER[car.gear] ?? 0.46;
-  // Grass keeps most of top speed. Trucks are almost as fast as on road.
-  const grassFrac = tune.offroad >= 1.2 ? 0.95 : 0.75;
+  // Grass/dirt: trucks keep almost full speed. Cars keep most of it on grass.
+  const isTruck = tune.offroad >= 1.2 || tune.mass >= 2300;
+  const grassFrac = isTruck ? 0.98 : 0.75;
   const speedCap = inWater
     ? 3
     : onGrass
       ? tune.top * grassFrac
       : loose
-        ? Math.min(tune.top, surface.max * Math.max(0.55, tune.offroad))
+        ? isTruck
+          ? tune.top * 0.97
+          : Math.min(tune.top, surface.max * Math.max(0.55, tune.offroad))
         : tune.top;
   const pull = Math.abs(car.speed) / Math.max(12, speedCap);
   const curve = pull < 0.6 ? 1 : Math.max(0.24, 1 - (pull - 0.6) * 1.7);

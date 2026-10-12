@@ -181,6 +181,13 @@ export class EngineAudio {
     if (this.voice === "lambchop") await this.ensureLambchop();
   }
 
+  /** Resume a suspended context after any user gesture. */
+  async unlock() {
+    if (!this.ctx) this.build();
+    if (this.ctx && this.ctx.state !== "running") await this.ctx.resume();
+    if (this.voice === "lambchop") await this.ensureLambchop();
+  }
+
   silence() {
     this.music?.pause();
     if (!this.ctx || !this.engineGain || !this.exhaustGain || !this.windGain || !this.skidGain) return;
@@ -197,13 +204,14 @@ export class EngineAudio {
   private async ensureLambchop() {
     if (!this.ctx || !this.master || this.ctx.state !== "running") return;
     if (!this.lambLoopGain) {
+      // Hot bus: skip the compressor so the sample stays loud and clear.
       const loopGain = this.ctx.createGain();
       loopGain.gain.value = 0.0001;
-      loopGain.connect(this.master);
+      loopGain.connect(this.ctx.destination);
       this.lambLoopGain = loopGain;
       const revGain = this.ctx.createGain();
       revGain.gain.value = 0.0001;
-      revGain.connect(this.master);
+      revGain.connect(this.ctx.destination);
       this.lambRevGain = revGain;
     }
     if (!this.lambLoopBuf) {
@@ -266,11 +274,11 @@ export class EngineAudio {
     src.connect(this.lambRevGain);
     this.lambRevGain.gain.cancelScheduledValues(now);
     this.lambRevGain.gain.setValueAtTime(0.0001, now);
-    this.lambRevGain.gain.exponentialRampToValueAtTime(0.62, now + 0.04);
-    this.lambRevGain.gain.setValueAtTime(0.55, now + LAMB_REV_DUR - 0.45);
+    this.lambRevGain.gain.exponentialRampToValueAtTime(0.85, now + 0.04);
+    this.lambRevGain.gain.setValueAtTime(0.7, now + LAMB_REV_DUR - 0.45);
     this.lambRevGain.gain.exponentialRampToValueAtTime(0.0001, now + LAMB_REV_DUR);
     // Keep the driving loop under the rev, then hand off smoothly.
-    this.lambLoopGain.gain.setTargetAtTime(0.16, now, 0.05);
+    this.lambLoopGain.gain.value = Math.max(this.lambLoopGain.gain.value, 0.32);
     src.start(now, LAMB_REV_START, LAMB_REV_DUR);
     this.revUntil = now + LAMB_REV_DUR - 0.35;
     this.debug.revVol = 0.62;
@@ -395,37 +403,31 @@ export class EngineAudio {
     const rpm = Math.max(700, opts.rpm);
 
     if (this.voice === "lambchop") {
+      if (this.ctx.state !== "running") void this.ctx.resume();
       if (!this.lambLoopBuf) void this.ensureLambchop();
       else if (!this.lambLoop) this.startLambLoop();
 
       // Pitch follows RPM every frame. Upshifts drop RPM, so pitch drops with it.
       const rpmN = Math.max(0, Math.min(1, (rpm - 850) / 6750));
-      let rate = 0.78 + rpmN * 0.85;
-      if (opts.gear !== this.lastGear && this.lastGear !== "" && rpm < this.lastRpm - 200) {
-        rate *= 0.92;
+      let rate = 0.75 + rpmN * 0.9;
+      if (opts.gear !== this.lastGear && this.lastGear !== "" && rpm < this.lastRpm - 180) {
+        rate *= 0.88;
       }
-      rate = Math.max(0.7, Math.min(1.65, rate));
-      if (this.lambLoop) {
-        this.lambLoop.playbackRate.cancelScheduledValues(now);
-        this.lambLoop.playbackRate.setTargetAtTime(rate, now, 0.02);
-      }
+      rate = Math.max(0.68, Math.min(1.7, rate));
+      if (this.lambLoop) this.lambLoop.playbackRate.value = rate;
 
       const inRev = now < this.revUntil;
-      // Loop stays on the whole time. Louder with gas, quieter when you lift.
-      const idle = opts.throttle < 0.05 && opts.speed < 1.2 ? 0.1 : 0;
-      const loopVol =
-        audible *
-        (inRev
-          ? 0.14 + opts.throttle * 0.12
-          : 0.14 + idle + opts.throttle * 0.42 + rpmN * 0.12 + Math.min(0.1, opts.speed / 120));
-      if (this.lambLoopGain) {
-        this.lambLoopGain.gain.cancelScheduledValues(now);
-        this.lambLoopGain.gain.setTargetAtTime(Math.max(0.0001, loopVol), now, 0.025);
-      }
+      // Loop is always audible while active. Gas makes it louder right away.
+      const loopVol = audible
+        ? inRev
+          ? 0.35 + opts.throttle * 0.2
+          : 0.28 + opts.throttle * 0.72 + rpmN * 0.18 + Math.min(0.12, opts.speed / 100)
+        : 0.0001;
+      if (this.lambLoopGain) this.lambLoopGain.gain.value = Math.max(0.0001, loopVol);
       this.debug.rate = rate;
       this.debug.loopVol = loopVol;
-      this.debug.revVol = inRev ? 0.5 : 0;
-      this.debug.looping = !!this.lambLoop;
+      this.debug.revVol = inRev ? 0.7 : 0;
+      this.debug.looping = !!this.lambLoop && loopVol > 0.05;
 
       this.engineGain.gain.setTargetAtTime(0.0001, now, 0.05);
       this.exhaustGain.gain.setTargetAtTime(0.0001, now, 0.05);

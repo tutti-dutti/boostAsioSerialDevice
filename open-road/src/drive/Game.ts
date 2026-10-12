@@ -135,6 +135,11 @@ export class DriveGame {
     this.audio.playMusic();
   }
 
+  /** Resume Web Audio after a click or key (browsers block sound until then). */
+  unlockAudio() {
+    void this.audio.unlock();
+  }
+
   /** Lambchop engine mix readout for tests. */
   audioDebug() {
     return { on: this.audio.on, voice: this.ride.voice, ...this.audio.debug };

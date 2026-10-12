@@ -16,7 +16,10 @@ export type GarageCar = {
 
 const famous: Tune = { accel: 1.22, top: 86, offroad: 0.58, drive: "rwd", mass: 1450, cg: 0.42 };
 const fastest: Tune = { accel: 1.42, top: 98, offroad: 0.5, drive: "rwd", mass: 1380, cg: 0.4 };
-const truck: Tune = { accel: 0.3, top: 48, offroad: 1.6, drive: "rwd", mass: 2900, cg: 0.84 };
+/** Mastodon-class truck: about 6.5s to 60 mph, top near 100 mph. */
+const truck: Tune = { accel: 0.35, top: 45, offroad: 1.55, drive: "awd", mass: 2550, cg: 0.72 };
+/** Faster trucks (when added): about 4.5–5s to 60. */
+export const truckFast: Tune = { accel: 0.48, top: 48, offroad: 1.55, drive: "awd", mass: 2400, cg: 0.68 };
 
 function car(
   brand: string,
@@ -51,7 +54,7 @@ export const GARAGE: GarageCar[] = [
     scale: 1, ride: 0.05, wheel: 1, color: 0x2f6fed, spoiler: true, roofLights: false, realistic: true,
   }, "v8"),
   car("Shovel-A", "Mastodon", "/models/shovel-mastodon.glb", truck, {
-    scale: 1, ride: 0.12, wheel: 1, color: 0x2f6b3a, spoiler: false, roofLights: true, realistic: true,
+    scale: 1, ride: 0.02, wheel: 1, color: 0x2a3328, spoiler: false, roofLights: false, realistic: true,
   }, "diesel"),
   car("Baguetti", "Hellhound", "/models/baguetti-hellhound.glb", famous, {
     scale: 1, ride: 0.04, wheel: 1, color: 0x1a1c22, spoiler: false, roofLights: false, realistic: true,

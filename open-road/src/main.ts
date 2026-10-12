@@ -174,6 +174,13 @@ playBtn.addEventListener("click", () => {
   void game.start();
 });
 
+// Browsers block sound until a click or key. Unlock on the first gesture too.
+const unlockAudioOnce = () => {
+  game.unlockAudio();
+};
+window.addEventListener("pointerdown", unlockAudioOnce, { once: true });
+window.addEventListener("keydown", unlockAudioOnce, { once: true });
+
 function paintAssists() {
   const setup = game.getSetup();
   const gear = document.querySelector<HTMLButtonElement>("#gear-mode");
