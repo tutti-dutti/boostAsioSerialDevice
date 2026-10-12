@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { LAKE, ROADS, SPAWN } from "./mapData";
+import { LAKE, PATCHES, ROADS, SPAWN } from "./mapData";
 import type { Collider, RoadSeg } from "./sim";
 
 export type World = {
@@ -238,6 +238,10 @@ export function createWorld(): World {
   addSign(object, colliders, "TOWN", 28, 16, -Math.PI / 2, "#7ec8ff");
   addSign(object, colliders, "LAKE", 150, -110, facing(-210, 180), "#3ec6c6");
   addSign(object, colliders, "FOREST", -150, 95, facing(170, -130), "#8dce6a");
+  addSign(object, colliders, "WET", 40, 16, -Math.PI / 2, "#7ec8ff");
+  addSign(object, colliders, "MUD", -170, 92, 0, "#c47a3a");
+  addSign(object, colliders, "ICE", 210, -16, -Math.PI / 2, "#d7e7f2");
+  addPatches(object);
   addLamps(object, colliders);
   addUmbrellas(object);
   addMountains(object);
@@ -346,6 +350,28 @@ function addFountain(object: THREE.Group, colliders: Collider[], x: number, z: n
   water.position.set(x, 0.82, z);
   object.add(basin, lip, water);
   colliders.push({ kind: "circle", x, z, r: 4.4 });
+}
+
+function addPatches(object: THREE.Group) {
+  const colors: Record<string, number> = { Wet: 0x243848, Mud: 0x5c3b22, Ice: 0xd5e6f4 };
+  for (const patch of PATCHES) {
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(patch.hx * 2, patch.hz * 2),
+      new THREE.MeshStandardMaterial({
+        color: colors[patch.name] ?? 0x888888,
+        roughness: patch.name === "Mud" ? 1 : 0.18,
+        metalness: patch.name === "Wet" ? 0.45 : 0.05,
+        transparent: true,
+        opacity: 0.82,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      }),
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(patch.x, 0.09, patch.z);
+    object.add(mesh);
+  }
 }
 
 function addLamps(object: THREE.Group, colliders: Collider[]) {

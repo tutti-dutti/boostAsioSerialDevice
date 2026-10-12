@@ -19,7 +19,13 @@ app.innerHTML = `
       <li><b>A D</b> steer</li>
       <li><b>Space</b> slide</li>
     </ul>
-    <p class="note">Turn your sound on. A song plays in the background while you drive. Stay on the road to go fast.</p>
+    <div class="assists">
+      <button id="gear-mode" type="button">Gearbox: Auto</button>
+      <button id="clutch-mode" type="button">Clutch: Off</button>
+      <button id="tc-mode" type="button">Traction: On</button>
+      <button id="abs-mode" type="button">ABS: On</button>
+    </div>
+    <p class="note">Turn your sound on. Manual uses Q and E to shift, and Shift is the clutch. A song plays while you drive.</p>
   </section>
   <div id="hud" class="hud is-hidden">
     <header class="top">
@@ -38,6 +44,7 @@ app.innerHTML = `
     <canvas id="map" class="map" width="180" height="180"></canvas>
     <div id="toast" class="toast"></div>
     <div id="engine" class="engine">Engine off</div>
+    <div id="assist" class="assist">Auto · TC · ABS</div>
     <p class="hints">Arrows or WASD to drive · Space slide · C camera · H horn · G garage · R reset</p>
     <footer class="bottom">
       <div class="cluster">
@@ -84,6 +91,7 @@ const surfaceEl = document.querySelector<HTMLElement>("#surface")!;
 const camEl = document.querySelector<HTMLElement>("#cam-name")!;
 const toastEl = document.querySelector<HTMLElement>("#toast")!;
 const engineEl = document.querySelector<HTMLElement>("#engine")!;
+const assistEl = document.querySelector<HTMLElement>("#assist")!;
 const rpmBar = document.querySelector<HTMLElement>("#rpm-bar")!;
 const mapCanvas = document.querySelector<HTMLCanvasElement>("#map")!;
 const mapCtx = mapCanvas.getContext("2d")!;
@@ -100,6 +108,7 @@ function paintHud(info: FrameInfo) {
   surfaceEl.textContent = info.surface;
   camEl.textContent = info.camera;
   engineEl.textContent = info.audioOn ? "Engine on" : "Engine off";
+  assistEl.textContent = info.assists;
   const pct = Math.max(0, Math.min(1, info.rpm / info.redline));
   rpmBar.style.width = `${pct * 100}%`;
   rpmBar.classList.toggle("hot", pct > 0.86);
@@ -162,6 +171,35 @@ playBtn.addEventListener("click", () => {
   void game.start();
 });
 
+function paintAssists() {
+  const setup = game.getSetup();
+  const gear = document.querySelector<HTMLButtonElement>("#gear-mode");
+  const clutch = document.querySelector<HTMLButtonElement>("#clutch-mode");
+  const tc = document.querySelector<HTMLButtonElement>("#tc-mode");
+  const abs = document.querySelector<HTMLButtonElement>("#abs-mode");
+  if (gear) gear.textContent = `Gearbox: ${setup.auto ? "Auto" : "Manual"}`;
+  if (clutch) clutch.textContent = `Clutch: ${setup.clutchNeeded ? "On" : "Off"}`;
+  if (tc) tc.textContent = `Traction: ${setup.tc ? "On" : "Off"}`;
+  if (abs) abs.textContent = `ABS: ${setup.abs ? "On" : "Off"}`;
+}
+
+document.querySelector("#gear-mode")?.addEventListener("click", () => {
+  game.setSetup({ auto: !game.getSetup().auto });
+  paintAssists();
+});
+document.querySelector("#clutch-mode")?.addEventListener("click", () => {
+  game.setSetup({ clutchNeeded: !game.getSetup().clutchNeeded });
+  paintAssists();
+});
+document.querySelector("#tc-mode")?.addEventListener("click", () => {
+  game.setSetup({ tc: !game.getSetup().tc });
+  paintAssists();
+});
+document.querySelector("#abs-mode")?.addEventListener("click", () => {
+  game.setSetup({ abs: !game.getSetup().abs });
+  paintAssists();
+});
+
 document.querySelector("#menu-btn")?.addEventListener("click", showMenu);
 document.querySelector("#reset-btn")?.addEventListener("click", () => game.reset());
 document.querySelector("#horn-btn")?.addEventListener("click", () => game.horn());
@@ -172,7 +210,7 @@ function paintGarage() {
     (car) => `
       <button type="button" data-car="${car.id}" class="${car.id === current ? "is-current" : ""}">
         <b>${car.name}</b>
-        <span>${car.kind} · ${car.note}</span>
+        <span>${car.kind} · ${car.tune.drive.toUpperCase()} · ${car.note}</span>
       </button>
     `,
   ).join("");

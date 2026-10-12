@@ -115,6 +115,22 @@ h1 {
   font-weight: 800;
 }
 
+.assists {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 640px;
+}
+
+.assists button {
+  background: white;
+  color: #1c2430;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 800;
+}
+
 .hud {
   position: fixed;
   inset: 0;
@@ -205,11 +221,19 @@ h1 {
   opacity: 1;
 }
 
-.engine {
+.engine,
+.assist {
   left: 16px;
-  bottom: 118px;
   font-size: 14px;
   font-weight: 800;
+}
+
+.engine {
+  bottom: 118px;
+}
+
+.assist {
+  bottom: 96px;
 }
 
 .bottom {

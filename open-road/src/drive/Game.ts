@@ -4,6 +4,7 @@ import { loadCarModel, type CarVisual } from "./car";
 import { GARAGE, carById, type GarageCar } from "./garage";
 import {
   REDLINE,
+  DEFAULT_SETUP,
   gearLabel,
   makeCar,
   resetCar,
@@ -12,6 +13,7 @@ import {
   surfaceAt,
   type Car,
   type Input,
+  type Setup,
   type Tune,
 } from "./sim";
 import { createWorld } from "./world";
@@ -29,6 +31,7 @@ export type FrameInfo = {
   toast: string;
   audioOn: boolean;
   carName: string;
+  assists: string;
 };
 
 type CamMode = "chase" | "bumper" | "hood";
@@ -54,7 +57,6 @@ export class DriveGame {
   private looping = false;
   private last = 0;
   private roll = 0;
-  private prevSpeed = 0;
   private snap = true;
   private camMode: CamMode = "chase";
   private impactCool = 0;
@@ -66,6 +68,9 @@ export class DriveGame {
   private inputBlocked = false;
   private ride: GarageCar = GARAGE[0];
   private tune: Tune = GARAGE[0].tune;
+  private setup: Setup = { ...DEFAULT_SETUP };
+  private shiftUp = false;
+  private shiftDown = false;
   private switching = false;
   private readonly desired = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
@@ -127,6 +132,14 @@ export class DriveGame {
     if (blocked) this.holds.clear();
   }
 
+  getSetup() {
+    return { ...this.setup };
+  }
+
+  setSetup(patch: Partial<Setup>) {
+    this.setup = { ...this.setup, ...patch };
+  }
+
   currentCarId() {
     return this.ride.id;
   }
@@ -176,7 +189,6 @@ export class DriveGame {
 
   reset() {
     resetCar(this.car);
-    this.prevSpeed = 0;
     this.snap = true;
     this.say("Back to the start");
   }
@@ -204,6 +216,8 @@ export class DriveGame {
     if (k === "c") this.cycleCam();
     if (k === "r") this.reset();
     if (k === "h") this.audio.horn();
+    if (!this.setup.auto && k === "e") this.shiftUp = true;
+    if (!this.setup.auto && k === "q") this.shiftDown = true;
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
@@ -220,8 +234,12 @@ export class DriveGame {
   };
 
   private readInput(): Input {
+    const shiftUp = this.shiftUp;
+    const shiftDown = this.shiftDown;
+    this.shiftUp = false;
+    this.shiftDown = false;
     if (this.inputBlocked) {
-      return { throttle: 0, brake: 0, steer: 0, handbrake: false };
+      return { throttle: 0, brake: 0, steer: 0, handbrake: false, clutch: false, shiftUp: false, shiftDown: false };
     }
     let steer = 0;
     if (this.keys.has("a") || this.keys.has("arrowleft") || this.holds.has("left")) steer -= 1;
@@ -231,6 +249,9 @@ export class DriveGame {
       brake: this.keys.has("s") || this.keys.has("arrowdown") || this.holds.has("brake") ? 1 : 0,
       steer,
       handbrake: this.keys.has(" ") || this.holds.has("handbrake"),
+      clutch: this.keys.has("shift"),
+      shiftUp,
+      shiftDown,
     };
     const pad = this.readPad();
     if (!pad) return key;
@@ -239,6 +260,9 @@ export class DriveGame {
       brake: Math.max(key.brake, pad.brake),
       steer: Math.abs(pad.steer) > Math.abs(key.steer) ? pad.steer : key.steer,
       handbrake: key.handbrake || pad.handbrake,
+      clutch: key.clutch,
+      shiftUp,
+      shiftDown,
     };
   }
 
@@ -266,6 +290,9 @@ export class DriveGame {
       brake: gp.buttons[6]?.value ?? 0,
       steer,
       handbrake: Boolean(gp.buttons[0]?.pressed),
+      clutch: false,
+      shiftUp: false,
+      shiftDown: false,
     };
   }
 
@@ -290,7 +317,7 @@ export class DriveGame {
   private step(dt: number) {
     const input = this.readInput();
     const surface = surfaceAt(this.car.x, this.car.z, this.world.roads);
-    const { skid } = stepCar(this.car, input, surface, dt, this.tune);
+    const { skid, pitch, roll, wheels } = stepCar(this.car, input, surface, dt, this.tune, this.setup);
     const impact = resolveCollisions(this.car, this.world.colliders);
     this.impactCool = Math.max(0, this.impactCool - dt);
     if (impact > 8 && this.impactCool <= 0) {
@@ -303,7 +330,7 @@ export class DriveGame {
       if (this.toastTimer <= 0) this.toast = "";
     }
 
-    const gear = gearLabel(this.car, input.throttle);
+    const gear = gearLabel(this.car, input.throttle, this.setup.auto);
     this.audio.update({
       rpm: this.car.rpm,
       throttle: input.throttle,
@@ -318,14 +345,15 @@ export class DriveGame {
     for (const wheel of this.visual.wheels) {
       wheel.spin.rotation.x = this.roll;
       if (wheel.front) wheel.pivot.rotation.y = steerVis;
+      const data = wheel.pivot.userData;
+      if (typeof data.restY !== "number") data.restY = wheel.pivot.position.y;
+      const index = (wheel.front ? 0 : 2) + (wheel.pivot.position.x > 0 ? 1 : 0);
+      const drop = wheels[index] ?? 0.08;
+      wheel.pivot.position.y = (data.restY as number) - drop * 0.45;
     }
 
-    const accel = (this.car.speed - this.prevSpeed) / Math.max(dt, 0.001);
-    this.prevSpeed = this.car.speed;
-    const targetRoll = clampLean(-this.car.lat * 0.03 + input.steer * Math.abs(this.car.speed) * 0.0035);
-    const targetPitch = clampLean(-accel * 0.01);
-    this.visual.chassis.rotation.z += (targetRoll - this.visual.chassis.rotation.z) * 0.12;
-    this.visual.chassis.rotation.x += (targetPitch - this.visual.chassis.rotation.x) * 0.12;
+    this.visual.chassis.rotation.z += (clampLean(roll) - this.visual.chassis.rotation.z) * 0.35;
+    this.visual.chassis.rotation.x += (clampLean(pitch) - this.visual.chassis.rotation.x) * 0.35;
     this.visual.tail.emissiveIntensity = input.brake > 0 && this.car.speed > 0.4 ? 2.4 : 0.45;
 
     this.placeCar();
@@ -336,20 +364,7 @@ export class DriveGame {
     this.camera.fov += (targetFov - this.camera.fov) * (1 - Math.exp(-3 * dt));
     this.camera.updateProjectionMatrix();
 
-    this.onFrame({
-      mph: Math.round(Math.abs(this.car.speed) * 2.23694),
-      gear,
-      rpm: this.car.rpm,
-      redline: REDLINE,
-      x: this.car.x,
-      z: this.car.z,
-      yaw: this.car.yaw,
-      surface: surface.name,
-      camera: CAM_LABEL[this.camMode],
-      toast: this.toast,
-      audioOn: this.audio.on,
-      carName: this.ride.name,
-    });
+    this.onFrame(this.frameInfo(gear, surface.name));
   }
 
   private placeCar() {
@@ -380,6 +395,24 @@ export class DriveGame {
     this.camera.lookAt(this.look);
   }
 
+  private frameInfo(gear: string, surface: string, mph?: number): FrameInfo {
+    return {
+      mph: mph ?? Math.round(Math.abs(this.car.speed) * 2.23694),
+      gear,
+      rpm: this.car.rpm,
+      redline: REDLINE,
+      x: this.car.x,
+      z: this.car.z,
+      yaw: this.car.yaw,
+      surface,
+      camera: CAM_LABEL[this.camMode],
+      toast: this.toast,
+      audioOn: this.audio.on,
+      carName: this.ride.name,
+      assists: `${this.setup.auto ? "Auto" : "Manual"} · TC ${this.setup.tc ? "on" : "off"} · ABS ${this.setup.abs ? "on" : "off"}`,
+    };
+  }
+
   private followSun() {
     this.sun.position.set(this.car.x, 0, this.car.z).addScaledVector(this.sunDir, 90);
     this.sun.target.position.set(this.car.x, 0, this.car.z);
@@ -390,20 +423,7 @@ export class DriveGame {
       this.placeCar();
       this.placeCamera(Math.max(dt, 0.016));
       this.followSun();
-      this.onFrame({
-        mph: 0,
-        gear: "N",
-        rpm: this.car.rpm,
-        redline: REDLINE,
-        x: this.car.x,
-        z: this.car.z,
-        yaw: this.car.yaw,
-        surface: "Road",
-        camera: CAM_LABEL[this.camMode],
-        toast: this.toast,
-        audioOn: this.audio.on,
-        carName: this.ride.name,
-      });
+      this.onFrame(this.frameInfo("N", "Road", 0));
     }
     this.renderer.render(this.scene, this.camera);
   }
