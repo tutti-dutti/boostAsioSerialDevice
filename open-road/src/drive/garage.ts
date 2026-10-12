@@ -37,13 +37,13 @@ function car(
 export const GARAGE: GarageCar[] = [
   car("Lambchop", "Chupacabra", "/models/lambchop-chupacabra.glb", famous, {
     scale: 1, ride: 0.04, wheel: 1, color: 0xff6a00, spoiler: false, roofLights: false, realistic: true,
-  }, "v12"),
+  }, "lambchop"),
   car("Lambchop", "Minotaur", "/models/lambchop-minotaur.glb", fastest, {
     scale: 1, ride: 0.04, wheel: 1, color: 0xff3b1f, spoiler: false, roofLights: false, realistic: true,
-  }, "v12"),
+  }, "lambchop"),
   car("Lambchop", "Bonehorn", "/models/lambchop-bonehorn.glb", { ...famous, accel: 1.3, top: 90 }, {
     scale: 1, ride: 0.04, wheel: 1, color: 0x22e05a, spoiler: false, roofLights: false, realistic: true,
-  }, "v10"),
+  }, "lambchop"),
   car("Shovel-A", "Thresher", "/models/shovel-thresher.glb", famous, {
     scale: 1, ride: 0.06, wheel: 1, color: 0xe23b2f, spoiler: true, roofLights: false, realistic: true,
   }, "v8"),

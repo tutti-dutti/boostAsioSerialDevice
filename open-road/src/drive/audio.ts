@@ -1,6 +1,11 @@
 /** Engine, wind, tire squeal, horn, and bump sounds made with the Web Audio API. */
 
-export type EngineVoice = "v8" | "v10" | "v12" | "turbo" | "ev" | "diesel";
+export type EngineVoice = "v8" | "v10" | "v12" | "turbo" | "ev" | "diesel" | "lambchop";
+
+const LAMBCHOP_ENGINE = "/sounds/lambchop-engine.mp3";
+/** Steady mid section of the sample, looped while driving. */
+const LAMB_LOOP_START = 6.85;
+const LAMB_LOOP_END = 8.55;
 
 function distortionCurve(amount: number) {
   const n = 256;
@@ -79,6 +84,14 @@ const VOICE: Record<
     kinds: ["square", "sawtooth", "triangle", "sine"],
     levels: [0.5, 0.3, 0.12, 0.04],
   },
+  lambchop: {
+    cyl: 12,
+    base: 160,
+    bright: 0.32,
+    growl: 0.08,
+    kinds: ["sawtooth", "sine", "triangle", "square"],
+    levels: [0.0, 0.0, 0.0, 0.0],
+  },
 };
 
 export class EngineAudio {
@@ -96,6 +109,12 @@ export class EngineAudio {
   private music: HTMLAudioElement | null = null;
   private voice: EngineVoice = "v12";
   private lastThrottle = 0;
+  private lambBuffer: AudioBuffer | null = null;
+  private lambLoop: AudioBufferSourceNode | null = null;
+  private lambLoopGain: GainNode | null = null;
+  private lambRevGain: GainNode | null = null;
+  private lambLoading: Promise<void> | null = null;
+  private revUntil = 0;
 
   get on() {
     return this.ctx?.state === "running";
@@ -104,6 +123,8 @@ export class EngineAudio {
   setVoice(voice: EngineVoice) {
     this.voice = voice;
     this.applyVoiceMix();
+    if (voice === "lambchop") void this.ensureLambchop();
+    else this.stopLambLoop();
   }
 
   /** Start the background song immediately. Call this from the Drive click. */
@@ -136,6 +157,92 @@ export class EngineAudio {
     this.windGain.gain.setTargetAtTime(0.0001, now, 0.05);
     this.skidGain.gain.setTargetAtTime(0.0001, now, 0.03);
     this.whooshGain?.gain.setTargetAtTime(0.0001, now, 0.03);
+    this.lambLoopGain?.gain.setTargetAtTime(0.0001, now, 0.03);
+    this.lambRevGain?.gain.setTargetAtTime(0.0001, now, 0.03);
+  }
+
+  private async ensureLambchop() {
+    if (!this.ctx) this.build();
+    if (!this.ctx || !this.master) return;
+    if (!this.lambLoopGain) {
+      const loopGain = this.ctx.createGain();
+      loopGain.gain.value = 0.0001;
+      loopGain.connect(this.master);
+      this.lambLoopGain = loopGain;
+      const revGain = this.ctx.createGain();
+      revGain.gain.value = 0.0001;
+      revGain.connect(this.master);
+      this.lambRevGain = revGain;
+    }
+    if (!this.lambBuffer) {
+      if (!this.lambLoading) {
+        this.lambLoading = fetch(LAMBCHOP_ENGINE)
+          .then((res) => {
+            if (!res.ok) throw new Error(`Could not load ${LAMBCHOP_ENGINE}`);
+            return res.arrayBuffer();
+          })
+          .then((raw) => this.ctx!.decodeAudioData(raw))
+          .then((buffer) => {
+            this.lambBuffer = buffer;
+          })
+          .catch((err) => {
+            console.error(err);
+            this.lambLoading = null;
+          });
+      }
+      await this.lambLoading;
+    }
+    if (this.voice === "lambchop") this.startLambLoop();
+  }
+
+  private startLambLoop() {
+    if (!this.ctx || !this.lambBuffer || !this.lambLoopGain || this.lambLoop) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.lambBuffer;
+    src.loop = true;
+    src.loopStart = LAMB_LOOP_START;
+    src.loopEnd = Math.min(LAMB_LOOP_END, this.lambBuffer.duration);
+    src.playbackRate.value = 1;
+    src.connect(this.lambLoopGain);
+    src.start(0, LAMB_LOOP_START);
+    this.lambLoop = src;
+  }
+
+  private stopLambLoop() {
+    if (this.lambLoop) {
+      try {
+        this.lambLoop.stop();
+      } catch {
+        /* already stopped */
+      }
+      this.lambLoop.disconnect();
+      this.lambLoop = null;
+    }
+    if (this.ctx && this.lambLoopGain) {
+      this.lambLoopGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.03);
+    }
+  }
+
+  private playFullRev() {
+    if (!this.ctx || !this.lambBuffer || !this.lambRevGain || !this.lambLoopGain) return;
+    const now = this.ctx.currentTime;
+    if (now < this.revUntil) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.lambBuffer;
+    src.connect(this.lambRevGain);
+    this.lambRevGain.gain.cancelScheduledValues(now);
+    this.lambRevGain.gain.setValueAtTime(0.0001, now);
+    this.lambRevGain.gain.exponentialRampToValueAtTime(0.55, now + 0.05);
+    this.lambRevGain.gain.setValueAtTime(0.55, now + 5.2);
+    this.lambRevGain.gain.exponentialRampToValueAtTime(0.0001, now + 5.8);
+    this.lambLoopGain.gain.setTargetAtTime(0.04, now, 0.08);
+    src.start(now, 0.15, 5.7);
+    this.revUntil = now + 5.5;
+    src.onended = () => {
+      if (this.voice === "lambchop" && this.ctx && this.lambLoopGain) {
+        this.lambLoopGain.gain.setTargetAtTime(0.28, this.ctx.currentTime, 0.12);
+      }
+    };
   }
 
   private build() {
@@ -253,38 +360,52 @@ export class EngineAudio {
     if (!this.ctx || this.ctx.state !== "running") return;
     if (!this.engineGain || !this.filter || !this.exhaustGain || !this.windGain || !this.skidGain) return;
     const now = this.ctx.currentTime;
-    const profile = VOICE[this.voice];
-    const rpm = Math.max(700, opts.rpm);
-    const firing = (rpm * profile.cyl) / 120;
-    const mults = this.voice === "ev" ? [1, 1.5, 2.2, 3.3] : [0.5, 1, 2, 4];
-    for (let i = 0; i < this.oscs.length; i++) {
-      const freq = Math.max(20, profile.base * 0.35 + firing * mults[i]);
-      this.oscs[i].frequency.setTargetAtTime(freq, now, 0.04);
-    }
     const audible = opts.active ? 1 : 0;
-    const load = 0.3 + opts.throttle * 0.95;
-    const idleQuiet = this.voice === "ev" ? 0.03 : 0.07;
-    this.engineGain.gain.setTargetAtTime(audible * (idleQuiet + load * 0.12), now, 0.05);
-    this.filter.frequency.setTargetAtTime(
-      profile.base + rpm * profile.bright + opts.throttle * 700,
-      now,
-      0.05,
-    );
-    this.exhaustGain.gain.setTargetAtTime(
-      audible * (profile.growl * 0.35 + (rpm / 8000) * profile.growl + opts.throttle * 0.06),
-      now,
-      0.05,
-    );
+    const rpm = Math.max(700, opts.rpm);
 
-    if (this.whooshGain) {
-      if (this.voice === "turbo") {
-        const rising = opts.throttle > this.lastThrottle + 0.02 ? opts.throttle : opts.throttle * 0.35;
-        this.whooshGain.gain.setTargetAtTime(audible * rising * 0.09, now, 0.04);
-        if (this.lastThrottle > 0.55 && opts.throttle < 0.2) this.blowOff();
-      } else if (this.voice === "ev") {
-        this.whooshGain.gain.setTargetAtTime(audible * Math.min(0.08, opts.speed / 120), now, 0.08);
-      } else {
-        this.whooshGain.gain.setTargetAtTime(0.0001, now, 0.05);
+    if (this.voice === "lambchop") {
+      if (!this.lambLoop && this.lambBuffer) this.startLambLoop();
+      else if (!this.lambBuffer) void this.ensureLambchop();
+      const rate = 0.72 + ((rpm - 800) / 6800) * 0.78 + opts.throttle * 0.08;
+      if (this.lambLoop) this.lambLoop.playbackRate.setTargetAtTime(Math.max(0.65, Math.min(1.55, rate)), now, 0.05);
+      const looping = now >= this.revUntil;
+      const loopVol = audible * (looping ? 0.18 + opts.throttle * 0.22 + Math.min(0.12, opts.speed / 140) : 0.05);
+      this.lambLoopGain?.gain.setTargetAtTime(Math.max(0.0001, loopVol), now, 0.06);
+      this.engineGain.gain.setTargetAtTime(0.0001, now, 0.05);
+      this.exhaustGain.gain.setTargetAtTime(0.0001, now, 0.05);
+      if (opts.throttle > 0.85 && opts.speed < 3.5 && audible) this.playFullRev();
+      this.whooshGain?.gain.setTargetAtTime(0.0001, now, 0.05);
+    } else {
+      const profile = VOICE[this.voice];
+      const firing = (rpm * profile.cyl) / 120;
+      const mults = this.voice === "ev" ? [1, 1.5, 2.2, 3.3] : [0.5, 1, 2, 4];
+      for (let i = 0; i < this.oscs.length; i++) {
+        const freq = Math.max(20, profile.base * 0.35 + firing * mults[i]);
+        this.oscs[i].frequency.setTargetAtTime(freq, now, 0.04);
+      }
+      const load = 0.3 + opts.throttle * 0.95;
+      const idleQuiet = this.voice === "ev" ? 0.03 : 0.07;
+      this.engineGain.gain.setTargetAtTime(audible * (idleQuiet + load * 0.12), now, 0.05);
+      this.filter.frequency.setTargetAtTime(
+        profile.base + rpm * profile.bright + opts.throttle * 700,
+        now,
+        0.05,
+      );
+      this.exhaustGain.gain.setTargetAtTime(
+        audible * (profile.growl * 0.35 + (rpm / 8000) * profile.growl + opts.throttle * 0.06),
+        now,
+        0.05,
+      );
+      if (this.whooshGain) {
+        if (this.voice === "turbo") {
+          const rising = opts.throttle > this.lastThrottle + 0.02 ? opts.throttle : opts.throttle * 0.35;
+          this.whooshGain.gain.setTargetAtTime(audible * rising * 0.09, now, 0.04);
+          if (this.lastThrottle > 0.55 && opts.throttle < 0.2) this.blowOff();
+        } else if (this.voice === "ev") {
+          this.whooshGain.gain.setTargetAtTime(audible * Math.min(0.08, opts.speed / 120), now, 0.08);
+        } else {
+          this.whooshGain.gain.setTargetAtTime(0.0001, now, 0.05);
+        }
       }
     }
     this.lastThrottle = opts.throttle;
@@ -292,7 +413,7 @@ export class EngineAudio {
     const wind = Math.min(0.14, (opts.speed * opts.speed) / 42000);
     this.windGain.gain.setTargetAtTime(audible * wind, now, 0.12);
     this.skidGain.gain.setTargetAtTime(audible * Math.min(0.2, opts.skid * 0.26), now, 0.06);
-    if (opts.active && opts.gear !== this.lastGear && this.lastGear !== "") this.blip();
+    if (opts.active && opts.gear !== this.lastGear && this.lastGear !== "" && this.voice !== "lambchop") this.blip();
     this.lastGear = opts.gear;
   }
 
