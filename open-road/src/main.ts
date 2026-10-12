@@ -1,7 +1,8 @@
 import "./style.css";
 import { GARAGE } from "./drive/garage";
 import { DriveGame, type FrameInfo } from "./drive/Game";
-import { LAKE, ROADS, SPAWN } from "./drive/mapData";
+import { BUILDINGS, LAKE, ROADS, SPAWN } from "./drive/mapData";
+import { WORLD_LIMIT } from "./drive/terrain";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Missing #app");
@@ -11,7 +12,7 @@ app.innerHTML = `
   <section id="home" class="home">
     <p class="eyebrow">Open world</p>
     <h1>Open Road</h1>
-    <p class="lede">One red car. A big map. A loud engine.</p>
+    <p class="lede">Rolling hills, a small town, and a loud engine.</p>
     <button id="play" class="play" type="button">Drive</button>
     <ul class="tips">
       <li><b>W</b> gas</li>
@@ -120,11 +121,13 @@ function paintMap(info: FrameInfo) {
   const w = mapCanvas.width;
   const h = mapCanvas.height;
   const scale = w / 900;
-  const X = (x: number) => w / 2 + x * scale;
-  const Y = (z: number) => h / 2 + z * scale;
+  const X = (x: number) => w / 2 + (x - info.x) * scale;
+  const Y = (z: number) => h / 2 + (z - info.z) * scale;
   mapCtx.clearRect(0, 0, w, h);
   mapCtx.fillStyle = "#1d4a28";
   mapCtx.fillRect(0, 0, w, h);
+  mapCtx.strokeStyle = "rgba(255,255,255,0.28)";
+  mapCtx.strokeRect(X(-WORLD_LIMIT), Y(-WORLD_LIMIT), WORLD_LIMIT * 2 * scale, WORLD_LIMIT * 2 * scale);
   mapCtx.lineCap = "round";
   for (const road of ROADS) {
     mapCtx.strokeStyle = road.grip < 0.85 ? "#8a6238" : "#8d939a";
@@ -138,6 +141,10 @@ function paintMap(info: FrameInfo) {
   mapCtx.beginPath();
   mapCtx.arc(X(LAKE.x), Y(LAKE.z), LAKE.r * scale, 0, Math.PI * 2);
   mapCtx.fill();
+  mapCtx.fillStyle = "#e6d7c4";
+  for (const building of BUILDINGS) {
+    mapCtx.fillRect(X(building.x) - 1.5, Y(building.z) - 1.5, 3, 3);
+  }
   mapCtx.fillStyle = "#ffe08a";
   mapCtx.fillRect(X(SPAWN.x) - 2, Y(SPAWN.z) - 2, 4, 4);
   mapCtx.save();

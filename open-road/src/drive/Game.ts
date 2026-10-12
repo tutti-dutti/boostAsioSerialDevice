@@ -17,7 +17,7 @@ import {
   type Setup,
   type Tune,
 } from "./sim";
-import { createWorld } from "./world";
+import { FOG, createWorld } from "./world";
 
 export type FrameInfo = {
   mph: number;
@@ -75,6 +75,10 @@ export class DriveGame {
   private shiftDown = false;
   private switching = false;
   private inWater = false;
+  private posed = false;
+  private carVisualY = 0;
+  private carPitch = 0;
+  private carRoll = 0;
   private readonly desired = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   private readonly sunDir = new THREE.Vector3(0.84, 0.3, 0.36).normalize();
@@ -88,11 +92,11 @@ export class DriveGame {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
 
-    this.camera = new THREE.PerspectiveCamera(62, 1, 0.15, 2500);
+    this.camera = new THREE.PerspectiveCamera(62, 1, 0.15, 4000);
     this.resize();
 
-    this.scene.background = new THREE.Color(0x8ecfff);
-    this.scene.fog = new THREE.Fog(0x9fd4f5, 90, 520);
+    this.scene.background = new THREE.Color(FOG.color);
+    this.scene.fog = new THREE.Fog(FOG.color, FOG.near, FOG.far);
 
     const hemi = new THREE.HemisphereLight(0xfff0dc, 0x4e8a46, 1.15);
     this.scene.add(hemi);
@@ -194,6 +198,7 @@ export class DriveGame {
     resetCar(this.car);
     this.inWater = false;
     this.snap = true;
+    this.posed = false;
     this.say("Back to the start");
   }
 
@@ -368,7 +373,7 @@ export class DriveGame {
     this.visual.chassis.rotation.x += (clampLean(pitch) - this.visual.chassis.rotation.x) * 0.35;
     this.visual.tail.emissiveIntensity = input.brake > 0 && this.car.speed > 0.4 ? 2.4 : 0.45;
 
-    this.placeCar();
+    this.placeCar(dt);
     this.placeCamera(dt);
     this.followSun();
 
@@ -379,23 +384,50 @@ export class DriveGame {
     this.onFrame(this.frameInfo(gear, surface.name));
   }
 
-  private placeCar() {
-    this.visual.root.position.set(this.car.x, this.visual.ride, this.car.z);
-    this.visual.root.rotation.y = this.car.yaw;
+  private placeCar(dt = 0) {
+    const y = this.world.heightAt(this.car.x, this.car.z);
+    const ahead = 2.4;
+    const side = 1.05;
+    const fx = Math.sin(this.car.yaw);
+    const fz = Math.cos(this.car.yaw);
+    const rx = Math.cos(this.car.yaw);
+    const rz = -Math.sin(this.car.yaw);
+    const yF = this.world.heightAt(this.car.x + fx * ahead, this.car.z + fz * ahead);
+    const yB = this.world.heightAt(this.car.x - fx * ahead, this.car.z - fz * ahead);
+    const yL = this.world.heightAt(this.car.x - rx * side, this.car.z - rz * side);
+    const yR = this.world.heightAt(this.car.x + rx * side, this.car.z + rz * side);
+    const pitch = Math.max(-0.28, Math.min(0.28, Math.atan2(yB - yF, ahead * 2)));
+    const roll = Math.max(-0.28, Math.min(0.28, Math.atan2(yR - yL, side * 2)));
+    const targetY = y + this.visual.ride;
+    if (!this.posed || dt <= 0) {
+      this.carVisualY = targetY;
+      this.carPitch = pitch;
+      this.carRoll = roll;
+      this.posed = true;
+    } else {
+      const k = 1 - Math.exp(-8 * dt);
+      this.carVisualY += (targetY - this.carVisualY) * k;
+      this.carPitch += (pitch - this.carPitch) * k;
+      this.carRoll += (roll - this.carRoll) * k;
+    }
+    this.visual.root.position.set(this.car.x, this.carVisualY, this.car.z);
+    this.visual.root.rotation.order = "YXZ";
+    this.visual.root.rotation.set(this.carPitch, this.car.yaw, this.carRoll);
   }
 
   private placeCamera(dt: number) {
     const fx = Math.sin(this.car.yaw);
     const fz = Math.cos(this.car.yaw);
+    const y = this.carVisualY;
     if (this.camMode === "chase") {
-      this.desired.set(this.car.x - fx * 13.5, 5.8, this.car.z - fz * 13.5);
-      this.look.set(this.car.x + fx * 10, 1.15, this.car.z + fz * 10);
+      this.desired.set(this.car.x - fx * 13.5, y + 5.8, this.car.z - fz * 13.5);
+      this.look.set(this.car.x + fx * 10, y + 1.15, this.car.z + fz * 10);
     } else if (this.camMode === "bumper") {
-      this.desired.set(this.car.x - fx * 4.3, 1.65, this.car.z - fz * 4.3);
-      this.look.set(this.car.x + fx * 8, 0.9, this.car.z + fz * 8);
+      this.desired.set(this.car.x - fx * 4.3, y + 1.65, this.car.z - fz * 4.3);
+      this.look.set(this.car.x + fx * 8, y + 0.9, this.car.z + fz * 8);
     } else {
-      this.desired.set(this.car.x + fx * 0.7, 1.15, this.car.z + fz * 0.7);
-      this.look.set(this.car.x + fx * 14, 0.95, this.car.z + fz * 14);
+      this.desired.set(this.car.x + fx * 0.7, y + 1.15, this.car.z + fz * 0.7);
+      this.look.set(this.car.x + fx * 14, y + 0.95, this.car.z + fz * 14);
     }
     if (this.snap) {
       this.camera.position.copy(this.desired);
@@ -431,8 +463,9 @@ export class DriveGame {
   }
 
   private draw(dt: number) {
+    this.world.update(this.car.x, this.car.z, dt);
     if (!this.running) {
-      this.placeCar();
+      this.placeCar(dt);
       this.placeCamera(Math.max(dt, 0.016));
       this.followSun();
       this.onFrame(this.frameInfo("N", "Road", 0));

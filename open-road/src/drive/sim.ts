@@ -1,4 +1,5 @@
 import { LAKE, PATCHES } from "./mapData";
+import { WORLD_LIMIT } from "./terrain";
 
 export type Drive = "fwd" | "rwd" | "awd";
 
@@ -521,7 +522,7 @@ export function resolveCollisions(car: Car, colliders: Collider[]) {
     if (c.kind === "circle") impact = Math.max(impact, pushCircle(car, c.x, c.z, c.r + radius));
     else impact = Math.max(impact, pushBox(car, c, radius));
   }
-  const bound = 400;
+  const bound = WORLD_LIMIT;
   if (Math.abs(car.x) > bound || Math.abs(car.z) > bound) {
     const before = Math.abs(car.speed);
     car.x = clamp(car.x, -bound, bound);
