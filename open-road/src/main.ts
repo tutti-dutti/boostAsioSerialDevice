@@ -18,7 +18,7 @@ app.innerHTML = `
       <li><b>A D</b> steer</li>
       <li><b>Space</b> slide</li>
     </ul>
-    <p class="note">Turn your sound on. The engine is made live in the game. Stay on the road to go fast.</p>
+    <p class="note">Turn your sound on. A song plays in the background while you drive. Stay on the road to go fast.</p>
   </section>
   <div id="hud" class="hud is-hidden">
     <header class="top">
@@ -36,8 +36,8 @@ app.innerHTML = `
     <canvas id="map" class="map" width="180" height="180"></canvas>
     <div id="toast" class="toast"></div>
     <div id="engine" class="engine">Engine off</div>
+    <p class="hints">Arrows or WASD to drive · Space slide · C camera · H horn · R reset</p>
     <footer class="bottom">
-      <p class="hints">W gas · S brake / reverse · A D steer · Space slide · C camera · H horn · R reset</p>
       <div class="cluster">
         <div class="rpm"><div id="rpm-bar"></div></div>
         <div id="speed" class="speed">0</div>
@@ -140,6 +140,7 @@ const showMenu = () => {
 
 playBtn.addEventListener("click", () => {
   showPlay();
+  game.playMusic();
   void game.start();
 });
 

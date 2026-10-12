@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { EngineAudio } from "./audio";
-import { createCar } from "./car";
+import { loadSportsCar, type CarVisual } from "./car";
 import {
   REDLINE,
   gearLabel,
@@ -42,7 +42,7 @@ export class DriveGame {
   private camera: THREE.PerspectiveCamera;
   private sun: THREE.DirectionalLight;
   private car: Car = makeCar();
-  private visual = createCar();
+  private visual: CarVisual = emptyCar();
   private world = createWorld();
   private audio = new EngineAudio();
   private keys = new Set<string>();
@@ -86,6 +86,7 @@ export class DriveGame {
 
     this.scene.add(this.world.object, this.visual.root);
     this.placeCar();
+    void this.mountCar();
 
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
@@ -93,12 +94,29 @@ export class DriveGame {
     this.draw(0);
   }
 
+  private async mountCar() {
+    try {
+      const next = await loadSportsCar();
+      this.scene.remove(this.visual.root);
+      this.visual = next;
+      this.scene.add(next.root);
+      this.placeCar();
+    } catch (err) {
+      console.error("Could not load the car model", err);
+    }
+  }
+
   hold(action: string, down: boolean) {
     if (down) this.holds.add(action);
     else this.holds.delete(action);
   }
 
+  playMusic() {
+    this.audio.playMusic();
+  }
+
   async start() {
+    this.audio.playMusic();
     try {
       await this.audio.start();
     } catch {
@@ -254,8 +272,8 @@ export class DriveGame {
       active: true,
     });
 
-    this.roll += (this.car.speed / 0.36) * dt;
-    const steerVis = input.steer * 0.42;
+    this.roll += (this.car.speed / this.visual.wheelRadius) * dt;
+    const steerVis = -input.steer * 0.65;
     for (const wheel of this.visual.wheels) {
       wheel.spin.rotation.x = this.roll;
       if (wheel.front) wheel.pivot.rotation.y = steerVis;
@@ -263,7 +281,7 @@ export class DriveGame {
 
     const accel = (this.car.speed - this.prevSpeed) / Math.max(dt, 0.001);
     this.prevSpeed = this.car.speed;
-    const targetRoll = clampLean(-this.car.lat * 0.03 - input.steer * Math.abs(this.car.speed) * 0.0035);
+    const targetRoll = clampLean(-this.car.lat * 0.03 + input.steer * Math.abs(this.car.speed) * 0.0035);
     const targetPitch = clampLean(-accel * 0.01);
     this.visual.chassis.rotation.z += (targetRoll - this.visual.chassis.rotation.z) * 0.12;
     this.visual.chassis.rotation.x += (targetPitch - this.visual.chassis.rotation.x) * 0.12;
@@ -301,8 +319,8 @@ export class DriveGame {
     const fx = Math.sin(this.car.yaw);
     const fz = Math.cos(this.car.yaw);
     if (this.camMode === "chase") {
-      this.desired.set(this.car.x - fx * 7.2, 2.7, this.car.z - fz * 7.2);
-      this.look.set(this.car.x + fx * 5, 0.9, this.car.z + fz * 5);
+      this.desired.set(this.car.x - fx * 13.5, 5.8, this.car.z - fz * 13.5);
+      this.look.set(this.car.x + fx * 10, 1.15, this.car.z + fz * 10);
     } else if (this.camMode === "bumper") {
       this.desired.set(this.car.x - fx * 4.3, 1.65, this.car.z - fz * 4.3);
       this.look.set(this.car.x + fx * 8, 0.9, this.car.z + fz * 8);
@@ -350,4 +368,18 @@ export class DriveGame {
 
 function clampLean(v: number) {
   return Math.max(-0.1, Math.min(0.1, v));
+}
+
+function emptyCar(): CarVisual {
+  const root = new THREE.Group();
+  const chassis = new THREE.Group();
+  root.add(chassis);
+  return {
+    root,
+    chassis,
+    wheels: [],
+    tail: new THREE.MeshStandardMaterial(),
+    head: new THREE.MeshStandardMaterial(),
+    wheelRadius: 0.55,
+  };
 }

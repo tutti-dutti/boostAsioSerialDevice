@@ -142,17 +142,17 @@ export function stepCar(car: Car, input: Input, surface: Surface, dt: number) {
   if (car.speed > surface.max) car.speed = Math.max(surface.max, car.speed - 20 * dtSafe);
   car.speed = clamp(car.speed, -15, 82);
 
-  const moving = Math.abs(car.speed) > 0.35;
+  const moving = Math.abs(car.speed) > 0.15;
   if (moving) {
-    const steerScale = 1.45 / (1 + Math.abs(car.speed) * 0.048);
-    car.yaw += input.steer * steerScale * Math.sign(car.speed) * dtSafe;
+    const steerScale = 2.85 / (1 + Math.abs(car.speed) * 0.022);
+    car.yaw -= input.steer * steerScale * Math.sign(car.speed) * dtSafe;
   }
-  if (input.handbrake && Math.abs(car.speed) > 7) {
-    car.yaw += input.steer * 1.7 * Math.sign(car.speed) * dtSafe;
+  if (input.handbrake && Math.abs(car.speed) > 6) {
+    car.yaw -= input.steer * 2.4 * Math.sign(car.speed) * dtSafe;
   }
 
   const grip = surface.grip * (input.handbrake ? 0.28 : 1);
-  car.lat += input.steer * car.speed * 0.55 * dtSafe;
+  car.lat -= input.steer * car.speed * 0.55 * dtSafe;
   car.lat *= Math.exp(-(2 + grip * 6) * dtSafe);
   car.lat = clamp(car.lat, -16, 16);
 

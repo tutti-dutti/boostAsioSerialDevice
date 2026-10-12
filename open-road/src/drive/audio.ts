@@ -23,6 +23,8 @@ function noiseBuffer(ctx: AudioContext) {
   return buffer;
 }
 
+const SONG = "/music/paulyudin-rock-490391.mp3";
+
 export class EngineAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -33,17 +35,35 @@ export class EngineAudio {
   private skidGain: GainNode | null = null;
   private oscs: OscillatorNode[] = [];
   private lastGear = "";
+  private music: HTMLAudioElement | null = null;
 
   get on() {
     return this.ctx?.state === "running";
   }
 
+  /** Start the background song immediately. Call this from the Drive click. */
+  playMusic() {
+    if (!this.music) {
+      const music = new Audio(SONG);
+      music.loop = true;
+      music.preload = "auto";
+      music.volume = 0.42;
+      music.setAttribute("data-bgm", "paulyudin-rock");
+      document.body.appendChild(music);
+      this.music = music;
+    }
+    const pending = this.music.play();
+    if (pending) pending.catch(() => undefined);
+  }
+
   async start() {
+    this.playMusic();
     if (!this.ctx) this.build();
     if (this.ctx && this.ctx.state !== "running") await this.ctx.resume();
   }
 
   silence() {
+    this.music?.pause();
     if (!this.ctx || !this.engineGain || !this.exhaustGain || !this.windGain || !this.skidGain) return;
     const now = this.ctx.currentTime;
     this.engineGain.gain.setTargetAtTime(0.0001, now, 0.03);
