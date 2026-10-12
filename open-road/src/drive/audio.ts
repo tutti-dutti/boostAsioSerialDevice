@@ -3,9 +3,11 @@
 export type EngineVoice = "v8" | "v10" | "v12" | "turbo" | "ev" | "diesel" | "lambchop";
 
 const LAMBCHOP_ENGINE = "/sounds/lambchop-engine.mp3";
-/** Steady mid section of the sample, looped while driving. */
-const LAMB_LOOP_START = 6.85;
-const LAMB_LOOP_END = 8.55;
+/** Loud sustained section used for the driving loop. */
+const LAMB_LOOP_START = 3.55;
+const LAMB_LOOP_END = 4.65;
+const LAMB_REV_START = 0.12;
+const LAMB_REV_DUR = 2.4;
 
 function distortionCurve(amount: number) {
   const n = 256;
@@ -28,6 +30,27 @@ function noiseBuffer(ctx: AudioContext) {
     data[i] = last * 3.2;
   }
   return buffer;
+}
+
+/** Slice a loud section and crossfade the seam so the loop has no click. */
+function makeCrossfadeLoop(source: AudioBuffer, startSec: number, endSec: number, fadeSec: number) {
+  const sr = source.sampleRate;
+  const start = Math.max(0, Math.floor(startSec * sr));
+  const end = Math.min(source.length, Math.floor(endSec * sr));
+  const fade = Math.min(Math.floor(fadeSec * sr), Math.floor((end - start) / 3));
+  const len = end - start;
+  const out = new AudioBuffer({ length: len, numberOfChannels: source.numberOfChannels, sampleRate: sr });
+  for (let c = 0; c < source.numberOfChannels; c++) {
+    const src = source.getChannelData(c);
+    const dst = out.getChannelData(c);
+    for (let i = 0; i < len; i++) dst[i] = src[start + i] ?? 0;
+    for (let i = 0; i < fade; i++) {
+      const t = i / fade;
+      const fromEnd = src[end - fade + i] ?? 0;
+      dst[i] = dst[i] * t + fromEnd * (1 - t);
+    }
+  }
+  return out;
 }
 
 const SONG = "/music/paulyudin-rock-490391.mp3";
@@ -109,22 +132,30 @@ export class EngineAudio {
   private music: HTMLAudioElement | null = null;
   private voice: EngineVoice = "v12";
   private lastThrottle = 0;
-  private lambBuffer: AudioBuffer | null = null;
+  private lambSource: AudioBuffer | null = null;
+  private lambLoopBuf: AudioBuffer | null = null;
   private lambLoop: AudioBufferSourceNode | null = null;
   private lambLoopGain: GainNode | null = null;
   private lambRevGain: GainNode | null = null;
   private lambLoading: Promise<void> | null = null;
   private revUntil = 0;
+  private lastRpm = 900;
+  /** Latest Lambchop mix values, for tests. */
+  debug = { rate: 0, loopVol: 0, revVol: 0, looping: false, ready: false };
 
   get on() {
     return this.ctx?.state === "running";
   }
 
   setVoice(voice: EngineVoice) {
+    const prev = this.voice;
     this.voice = voice;
     this.applyVoiceMix();
-    if (voice === "lambchop") void this.ensureLambchop();
-    else this.stopLambLoop();
+    if (voice === "lambchop") {
+      if (this.ctx?.state === "running") void this.ensureLambchop();
+    } else if (prev === "lambchop") {
+      this.stopLambLoop();
+    }
   }
 
   /** Start the background song immediately. Call this from the Drive click. */
@@ -142,10 +173,12 @@ export class EngineAudio {
     if (pending) pending.catch(() => undefined);
   }
 
+  /** Call from a click or key press so the browser allows sound. */
   async start() {
     this.playMusic();
     if (!this.ctx) this.build();
     if (this.ctx && this.ctx.state !== "running") await this.ctx.resume();
+    if (this.voice === "lambchop") await this.ensureLambchop();
   }
 
   silence() {
@@ -162,8 +195,7 @@ export class EngineAudio {
   }
 
   private async ensureLambchop() {
-    if (!this.ctx) this.build();
-    if (!this.ctx || !this.master) return;
+    if (!this.ctx || !this.master || this.ctx.state !== "running") return;
     if (!this.lambLoopGain) {
       const loopGain = this.ctx.createGain();
       loopGain.gain.value = 0.0001;
@@ -174,7 +206,7 @@ export class EngineAudio {
       revGain.connect(this.master);
       this.lambRevGain = revGain;
     }
-    if (!this.lambBuffer) {
+    if (!this.lambLoopBuf) {
       if (!this.lambLoading) {
         this.lambLoading = fetch(LAMBCHOP_ENGINE)
           .then((res) => {
@@ -183,7 +215,9 @@ export class EngineAudio {
           })
           .then((raw) => this.ctx!.decodeAudioData(raw))
           .then((buffer) => {
-            this.lambBuffer = buffer;
+            this.lambSource = buffer;
+            this.lambLoopBuf = makeCrossfadeLoop(buffer, LAMB_LOOP_START, LAMB_LOOP_END, 0.07);
+            this.debug.ready = true;
           })
           .catch((err) => {
             console.error(err);
@@ -196,16 +230,15 @@ export class EngineAudio {
   }
 
   private startLambLoop() {
-    if (!this.ctx || !this.lambBuffer || !this.lambLoopGain || this.lambLoop) return;
+    if (!this.ctx || !this.lambLoopBuf || !this.lambLoopGain || this.lambLoop) return;
     const src = this.ctx.createBufferSource();
-    src.buffer = this.lambBuffer;
+    src.buffer = this.lambLoopBuf;
     src.loop = true;
-    src.loopStart = LAMB_LOOP_START;
-    src.loopEnd = Math.min(LAMB_LOOP_END, this.lambBuffer.duration);
-    src.playbackRate.value = 1;
+    src.playbackRate.value = 0.85;
     src.connect(this.lambLoopGain);
-    src.start(0, LAMB_LOOP_START);
+    src.start();
     this.lambLoop = src;
+    this.debug.looping = true;
   }
 
   private stopLambLoop() {
@@ -218,31 +251,29 @@ export class EngineAudio {
       this.lambLoop.disconnect();
       this.lambLoop = null;
     }
+    this.debug.looping = false;
     if (this.ctx && this.lambLoopGain) {
       this.lambLoopGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.03);
     }
   }
 
-  private playFullRev() {
-    if (!this.ctx || !this.lambBuffer || !this.lambRevGain || !this.lambLoopGain) return;
+  private playLaunchRev() {
+    if (!this.ctx || !this.lambSource || !this.lambRevGain || !this.lambLoopGain) return;
     const now = this.ctx.currentTime;
     if (now < this.revUntil) return;
     const src = this.ctx.createBufferSource();
-    src.buffer = this.lambBuffer;
+    src.buffer = this.lambSource;
     src.connect(this.lambRevGain);
     this.lambRevGain.gain.cancelScheduledValues(now);
     this.lambRevGain.gain.setValueAtTime(0.0001, now);
-    this.lambRevGain.gain.exponentialRampToValueAtTime(0.55, now + 0.05);
-    this.lambRevGain.gain.setValueAtTime(0.55, now + 5.2);
-    this.lambRevGain.gain.exponentialRampToValueAtTime(0.0001, now + 5.8);
-    this.lambLoopGain.gain.setTargetAtTime(0.04, now, 0.08);
-    src.start(now, 0.15, 5.7);
-    this.revUntil = now + 5.5;
-    src.onended = () => {
-      if (this.voice === "lambchop" && this.ctx && this.lambLoopGain) {
-        this.lambLoopGain.gain.setTargetAtTime(0.28, this.ctx.currentTime, 0.12);
-      }
-    };
+    this.lambRevGain.gain.exponentialRampToValueAtTime(0.62, now + 0.04);
+    this.lambRevGain.gain.setValueAtTime(0.55, now + LAMB_REV_DUR - 0.45);
+    this.lambRevGain.gain.exponentialRampToValueAtTime(0.0001, now + LAMB_REV_DUR);
+    // Keep the driving loop under the rev, then hand off smoothly.
+    this.lambLoopGain.gain.setTargetAtTime(0.16, now, 0.05);
+    src.start(now, LAMB_REV_START, LAMB_REV_DUR);
+    this.revUntil = now + LAMB_REV_DUR - 0.35;
+    this.debug.revVol = 0.62;
   }
 
   private build() {
@@ -364,17 +395,47 @@ export class EngineAudio {
     const rpm = Math.max(700, opts.rpm);
 
     if (this.voice === "lambchop") {
-      if (!this.lambLoop && this.lambBuffer) this.startLambLoop();
-      else if (!this.lambBuffer) void this.ensureLambchop();
-      const rate = 0.72 + ((rpm - 800) / 6800) * 0.78 + opts.throttle * 0.08;
-      if (this.lambLoop) this.lambLoop.playbackRate.setTargetAtTime(Math.max(0.65, Math.min(1.55, rate)), now, 0.05);
-      const looping = now >= this.revUntil;
-      const loopVol = audible * (looping ? 0.18 + opts.throttle * 0.22 + Math.min(0.12, opts.speed / 140) : 0.05);
-      this.lambLoopGain?.gain.setTargetAtTime(Math.max(0.0001, loopVol), now, 0.06);
+      if (!this.lambLoopBuf) void this.ensureLambchop();
+      else if (!this.lambLoop) this.startLambLoop();
+
+      // Pitch follows RPM every frame. Upshifts drop RPM, so pitch drops with it.
+      const rpmN = Math.max(0, Math.min(1, (rpm - 850) / 6750));
+      let rate = 0.78 + rpmN * 0.85;
+      if (opts.gear !== this.lastGear && this.lastGear !== "" && rpm < this.lastRpm - 200) {
+        rate *= 0.92;
+      }
+      rate = Math.max(0.7, Math.min(1.65, rate));
+      if (this.lambLoop) {
+        this.lambLoop.playbackRate.cancelScheduledValues(now);
+        this.lambLoop.playbackRate.setTargetAtTime(rate, now, 0.02);
+      }
+
+      const inRev = now < this.revUntil;
+      // Loop stays on the whole time. Louder with gas, quieter when you lift.
+      const idle = opts.throttle < 0.05 && opts.speed < 1.2 ? 0.1 : 0;
+      const loopVol =
+        audible *
+        (inRev
+          ? 0.14 + opts.throttle * 0.12
+          : 0.14 + idle + opts.throttle * 0.42 + rpmN * 0.12 + Math.min(0.1, opts.speed / 120));
+      if (this.lambLoopGain) {
+        this.lambLoopGain.gain.cancelScheduledValues(now);
+        this.lambLoopGain.gain.setTargetAtTime(Math.max(0.0001, loopVol), now, 0.025);
+      }
+      this.debug.rate = rate;
+      this.debug.loopVol = loopVol;
+      this.debug.revVol = inRev ? 0.5 : 0;
+      this.debug.looping = !!this.lambLoop;
+
       this.engineGain.gain.setTargetAtTime(0.0001, now, 0.05);
       this.exhaustGain.gain.setTargetAtTime(0.0001, now, 0.05);
-      if (opts.throttle > 0.85 && opts.speed < 3.5 && audible) this.playFullRev();
       this.whooshGain?.gain.setTargetAtTime(0.0001, now, 0.05);
+
+      // Launch rev only when flooring from a near-stop, then blend into the loop.
+      if (audible && opts.throttle > 0.9 && opts.speed < 2.8 && this.lastThrottle <= 0.9) {
+        this.playLaunchRev();
+      }
+      this.lastRpm = rpm;
     } else {
       const profile = VOICE[this.voice];
       const firing = (rpm * profile.cyl) / 120;

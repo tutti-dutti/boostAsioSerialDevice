@@ -102,6 +102,7 @@ const game = new DriveGame(canvas, (info) => {
   paintHud(info);
   paintMap(info);
 });
+(window as unknown as { __driveGame: DriveGame }).__driveGame = game;
 
 function paintHud(info: FrameInfo) {
   carNameEl.textContent = info.carName;

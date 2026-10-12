@@ -135,6 +135,11 @@ export class DriveGame {
     this.audio.playMusic();
   }
 
+  /** Lambchop engine mix readout for tests. */
+  audioDebug() {
+    return { on: this.audio.on, voice: this.ride.voice, ...this.audio.debug };
+  }
+
   setInputBlocked(blocked: boolean) {
     this.inputBlocked = blocked;
     if (blocked) this.holds.clear();
