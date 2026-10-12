@@ -250,6 +250,19 @@ export class DriveGame {
     }
   }
 
+  /** Side silhouette for garage screenshots (freecam orbit). */
+  setSideFreecam(dist = 9, height = 1.8) {
+    if (this.camMode !== "free") {
+      this.camBeforeFree = this.camMode;
+      this.setInputBlocked(true);
+    }
+    this.camMode = "free";
+    this.freeYaw = this.car.yaw + Math.PI / 2;
+    this.freeDist = dist;
+    this.freeHeight = height;
+    this.snap = true;
+  }
+
   private say(text: string) {
     this.toast = text;
     this.toastTimer = 2.2;

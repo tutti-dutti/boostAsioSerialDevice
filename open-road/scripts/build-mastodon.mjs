@@ -1,6 +1,6 @@
 /**
- * Builds a boxy lifted pickup for Shovel-A Mastodon.
- * Original body, not a copy of any real truck.
+ * Shovel-A Mastodon — lifted Silverado ZR2 style pickup.
+ * Closed 4-door cab, wide bar grille, painted bed, light bar, flares, big tires.
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import * as THREE from "three";
@@ -21,7 +21,7 @@ if (typeof globalThis.FileReader === "undefined") {
   };
 }
 
-const paint = new THREE.MeshStandardMaterial({ name: "paint", color: 0xffffff, metalness: 0.45, roughness: 0.42 });
+const paint = new THREE.MeshStandardMaterial({ name: "paint", color: 0xffffff, metalness: 0.4, roughness: 0.45 });
 const glass = new THREE.MeshStandardMaterial({
   name: "glass",
   color: 0x1a2430,
@@ -48,8 +48,8 @@ const tail = new THREE.MeshStandardMaterial({
   roughness: 0.3,
 });
 
-const TIRE_R = 0.55;
-const TIRE_W = 0.38;
+const TIRE_R = 0.58;
+const TIRE_W = 0.4;
 
 function box(w, h, d, material, x, y, z) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
@@ -63,155 +63,102 @@ function wheel(front, left, x, z) {
   const spin = new THREE.Group();
   const tire = new THREE.Mesh(new THREE.CylinderGeometry(TIRE_R, TIRE_R, TIRE_W, 20), rubber);
   tire.rotation.z = Math.PI / 2;
-  const wall = new THREE.Mesh(new THREE.CylinderGeometry(TIRE_R * 0.96, TIRE_R * 0.96, TIRE_W * 1.06, 20), dark);
-  wall.rotation.z = Math.PI / 2;
-  const rimR = TIRE_R * 0.58;
-  const dish = new THREE.Mesh(new THREE.CylinderGeometry(rimR, rimR, 0.04, 16), dark);
+  const dish = new THREE.Mesh(new THREE.CylinderGeometry(TIRE_R * 0.55, TIRE_R * 0.55, 0.05, 14), dark);
   dish.rotation.z = Math.PI / 2;
   const faceX = left ? -TIRE_W * 0.52 : TIRE_W * 0.52;
   dish.position.x = faceX;
-  spin.add(tire, wall, dish);
-  for (let i = 0; i < 6; i++) {
-    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, rimR * 0.75, 0.08), chrome);
-    spoke.geometry.translate(0, rimR * 0.4, 0);
-    spoke.rotation.x = (i / 6) * Math.PI * 2;
-    spoke.position.x = faceX + (left ? -0.02 : 0.02);
+  spin.add(tire, dish);
+  for (let i = 0; i < 5; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, TIRE_R * 0.4, 0.08), chrome);
+    spoke.geometry.translate(0, TIRE_R * 0.35, 0);
+    spoke.rotation.x = (i / 5) * Math.PI * 2;
+    spoke.position.x = faceX;
     spin.add(spoke);
   }
-  const lip = new THREE.Mesh(new THREE.TorusGeometry(rimR * 0.95, 0.035, 8, 20), chrome);
-  lip.rotation.y = Math.PI / 2;
-  lip.position.x = faceX;
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.06, 12), chrome);
-  hub.rotation.z = Math.PI / 2;
-  hub.position.x = faceX + (left ? -0.02 : 0.02);
-  // chunky tread blocks
-  for (let i = 0; i < 16; i++) {
-    const block = new THREE.Mesh(new THREE.BoxGeometry(TIRE_W * 0.7, 0.05, 0.08), rubber);
-    const ang = (i / 16) * Math.PI * 2;
-    block.position.set(0, Math.sin(ang) * (TIRE_R - 0.02), Math.cos(ang) * (TIRE_R - 0.02));
-    block.rotation.x = ang;
-    spin.add(block);
-  }
-  spin.add(lip, hub);
   pivot.add(spin);
   pivot.position.set(left ? -x : x, TIRE_R, z);
   return pivot;
 }
 
-function build() {
-  const root = new THREE.Group();
-  root.name = "mastodon";
-  const chassis = new THREE.Group();
-  chassis.name = "chassis";
+const root = new THREE.Group();
+root.name = "mastodon";
+const c = new THREE.Group();
+c.name = "chassis";
 
-  // Tall lifted stance: short cab up front, long open bed behind.
-  const track = 1.28;
-  const frontZ = 1.75;
-  const rearZ = -1.7;
+// Frame / sills
+c.add(box(2.0, 0.22, 5.0, dark, 0, 0.55, -0.15));
 
-  // Frame / rockers (high ground clearance)
-  chassis.add(box(2.05, 0.2, 5.2, dark, 0, 0.72, 0));
-  chassis.add(box(1.6, 0.1, 1.2, dark, 0, 0.55, 1.9));
+// Closed 4-door cab with solid roof
+c.add(box(2.05, 0.95, 2.55, paint, 0, 1.15, 0.55)); // cabin walls
+c.add(box(2.0, 0.14, 2.5, paint, 0, 1.68, 0.55)); // solid roof
+// Door creases
+for (const z of [0.2, 0.95]) {
+  for (const s of [-1, 1]) c.add(box(0.04, 0.7, 0.04, dark, s * 1.04, 1.1, z));
+}
 
-  // Short crew cab (not an SUV greenhouse)
-  const cab = box(2.15, 1.05, 1.85, paint, 0, 1.55, 0.85);
-  cab.name = "body";
-  chassis.add(cab);
-  // Hood / nose
-  chassis.add(box(2.1, 0.5, 1.55, paint, 0, 1.2, 2.15));
-  // Cab roof
-  chassis.add(box(2.05, 0.12, 1.7, paint, 0, 2.12, 0.85));
+// Glass: windshield, rear, sides (4 doors)
+const ws = box(1.85, 0.55, 0.08, glass, 0, 1.35, 1.75);
+ws.name = "glass";
+ws.rotation.x = -0.28;
+c.add(ws);
+c.add(box(1.8, 0.5, 0.06, glass, 0, 1.35, -0.65));
+for (const s of [-1, 1]) {
+  c.add(box(0.06, 0.45, 0.85, glass, s * 1.04, 1.3, 1.05)); // front doors
+  c.add(box(0.06, 0.45, 0.85, glass, s * 1.04, 1.3, 0.15)); // rear doors
+}
 
-  // OPEN bed: floor, low side walls, open top, tailgate
-  chassis.add(box(2.05, 0.1, 2.35, dark, 0, 1.05, -1.55));
-  chassis.add(box(0.12, 0.62, 2.3, paint, -1.0, 1.35, -1.55));
-  chassis.add(box(0.12, 0.62, 2.3, paint, 1.0, 1.35, -1.55));
-  // Front bed wall (behind cab)
-  chassis.add(box(2.0, 0.7, 0.1, paint, 0, 1.4, -0.35));
-  // Tailgate
-  chassis.add(box(1.95, 0.62, 0.12, paint, 0, 1.35, -2.75));
-  // Bed rails (shows it's open, not a capped SUV)
-  chassis.add(box(0.06, 0.08, 2.25, chrome, -0.95, 1.72, -1.55));
-  chassis.add(box(0.06, 0.08, 2.25, chrome, 0.95, 1.72, -1.55));
+// Hood
+c.add(box(1.95, 0.22, 1.35, paint, 0, 0.95, 2.15));
+c.add(box(1.7, 0.08, 0.9, dark, 0, 1.08, 2.2)); // hood vent panel
 
-  // Glass
-  const windshield = box(1.85, 0.72, 0.08, glass, 0, 1.95, 1.7);
-  windshield.name = "glass";
-  windshield.rotation.x = -0.28;
-  chassis.add(windshield);
-  chassis.add(box(1.7, 0.55, 0.06, glass, 0, 1.95, -0.05));
-  for (const side of [-1, 1]) {
-    chassis.add(box(0.06, 0.5, 0.65, glass, side * 1.09, 1.85, 1.15));
-    chassis.add(box(0.06, 0.5, 0.55, glass, side * 1.09, 1.85, 0.4));
-  }
+// Wide horizontal grille with thick bar
+c.add(box(1.85, 0.55, 0.12, dark, 0, 0.78, 2.85));
+c.add(box(1.7, 0.1, 0.14, chrome, 0, 0.78, 2.92)); // thick middle bar
+for (let i = -3; i <= 3; i++) {
+  if (i === 0) continue;
+  c.add(box(1.55, 0.04, 0.06, chrome, 0, 0.78 + i * 0.07, 2.9));
+}
+for (const s of [-1, 1]) {
+  c.add(box(0.42, 0.28, 0.12, head, s * 0.85, 0.85, 2.88));
+  c.add(box(0.18, 0.12, 0.28, dark, s * 1.2, 1.25, 1.55)); // mirrors
+}
 
-  // Pillars
-  for (const side of [-1, 1]) {
-    chassis.add(box(0.12, 0.9, 0.14, paint, side * 1.0, 1.85, 1.7));
-    chassis.add(box(0.12, 0.9, 0.14, paint, side * 1.0, 1.85, 0.85));
-    chassis.add(box(0.12, 0.9, 0.14, paint, side * 1.0, 1.85, 0.05));
-  }
+// Painted open bed + tailgate (same body color)
+c.add(box(2.0, 0.12, 2.15, paint, 0, 0.78, -1.85)); // bed floor
+for (const s of [-1, 1]) {
+  c.add(box(0.1, 0.55, 2.15, paint, s * 0.98, 1.05, -1.85)); // bed sides
+}
+c.add(box(2.0, 0.55, 0.1, paint, 0, 1.05, -2.9)); // tailgate
+for (const s of [-1, 1]) {
+  c.add(box(0.28, 0.22, 0.1, tail, s * 0.75, 0.95, -2.95));
+}
 
-  // Big fender flares over large tires
-  for (const side of [-1, 1]) {
-    chassis.add(box(0.38, 0.7, 1.15, paint, side * 1.28, 1.2, frontZ));
-    chassis.add(box(0.38, 0.7, 1.15, paint, side * 1.28, 1.2, rearZ));
-  }
+// Fender flares
+for (const s of [-1, 1]) {
+  c.add(box(0.35, 0.35, 0.85, dark, s * 1.2, 0.85, 1.85));
+  c.add(box(0.35, 0.35, 0.85, dark, s * 1.2, 0.85, -1.55));
+}
 
-  // Huge grille + bumper
-  chassis.add(box(1.95, 0.75, 0.16, dark, 0, 1.15, 2.95));
-  for (let i = 0; i < 6; i++) {
-    chassis.add(box(1.65, 0.05, 0.05, chrome, 0, 0.9 + i * 0.1, 3.05));
-  }
-  chassis.add(box(2.25, 0.28, 0.35, dark, 0, 0.72, 2.85));
-  // Tow hooks
-  chassis.add(box(0.12, 0.1, 0.18, chrome, -0.7, 0.62, 3.05));
-  chassis.add(box(0.12, 0.1, 0.18, chrome, 0.7, 0.62, 3.05));
+// Roof light bar
+c.add(box(1.5, 0.1, 0.16, dark, 0, 1.85, 1.4));
+for (let i = -2; i <= 2; i++) {
+  c.add(box(0.14, 0.12, 0.12, head, i * 0.3, 1.88, 1.4));
+}
 
-  // Headlights
-  chassis.add(box(0.4, 0.26, 0.12, head, -0.78, 1.25, 3.0));
-  chassis.add(box(0.4, 0.26, 0.12, head, 0.78, 1.25, 3.0));
-  // Square taillights on tailgate
-  chassis.add(box(0.32, 0.32, 0.1, tail, -0.75, 1.4, -2.85));
-  chassis.add(box(0.32, 0.32, 0.1, tail, 0.75, 1.4, -2.85));
+// Bumpers
+c.add(box(2.1, 0.18, 0.35, dark, 0, 0.55, 3.05));
+c.add(box(2.05, 0.16, 0.28, dark, 0, 0.55, -3.05));
 
-  // Roof light bar
-  chassis.add(box(1.7, 0.12, 0.2, dark, 0, 2.3, 0.95));
-  for (let i = -2; i <= 2; i++) {
-    chassis.add(box(0.18, 0.14, 0.16, head, i * 0.3, 2.42, 0.95));
-  }
-
-  // Side mirrors
-  for (const side of [-1, 1]) {
-    chassis.add(box(0.1, 0.08, 0.22, dark, side * 1.2, 1.75, 1.55));
-    chassis.add(box(0.28, 0.2, 0.34, dark, side * 1.42, 1.78, 1.55));
-    chassis.add(box(0.05, 0.14, 0.24, chrome, side * 1.54, 1.78, 1.55));
-  }
-
-  // Dual exhaust tips under bed
-  for (const x of [-0.55, 0.55]) {
-    const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.22, 10), chrome);
-    exhaust.rotation.x = Math.PI / 2;
-    exhaust.position.set(x, 0.62, -2.85);
-    chassis.add(exhaust);
-  }
-
-  root.add(chassis);
-  for (const left of [true, false]) {
-    root.add(wheel(true, left, track, frontZ));
-    root.add(wheel(false, left, track + 0.06, rearZ));
-  }
-  return root;
+root.add(c);
+const track = 1.2;
+for (const left of [true, false]) {
+  root.add(wheel(true, left, track, 1.85));
+  root.add(wheel(false, left, track + 0.04, -1.55));
 }
 
 mkdirSync(new URL("../public/models/", import.meta.url), { recursive: true });
-const model = build();
 const exporter = new GLTFExporter();
-const glb = await exporter.parseAsync(model, { binary: true });
+const glb = await exporter.parseAsync(root, { binary: true });
 const file = new URL("../public/models/shovel-mastodon.glb", import.meta.url);
 writeFileSync(file, Buffer.from(glb));
-let tris = 0;
-model.traverse((o) => {
-  if (o.isMesh && o.geometry?.index) tris += o.geometry.index.count / 3;
-});
-console.log("shovel-mastodon.glb", Buffer.from(glb).length, "tris", Math.round(tris), "tireR", TIRE_R);
+console.log("shovel-mastodon.glb", Buffer.from(glb).length);

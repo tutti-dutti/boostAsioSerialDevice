@@ -54,7 +54,10 @@ export const GARAGE: GarageCar[] = [
     scale: 1, ride: 0, wheel: 1, color: 0x2f6fed, spoiler: false, roofLights: false, realistic: true,
   }, "v8"),
   car("Shovel-A", "Mastodon", "/models/shovel-mastodon.glb", truck, {
-    scale: 1, ride: 0, wheel: 1, color: 0x2a3328, spoiler: false, roofLights: false, realistic: true,
+    scale: 1, ride: 0, wheel: 1, color: 0x8a8e92, spoiler: false, roofLights: false, realistic: true,
+  }, "diesel"),
+  car("Beep", "Sabertooth", "/models/beep-sabertooth.glb", truckFast, {
+    scale: 1, ride: 0, wheel: 1, color: 0x6b7358, spoiler: false, roofLights: false, realistic: true,
   }, "diesel"),
   car("Baguetti", "Hellhound", "/models/baguetti-hellhound.glb", famous, {
     scale: 1, ride: 0, wheel: 1, color: 0x6e1018, spoiler: false, roofLights: false, realistic: true,

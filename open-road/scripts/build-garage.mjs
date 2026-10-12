@@ -238,191 +238,226 @@ function buildDeathstalker() {
   return finish(root, "porch-deathstalker.glb");
 }
 
-/** Open-top spyder (918-inspired silhouette) */
+/** Open-top spyder (918-inspired): tub seats, flying buttresses, no hard roof */
 function buildHellbender() {
   const root = new THREE.Group();
   root.name = "hellbender";
   const c = new THREE.Group();
   c.name = "chassis";
-  // Long low body + raised side sills
-  c.add(box(1.9, 0.28, 4.1, paint, 0, 0.4, 0));
-  c.add(box(1.7, 0.18, 3.6, paint, 0, 0.55, 0.1));
+  c.add(box(1.95, 0.26, 4.2, paint, 0, 0.38, 0));
+  c.add(box(1.75, 0.16, 3.7, paint, 0, 0.52, 0.1));
+  // Pointed nose distinct from Deathstalker frog-eyes
+  const nose = box(1.4, 0.14, 0.7, paint, 0, 0.4, 2.15);
+  nose.rotation.x = 0.2;
+  c.add(nose);
   for (const s of [-1, 1]) {
-    // Curvy fender volumes over each wheel
-    c.add(cyl(0.42, 0.36, 0.85, paint, s * 0.95, 0.5, 1.45, 0, 0, Math.PI / 2));
-    c.add(cyl(0.44, 0.4, 0.9, paint, s * 1.0, 0.52, -1.4, 0, 0, Math.PI / 2));
-    c.add(box(0.28, 0.22, 2.2, paint, s * 1.05, 0.42, 0.05));
-    c.add(box(0.55, 0.1, 0.14, head, s * 0.55, 0.5, 2.15));
-    c.add(box(0.12, 0.08, 0.18, dark, s * 1.15, 0.72, 0.55)); // mirrors
+    c.add(box(0.2, 0.16, 0.75, paint, s * 1.0, 0.68, 1.4));
+    c.add(box(0.22, 0.18, 0.85, paint, s * 1.05, 0.7, -1.4));
+    c.add(box(0.3, 0.2, 2.1, paint, s * 1.02, 0.4, 0));
+    c.add(box(0.55, 0.08, 0.12, head, s * 0.55, 0.48, 2.35));
+    c.add(box(0.12, 0.08, 0.18, dark, s * 1.12, 0.7, 0.55));
+    // Flying buttress from cabin to rear
+    const butt = box(0.1, 0.12, 1.1, paint, s * 0.7, 0.85, -0.7);
+    butt.rotation.x = 0.25;
+    c.add(butt);
   }
-  // Open cockpit tub + seats, no roof
-  c.add(box(1.25, 0.16, 1.2, dark, 0, 0.58, 0.05));
-  c.add(box(1.15, 0.42, 0.08, glass, 0, 0.82, 0.7));
-  c.add(box(0.08, 0.35, 0.9, dark, -0.62, 0.78, 0.05)); // windshield pillars
-  c.add(box(0.08, 0.35, 0.9, dark, 0.62, 0.78, 0.05));
-  c.add(box(0.48, 0.38, 0.42, dark, -0.28, 0.78, -0.1));
-  c.add(box(0.48, 0.38, 0.42, dark, 0.28, 0.78, -0.1));
-  // Engine cover behind seats + twin stacks pointing up
-  c.add(box(1.3, 0.22, 0.7, paint, 0, 0.62, -0.85));
+  c.add(box(1.3, 0.14, 1.15, dark, 0, 0.55, 0.1)); // open tub
+  const ws = box(1.2, 0.4, 0.07, glass, 0, 0.85, 0.75);
+  ws.name = "glass";
+  ws.rotation.x = -0.2;
+  c.add(ws);
+  c.add(box(0.08, 0.38, 0.08, dark, -0.62, 0.85, 0.7));
+  c.add(box(0.08, 0.38, 0.08, dark, 0.62, 0.85, 0.7));
+  c.add(box(0.5, 0.32, 0.45, dark, -0.3, 0.72, 0));
+  c.add(box(0.5, 0.32, 0.45, dark, 0.3, 0.72, 0));
+  c.add(box(1.4, 0.28, 0.9, paint, 0, 0.58, -0.95)); // engine cover
   for (const s of [-1, 1]) {
-    c.add(cyl(0.07, 0.08, 0.7, chrome, s * 0.2, 1.05, -0.55, 0, 0, 0));
-    c.add(cyl(0.09, 0.09, 0.06, chrome, s * 0.2, 1.4, -0.55, 0, 0, 0));
+    c.add(cyl(0.06, 0.07, 0.55, chrome, s * 0.22, 0.95, -0.6, 0, 0, 0));
+    c.add(cyl(0.08, 0.08, 0.05, chrome, s * 0.22, 1.22, -0.6, 0, 0, 0));
   }
-  c.add(box(1.8, 0.1, 0.4, dark, 0, 0.28, -2.1));
-  for (const s of [-1, 1]) c.add(box(0.35, 0.1, 0.06, tail, s * 0.55, 0.52, -2.15));
+  c.add(box(1.85, 0.1, 0.4, dark, 0, 0.28, -2.15));
+  for (const s of [-1, 1]) c.add(box(0.35, 0.1, 0.06, tail, s * 0.55, 0.5, -2.2));
   root.add(c);
-  addWheels(root, 0.95, 1.0, 1.4, -1.4, 0.92, 1.15);
+  addWheels(root, 0.9, 0.96, 1.4, -1.45, 0.9, 1.15);
   return finish(root, "porch-hellbender.glb");
 }
 
-/** P1-style teardrop + wing */
+/** P1: small dark teardrop cabin, swoopy sides, pointy nose, big wing */
 function buildPterodactyl() {
   const root = new THREE.Group();
   root.name = "pterodactyl";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(1.9, 0.3, 4.0, paint, 0, 0.42, 0));
-  const cabin = box(1.1, 0.45, 1.4, paint, 0, 0.75, 0.05);
-  cabin.rotation.x = -0.05;
-  c.add(cabin);
-  const ws = box(1.0, 0.42, 0.06, glass, 0, 0.78, 0.7);
-  ws.name = "glass";
-  ws.rotation.x = -0.5;
-  c.add(ws);
-  c.add(box(0.9, 0.3, 0.05, glass, 0, 0.8, -0.55));
+  const nose = box(0.95, 0.14, 1.0, paint, 0, 0.34, 2.15);
+  nose.rotation.x = 0.28;
+  c.add(nose);
+  c.add(box(1.4, 0.22, 1.8, paint, 0, 0.38, 0.7));
+  c.add(box(1.7, 0.28, 1.6, paint, 0, 0.4, -0.85));
   for (const s of [-1, 1]) {
-    c.add(box(0.45, 0.45, 1.0, dark, s * 0.95, 0.55, -0.2)); // huge side intakes
-    c.add(box(0.55, 0.06, 0.1, head, s * 0.5, 0.45, 2.05));
-    c.add(box(0.05, 0.35, 0.22, dark, s * 0.7, 0.85, -1.55));
+    // Swoopy rising side — not Jackal flat boxes
+    c.add(box(0.4, 0.4, 1.5, paint, s * 0.92, 0.48, -0.55));
+    c.add(box(0.48, 0.5, 1.0, dark, s * 0.98, 0.52, -0.05));
+    c.add(box(0.24, 0.2, 0.8, paint, s * 0.92, 0.62, 1.25));
+    c.add(box(0.26, 0.22, 0.85, paint, s * 0.98, 0.64, -1.4));
+    c.add(box(0.45, 0.05, 0.1, head, s * 0.42, 0.4, 2.55));
+    c.add(box(0.06, 0.42, 0.2, dark, s * 0.78, 0.98, -1.65));
   }
-  c.add(box(2.0, 0.05, 0.4, paint, 0, 1.15, -1.55)); // big wing
-  c.add(box(1.6, 0.08, 0.5, dark, 0, 0.28, -2.05));
-  for (const s of [-1, 1]) c.add(box(0.4, 0.08, 0.05, tail, s * 0.45, 0.55, -2.1));
+  // Small dark teardrop cabin (distinct from orange body)
+  c.add(box(0.95, 0.28, 1.2, dark, 0, 0.68, 0.05));
+  const tear = box(0.75, 0.18, 0.9, dark, 0, 0.85, -0.05);
+  tear.rotation.x = -0.2;
+  c.add(tear);
+  const ws = box(0.8, 0.34, 0.06, glass, 0, 0.78, 0.55);
+  ws.name = "glass";
+  ws.rotation.x = -0.55;
+  c.add(ws);
+  c.add(box(0.7, 0.2, 0.05, glass, 0, 0.78, -0.5));
+  c.add(box(2.1, 0.05, 0.45, paint, 0, 1.22, -1.6));
+  c.add(box(1.55, 0.08, 0.4, dark, 0, 0.26, -2.15));
+  for (const s of [-1, 1]) c.add(box(0.32, 0.08, 0.05, tail, s * 0.42, 0.52, -2.2));
   root.add(c);
-  addWheels(root, 0.95, 1.05, 1.4, -1.45, 0.93, 1.2);
+  addWheels(root, 0.88, 0.96, 1.3, -1.4, 0.9, 1.18);
   return finish(root, "mcroar-pterodactyl.glb");
 }
 
-/** Long Speedtail teardrop */
+/** Speedtail: smooth bullet, mid bubble cabin, long tapering tail */
 function buildGreatWhite() {
   const root = new THREE.Group();
   root.name = "great-white";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(1.7, 0.28, 4.6, paint, 0, 0.4, -0.1));
-  const nose = box(1.4, 0.22, 1.2, paint, 0, 0.42, 1.9);
-  nose.rotation.x = 0.08;
-  c.add(nose);
-  const cabin = box(1.15, 0.4, 1.8, paint, 0, 0.7, 0.2);
-  cabin.rotation.x = -0.04;
-  c.add(cabin);
-  const tailBody = box(1.35, 0.22, 1.6, paint, 0, 0.48, -1.7);
-  tailBody.rotation.x = -0.12;
-  c.add(tailBody);
-  const ws = box(1.05, 0.38, 0.06, glass, 0, 0.72, 1.0);
+  // Continuous bullet silhouette — tapering steps, not a brick
+  c.add(cyl(0.42, 0.62, 0.9, paint, 0, 0.42, 2.35, 0, 0, Math.PI / 2));
+  c.add(box(1.35, 0.28, 1.3, paint, 0, 0.42, 1.55));
+  c.add(box(1.55, 0.3, 1.4, paint, 0, 0.44, 0.25));
+  c.add(box(1.35, 0.26, 1.3, paint, 0, 0.42, -1.15));
+  c.add(box(1.0, 0.2, 1.1, paint, 0, 0.38, -2.25));
+  c.add(box(0.65, 0.14, 0.85, paint, 0, 0.34, -3.1));
+  c.add(box(0.35, 0.1, 0.45, paint, 0, 0.3, -3.65)); // needle tip
+  // Bubble cabin midships
+  c.add(cyl(0.45, 0.55, 1.2, paint, 0, 0.7, 0.2, 0, 0, Math.PI / 2));
+  c.add(box(1.0, 0.34, 1.15, paint, 0, 0.76, 0.2));
+  const ws = box(0.95, 0.38, 0.06, glass, 0, 0.8, 0.75);
   ws.name = "glass";
-  ws.rotation.x = -0.48;
+  ws.rotation.x = -0.38;
   c.add(ws);
-  c.add(box(0.95, 0.25, 0.05, glass, 0, 0.7, -0.5));
+  c.add(box(0.85, 0.26, 0.05, glass, 0, 0.78, -0.35));
   for (const s of [-1, 1]) {
-    c.add(box(0.45, 0.05, 0.1, head, s * 0.5, 0.42, 2.45));
-    c.add(box(0.35, 0.06, 0.05, tail, s * 0.4, 0.5, -2.45));
+    c.add(box(0.18, 0.12, 0.5, paint, s * 0.8, 0.58, 1.35));
+    c.add(box(0.18, 0.12, 0.5, paint, s * 0.78, 0.56, -1.55));
+    c.add(box(0.38, 0.05, 0.1, head, s * 0.4, 0.4, 2.75));
+    c.add(box(0.22, 0.05, 0.05, tail, s * 0.28, 0.42, -3.8));
   }
   root.add(c);
-  addWheels(root, 0.85, 0.9, 1.55, -1.7, 0.9, 1.1);
+  addWheels(root, 0.78, 0.8, 1.4, -1.7, 0.85, 1.08);
   return finish(root, "mcroar-great-white.glb");
 }
 
-/** Agera-style short nose + wing */
+/** Agera: short dipped nose, bubble wraparound, round tails, wide muscular */
 function buildLeviathan() {
   const root = new THREE.Group();
   root.name = "leviathan";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(2.0, 0.32, 3.8, paint, 0, 0.42, 0));
-  c.add(box(1.5, 0.2, 0.9, paint, 0, 0.45, 1.7)); // short rounded nose
-  c.add(box(1.3, 0.4, 1.3, paint, 0, 0.72, -0.1));
-  const ws = box(1.15, 0.38, 0.06, glass, 0, 0.75, 0.55);
-  ws.name = "glass";
-  ws.rotation.x = -0.5;
-  c.add(ws);
-  c.add(box(1.0, 0.28, 0.05, glass, 0, 0.75, -0.65));
+  // Wide short body — not a Jackal wedge box
+  c.add(box(2.15, 0.28, 3.3, paint, 0, 0.4, -0.15));
+  c.add(cyl(0.4, 0.7, 0.85, paint, 0, 0.36, 1.75, 0, 0, Math.PI / 2));
+  const nose = box(1.5, 0.16, 0.75, paint, 0, 0.32, 1.85);
+  nose.rotation.x = 0.35;
+  c.add(nose);
   for (const s of [-1, 1]) {
-    c.add(box(0.5, 0.06, 0.1, head, s * 0.6, 0.45, 2.1));
-    c.add(cyl(0.1, 0.1, 0.06, tail, s * 0.5, 0.55, -1.95, Math.PI / 2, 0, 0));
-    c.add(box(0.05, 0.35, 0.2, dark, s * 0.75, 0.9, -1.5));
+    c.add(box(0.45, 0.42, 1.4, paint, s * 1.1, 0.5, -0.65));
+    c.add(box(0.24, 0.2, 0.7, paint, s * 1.08, 0.62, 1.15));
+    c.add(box(0.28, 0.24, 0.85, paint, s * 1.12, 0.64, -1.25));
+    c.add(box(0.42, 0.06, 0.1, head, s * 0.62, 0.38, 2.15));
+    c.add(cyl(0.13, 0.13, 0.08, tail, s * 0.55, 0.52, -1.9, Math.PI / 2, 0, 0));
+    c.add(box(0.06, 0.4, 0.22, dark, s * 0.85, 0.98, -1.4));
   }
-  c.add(box(1.95, 0.05, 0.35, paint, 0, 1.15, -1.5));
-  c.add(box(1.7, 0.08, 0.4, dark, 0, 0.25, -2.0));
+  // Bubble cabin + wraparound glass band
+  c.add(box(1.3, 0.35, 1.15, paint, 0, 0.75, -0.05));
+  c.add(cyl(0.5, 0.58, 1.1, paint, 0, 0.82, -0.05, 0, 0, Math.PI / 2));
+  const ws = box(1.4, 0.4, 0.08, glass, 0, 0.82, 0.5);
+  ws.name = "glass";
+  ws.rotation.x = -0.32;
+  c.add(ws);
+  for (const s of [-1, 1]) c.add(box(0.08, 0.32, 0.9, glass, s * 0.72, 0.82, -0.05));
+  c.add(box(1.15, 0.28, 0.06, glass, 0, 0.82, -0.6));
+  c.add(box(2.15, 0.05, 0.4, paint, 0, 1.22, -1.4));
+  c.add(box(1.85, 0.08, 0.4, dark, 0, 0.24, -1.95));
   root.add(c);
-  addWheels(root, 1.0, 1.1, 1.3, -1.35, 0.95, 1.25);
+  addWheels(root, 0.95, 1.05, 1.2, -1.3, 0.95, 1.22);
   return finish(root, "king-egg-leviathan.glb");
 }
 
-/** Veyron pebble + horseshoe */
+/** Veyron pebble: smooth rounded fenders over visible black tires, two-tone, scoops */
 function buildHellhound() {
   const root = new THREE.Group();
   root.name = "hellhound";
   const c = new THREE.Group();
   c.name = "chassis";
-  // Rounded pebble silhouette (stacked tapered boxes) + two-tone lower.
-  c.add(box(2.05, 0.32, 4.0, paintDark, 0, 0.28, 0));
-  c.add(box(1.95, 0.36, 3.7, paint, 0, 0.55, 0));
-  c.add(box(1.7, 0.28, 3.2, paint, 0, 0.72, -0.05));
+  c.add(box(1.95, 0.28, 3.9, paintDark, 0, 0.26, 0));
+  c.add(box(1.75, 0.3, 3.4, paint, 0, 0.52, 0));
+  c.add(box(1.45, 0.24, 2.6, paint, 0, 0.7, -0.05));
   for (const s of [-1, 1]) {
-    c.add(cyl(0.4, 0.36, 0.8, paint, s * 0.95, 0.5, 1.35, 0, 0, Math.PI / 2));
-    c.add(cyl(0.42, 0.4, 0.85, paint, s * 1.0, 0.52, -1.35, 0, 0, Math.PI / 2));
+    // Rounded fender blobs that cover tire tops without hiding the sidewalls
+    c.add(cyl(0.38, 0.38, 0.35, paint, s * 0.95, 0.55, 1.28, 0, 0, Math.PI / 2));
+    c.add(cyl(0.4, 0.4, 0.38, paint, s * 1.0, 0.56, -1.28, 0, 0, Math.PI / 2));
+    c.add(box(0.2, 0.18, 1.6, paintDark, s * 0.98, 0.36, 0));
+    c.add(box(0.38, 0.1, 0.1, head, s * 0.68, 0.48, 2.05));
+    c.add(box(0.24, 0.16, 0.35, dark, s * 0.28, 1.1, -0.05)); // roof scoops
+    c.add(box(0.36, 0.1, 0.06, tail, s * 0.48, 0.52, -2.05));
   }
-  const cabin = box(1.35, 0.38, 1.4, paint, 0, 0.95, -0.05);
-  c.add(cabin);
-  const ws = box(1.2, 0.38, 0.06, glass, 0, 0.95, 0.6);
+  c.add(box(1.25, 0.32, 1.3, paint, 0, 0.92, -0.05));
+  const ws = box(1.1, 0.34, 0.06, glass, 0, 0.92, 0.52);
   ws.name = "glass";
-  ws.rotation.x = -0.42;
+  ws.rotation.x = -0.4;
   c.add(ws);
-  c.add(box(1.05, 0.28, 0.05, glass, 0, 0.95, -0.65));
-  // Horseshoe grille
-  c.add(box(0.85, 0.4, 0.1, chrome, 0, 0.45, 2.05));
-  c.add(box(0.65, 0.28, 0.08, dark, 0, 0.45, 2.12));
-  for (const s of [-1, 1]) {
-    c.add(box(0.4, 0.12, 0.1, head, s * 0.7, 0.52, 2.05));
-    c.add(box(0.28, 0.2, 0.4, dark, s * 0.32, 1.15, -0.15)); // roof scoops
-    c.add(box(0.4, 0.12, 0.06, tail, s * 0.55, 0.58, -2.05));
-  }
+  c.add(box(0.95, 0.24, 0.05, glass, 0, 0.92, -0.62));
+  c.add(box(0.8, 0.36, 0.1, chrome, 0, 0.42, 2.05));
+  c.add(box(0.58, 0.24, 0.08, dark, 0, 0.42, 2.12));
   root.add(c);
-  addWheels(root, 0.95, 1.05, 1.35, -1.4, 0.95, 1.2);
+  // Track inside fender width so tires stay visible under arches
+  addWheels(root, 0.85, 0.92, 1.28, -1.28, 0.95, 1.12);
   return finish(root, "baguetti-hellhound.glb");
 }
 
-/** Chiron C-curve */
+/** Chiron: curvy muscular, rounded roof, C-sides, two-tone, horseshoe */
 function buildCerberus() {
   const root = new THREE.Group();
   root.name = "cerberus";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(2.0, 0.36, 4.1, paint, 0, 0.46, 0));
-  c.add(box(1.45, 0.4, 1.55, paint, 0, 0.78, 0));
-  const ws = box(1.3, 0.4, 0.06, glass, 0, 0.8, 0.7);
+  c.add(box(2.05, 0.26, 4.05, paintDark, 0, 0.28, 0));
+  // Muscular upper body — not a flat limo slab
+  c.add(box(1.85, 0.32, 2.4, paint, 0, 0.55, 0.4));
+  c.add(box(1.95, 0.36, 1.6, paint, 0, 0.58, -1.1));
+  // Rounded roof dome
+  c.add(cyl(0.48, 0.62, 1.35, paint, 0, 0.9, -0.1, 0, 0, Math.PI / 2));
+  c.add(box(1.25, 0.32, 1.3, paint, 0, 0.95, -0.1));
+  const ws = box(1.15, 0.38, 0.06, glass, 0, 0.95, 0.55);
   ws.name = "glass";
-  ws.rotation.x = -0.48;
+  ws.rotation.x = -0.42;
   c.add(ws);
-  c.add(box(1.15, 0.3, 0.05, glass, 0, 0.8, -0.7));
-  c.add(box(0.75, 0.38, 0.08, chrome, 0, 0.42, 2.1));
-  c.add(box(0.55, 0.25, 0.06, dark, 0, 0.42, 2.15));
+  c.add(box(1.0, 0.28, 0.05, glass, 0, 0.95, -0.7));
+  c.add(box(0.85, 0.42, 0.1, chrome, 0, 0.48, 2.15));
+  c.add(box(0.6, 0.28, 0.08, dark, 0, 0.48, 2.22));
   for (const s of [-1, 1]) {
-    // Big C-shaped side curve (blocks approximating the C)
-    c.add(box(0.2, 0.55, 1.8, paintDark, s * 1.05, 0.55, -0.1));
-    c.add(box(0.35, 0.12, 0.5, paintDark, s * 0.95, 0.75, 0.7));
-    c.add(box(0.4, 0.08, 0.1, head, s * 0.7, 0.48, 2.15));
+    // Bold C-curve: thick dark band from front fender over door to rear hip
+    c.add(box(0.32, 0.55, 1.6, paintDark, s * 1.05, 0.62, 0.1));
+    c.add(box(0.42, 0.12, 0.5, paintDark, s * 0.95, 0.92, 0.7));
+    c.add(box(0.42, 0.12, 0.5, paintDark, s * 0.95, 0.92, -0.85));
+    c.add(box(0.26, 0.22, 0.85, paint, s * 1.0, 0.68, 1.4));
+    c.add(box(0.3, 0.28, 0.95, paint, s * 1.08, 0.7, -1.35));
+    c.add(box(0.42, 0.1, 0.1, head, s * 0.7, 0.5, 2.2));
   }
-  // Thin light bar across the back
-  c.add(box(1.7, 0.06, 0.05, tail, 0, 0.6, -2.1));
-  c.add(box(1.6, 0.08, 0.4, dark, 0, 0.28, -2.15));
+  c.add(box(1.8, 0.06, 0.05, tail, 0, 0.62, -2.15));
+  c.add(box(1.7, 0.08, 0.4, dark, 0, 0.26, -2.2));
   root.add(c);
-  addWheels(root, 1.0, 1.1, 1.4, -1.45, 0.96, 1.22);
+  addWheels(root, 0.92, 1.02, 1.35, -1.4, 0.95, 1.2);
   return finish(root, "baguetti-cerberus.glb");
 }
 
-/** F40 boxy wedge */
+/** F40 boxy wedge — wheels tucked inside fenders */
 function buildJackal() {
   const root = new THREE.Group();
   root.name = "jackal";
@@ -436,134 +471,105 @@ function buildJackal() {
   ws.rotation.x = -0.42;
   c.add(ws);
   c.add(box(1.05, 0.28, 0.05, glass, 0, 0.8, -0.6));
-  // Hood vents
   for (const z of [1.1, 1.35, 1.6]) {
     for (const s of [-1, 1]) c.add(box(0.25, 0.04, 0.12, dark, s * 0.35, 0.66, z));
   }
-  // Huge flat rear wing
   c.add(box(2.05, 0.05, 0.45, paint, 0, 1.15, -1.55));
-  for (const s of [-1, 1]) c.add(box(0.05, 0.4, 0.25, dark, s * 0.85, 0.95, -1.55));
   for (const s of [-1, 1]) {
+    c.add(box(0.05, 0.4, 0.25, dark, s * 0.85, 0.95, -1.55));
+    c.add(box(0.18, 0.14, 0.65, paint, s * 0.95, 0.68, 1.3));
+    c.add(box(0.2, 0.16, 0.7, paint, s * 0.98, 0.7, -1.3));
     c.add(box(0.4, 0.08, 0.1, head, s * 0.55, 0.48, 2.05));
     c.add(box(0.35, 0.12, 0.06, tail, s * 0.5, 0.55, -2.0));
   }
   c.add(box(1.6, 0.08, 0.4, dark, 0, 0.28, -2.05));
   root.add(c);
-  addWheels(root, 0.92, 1.0, 1.35, -1.4, 0.95, 1.2);
+  addWheels(root, 0.82, 0.88, 1.35, -1.4, 0.95, 1.15);
   return finish(root, "ferocity-jackal.glb");
 }
 
-/** LaFerrari curvy bubble */
+/** LaFerrari: small teardrop cabin blended into body, curvy fenders, pointed nose */
 function buildManticore() {
   const root = new THREE.Group();
   root.name = "manticore";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(1.9, 0.28, 4.0, paint, 0, 0.4, 0));
-  const nose = box(1.2, 0.18, 1.0, paint, 0, 0.38, 1.85);
-  nose.rotation.x = 0.15;
-  c.add(nose);
-  // Raised bubble cabin
-  c.add(cyl(0.55, 0.65, 1.3, paint, 0, 0.72, 0, 0, 0, Math.PI / 2));
-  c.add(box(1.2, 0.35, 1.2, paint, 0, 0.75, 0));
-  const ws = box(1.05, 0.4, 0.06, glass, 0, 0.78, 0.55);
-  ws.name = "glass";
-  ws.rotation.x = -0.5;
-  c.add(ws);
-  c.add(box(0.95, 0.28, 0.05, glass, 0, 0.78, -0.55));
+  const tip = box(0.7, 0.12, 0.65, paint, 0, 0.32, 2.35);
+  tip.rotation.x = 0.4;
+  c.add(tip);
+  c.add(box(1.2, 0.2, 1.1, paint, 0, 0.38, 1.65));
+  c.add(box(1.75, 0.26, 2.2, paint, 0, 0.4, 0));
+  c.add(box(1.6, 0.22, 1.1, paint, 0, 0.38, -1.55));
   for (const s of [-1, 1]) {
-    c.add(box(0.45, 0.05, 0.12, head, s * 0.5, 0.4, 2.25));
-    c.add(box(0.08, 0.25, 0.04, tail, s * 0.45, 0.55, -2.05));
-    c.add(box(0.35, 0.25, 0.7, dark, s * 0.95, 0.5, -0.4));
+    // Fenders rise over wheels then blend down (not a plank + can)
+    c.add(box(0.32, 0.34, 0.95, paint, s * 0.92, 0.52, 1.3));
+    c.add(box(0.34, 0.38, 1.05, paint, s * 0.98, 0.55, -1.25));
+    c.add(box(0.22, 0.18, 1.4, paint, s * 0.9, 0.38, 0.05));
+    c.add(box(0.38, 0.05, 0.1, head, s * 0.48, 0.38, 2.55));
+    c.add(box(0.06, 0.2, 0.04, tail, s * 0.42, 0.5, -2.1));
+    c.add(box(0.28, 0.2, 0.7, dark, s * 0.92, 0.45, -0.25));
   }
-  c.add(box(1.7, 0.04, 0.25, paint, 0, 0.85, -1.7));
+  // Compact teardrop cabin — low, tapered, body-colored (no soup-can cylinder)
+  c.add(box(1.05, 0.22, 1.25, paint, 0, 0.62, 0.05));
+  const cabinTop = box(0.85, 0.16, 1.0, paint, 0, 0.78, -0.05);
+  cabinTop.rotation.x = -0.18;
+  c.add(cabinTop);
+  const ws = box(0.9, 0.32, 0.06, glass, 0, 0.72, 0.55);
+  ws.name = "glass";
+  ws.rotation.x = -0.58;
+  c.add(ws);
+  c.add(box(0.75, 0.2, 0.05, glass, 0, 0.72, -0.5));
+  for (const s of [-1, 1]) c.add(box(0.05, 0.18, 0.7, glass, s * 0.55, 0.7, 0));
+  c.add(box(1.45, 0.04, 0.2, paint, 0, 0.72, -1.7));
   root.add(c);
-  addWheels(root, 0.95, 1.05, 1.4, -1.45, 0.92, 1.18);
+  addWheels(root, 0.88, 0.95, 1.3, -1.35, 0.88, 1.15);
   return finish(root, "ferocity-manticore.glb");
 }
 
-/** Corvette-style long angular */
+/** Corvette-style long angular — Thresher (Stingray) vs Megalodon (ZR1) */
 function buildCorvette(id, file, sharp = 1) {
   const root = new THREE.Group();
   root.name = id;
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(1.85, 0.3, 4.2, paint, 0, 0.42, 0));
-  const hood = box(1.7, 0.16, 1.7, paint, 0, 0.5, 1.4);
-  hood.rotation.x = 0.06 * sharp;
+  const long = sharp > 1 ? 4.35 : 4.15;
+  c.add(box(1.85, 0.28, long, paint, 0, 0.4, 0));
+  // Scooped hood + longer Stingray nose
+  const hood = box(1.65, 0.14, sharp > 1 ? 1.9 : 1.75, paint, 0, 0.5, 1.45);
+  hood.rotation.x = 0.08 * sharp;
   c.add(hood);
-  c.add(box(1.35, 0.38, 1.3, paint, 0, 0.72, -0.15));
-  const ws = box(1.2, 0.36, 0.06, glass, 0, 0.75, 0.5);
+  if (sharp > 1) c.add(box(0.7, 0.08, 0.9, dark, 0, 0.58, 1.5)); // ZR1 hood vent
+  // Cabin sits farther back (GT proportion)
+  c.add(box(1.4, 0.42, 1.15, paint, 0, 0.74, -0.25));
+  const roof = box(1.25, 0.1, 1.0, paint, 0, 0.98, -0.35);
+  roof.rotation.x = -0.12;
+  c.add(roof);
+  const ws = box(1.25, 0.38, 0.06, glass, 0, 0.78, 0.4);
   ws.name = "glass";
-  ws.rotation.x = -0.48;
+  ws.rotation.x = -0.5;
   c.add(ws);
-  c.add(box(1.05, 0.26, 0.05, glass, 0, 0.75, -0.7));
+  c.add(box(1.1, 0.28, 0.05, glass, 0, 0.78, -0.75));
   for (const s of [-1, 1]) {
-    c.add(box(0.55, 0.05, 0.1, head, s * 0.6, 0.45, 2.2)); // thin headlights
-    c.add(box(0.2, 0.25, 0.8, paint, s * 0.95, 0.45, 0.2)); // creases / haunches
-    c.add(box(0.25, 0.1, 0.06, tail, s * 0.55, 0.55, -2.15));
+    c.add(box(0.5, 0.05, 0.1, head, s * 0.65, 0.44, 2.15));
+    c.add(box(0.22, 0.18, 0.7, paint, s * 0.95, 0.62, 1.3)); // front fender rise
+    c.add(box(0.28, 0.32, 1.1, paint, s * 0.98, 0.52, -0.9)); // rear haunch
+    c.add(box(0.06, 0.28, 0.7, glass, s * 0.72, 0.78, -0.2));
+    c.add(box(0.28, 0.1, 0.06, tail, s * 0.55, 0.55, -2.15));
   }
-  // Quad exhausts
   for (const x of [-0.35, -0.18, 0.18, 0.35]) {
     c.add(cyl(0.04, 0.045, 0.12, chrome, x, 0.28, -2.25, Math.PI / 2, 0, 0));
   }
   if (sharp > 1) {
-    const wing = box(1.7, 0.04, 0.22, paint, 0, 0.78, -1.85);
-    wing.rotation.x = -0.3;
-    c.add(wing);
+    c.add(box(1.85, 0.05, 0.35, paint, 0, 1.05, -1.7));
+    for (const s of [-1, 1]) c.add(box(0.05, 0.32, 0.2, dark, s * 0.75, 0.9, -1.7));
+  } else {
+    const lip = box(1.6, 0.04, 0.18, paint, 0, 0.72, -1.95);
+    lip.rotation.x = -0.35;
+    c.add(lip);
   }
   root.add(c);
-  addWheels(root, 0.92, 1.0, 1.45, -1.5, 0.95, 1.2);
+  addWheels(root, 0.88, 0.95, 1.4, -1.45, 0.95, 1.2);
   return finish(root, file);
-}
-
-/** Lifted Mastodon pickup (keep distinct) */
-function buildMastodon() {
-  const root = new THREE.Group();
-  root.name = "mastodon";
-  const c = new THREE.Group();
-  c.name = "chassis";
-  const TIRE_R = 0.55;
-  c.add(box(2.1, 0.35, 2.4, paint, 0, 0.95, 0.55)); // cabin
-  c.add(box(2.05, 0.12, 2.0, dark, 0, 0.72, -1.55)); // bed floor
-  for (const s of [-1, 1]) {
-    c.add(box(0.08, 0.45, 2.0, dark, s * 1.0, 0.95, -1.55)); // bed rails
-  }
-  c.add(box(2.05, 0.45, 0.08, dark, 0, 0.95, -2.55)); // tailgate
-  c.add(box(2.0, 0.55, 0.15, chrome, 0, 0.85, 1.85)); // grille
-  for (let i = -2; i <= 2; i++) c.add(box(0.08, 0.4, 0.04, dark, i * 0.28, 0.85, 1.93));
-  for (const s of [-1, 1]) {
-    c.add(box(0.35, 0.18, 0.12, head, s * 0.7, 0.9, 1.95));
-    c.add(box(0.3, 0.18, 0.1, tail, s * 0.7, 0.95, -2.6));
-    c.add(box(0.15, 0.12, 0.25, dark, s * 1.2, 1.15, 0.9)); // mirrors
-    c.add(box(0.35, 0.2, 0.7, dark, s * 1.15, 0.7, 1.1)); // flares
-    c.add(box(0.35, 0.2, 0.7, dark, s * 1.15, 0.7, -1.3));
-  }
-  const ws = box(1.7, 0.45, 0.08, glass, 0, 1.25, 1.35);
-  ws.name = "glass";
-  ws.rotation.x = -0.25;
-  c.add(ws);
-  c.add(box(1.6, 0.4, 0.06, glass, 0, 1.25, -0.4));
-  for (const s of [-1, 1]) c.add(box(0.06, 0.35, 1.0, glass, s * 1.05, 1.2, 0.4));
-  // Light bar
-  c.add(box(1.4, 0.08, 0.12, chrome, 0, 1.55, 0.9));
-  for (let i = -2; i <= 2; i++) c.add(box(0.12, 0.1, 0.1, head, i * 0.28, 1.55, 0.9));
-  c.add(box(1.9, 0.2, 4.2, dark, 0, 0.45, -0.2)); // frame
-  root.add(c);
-  for (const left of [true, false]) {
-    for (const front of [true, false]) {
-      const pivot = new THREE.Group();
-      pivot.name = `wheel-${front ? "front" : "back"}-${left ? "left" : "right"}`;
-      const spin = new THREE.Group();
-      const tire = new THREE.Mesh(new THREE.CylinderGeometry(TIRE_R, TIRE_R, 0.38, 18), rubber);
-      tire.rotation.z = Math.PI / 2;
-      spin.add(tire);
-      pivot.add(spin);
-      pivot.position.set(left ? -1.15 : 1.15, TIRE_R, front ? 1.35 : -1.45);
-      root.add(pivot);
-    }
-  }
-  return finish(root, "shovel-mastodon.glb");
 }
 
 const cars = [
@@ -609,7 +615,8 @@ const cars = [
   buildManticore(),
   buildCorvette("thresher", "shovel-thresher.glb", 1),
   buildCorvette("megalodon", "shovel-megalodon.glb", 1.3),
-  buildMastodon(),
+  // Mastodon: scripts/build-mastodon.mjs (Silverado ZR2)
+  // Beep Sabertooth: scripts/build-beep-sabertooth.mjs (Jeep Gladiator)
 ];
 
 mkdirSync(new URL("../public/models/", import.meta.url), { recursive: true });
