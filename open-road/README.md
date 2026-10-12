@@ -26,9 +26,10 @@ Open the link Vite prints (usually http://localhost:5173). Click **Drive**, then
 | Space | Handbrake slide |
 | C | Chase, bumper, or hood camera |
 | H | Horn |
+| G | Garage. Every car is free, and you stay where you are |
 | R | Back to the start |
 
-The on-screen buttons do the same thing. A controller works too: right trigger gas, left trigger brake, A to slide, Y for the camera, B for the horn.
+The on-screen buttons do the same thing. The red **Garage** button sits next to Horn. A controller works too: right trigger gas, left trigger brake, A to slide, Y for the camera, B for the horn.
 
 Stay on the gray road to go fast. Grass, dirt, sand, and the lake are slower. The glowing minimap shows the roads, the lake, and your car.
 

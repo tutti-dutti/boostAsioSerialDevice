@@ -26,6 +26,14 @@ export type Surface = {
   max: number;
 };
 
+export type Tune = {
+  accel: number;
+  top: number;
+  offroad: number;
+};
+
+export const DEFAULT_TUNE: Tune = { accel: 1, top: 78, offroad: 1 };
+
 export type RoadSeg = {
   x1: number;
   z1: number;
@@ -103,8 +111,9 @@ export function gearLabel(car: Car, throttle: number) {
   return String(car.gear + 1);
 }
 
-export function stepCar(car: Car, input: Input, surface: Surface, dt: number) {
+export function stepCar(car: Car, input: Input, surface: Surface, dt: number, tune: Tune = DEFAULT_TUNE) {
   const dtSafe = clamp(dt, 0, 0.05);
+  const paved = surface.max >= 70;
 
   if (car.speed > 2) {
     if (car.gear < 5 && car.speed > UPS[car.gear]) car.gear += 1;
@@ -114,13 +123,13 @@ export function stepCar(car: Car, input: Input, surface: Surface, dt: number) {
   }
 
   const gearPower = GEAR_POWER[car.gear];
-  const driveMul = surface.max >= 70 ? 1 : 0.6;
+  const driveMul = paved ? 1 : 0.6 * tune.offroad;
 
   if (input.throttle > 0) {
     if (car.speed < -0.3) car.speed = Math.min(0, car.speed + 18 * dtSafe);
     else {
       const slope = Math.max(0.16, 1 - car.speed / (surface.max + 6));
-      car.speed += 12.5 * gearPower * driveMul * slope * dtSafe;
+      car.speed += 12.5 * gearPower * driveMul * tune.accel * slope * dtSafe;
     }
   }
 
@@ -139,8 +148,9 @@ export function stepCar(car: Car, input: Input, surface: Surface, dt: number) {
     else if (car.speed < 0 && input.brake === 0) car.speed = Math.min(0, car.speed + 3.2 * dtSafe);
   }
 
-  if (car.speed > surface.max) car.speed = Math.max(surface.max, car.speed - 20 * dtSafe);
-  car.speed = clamp(car.speed, -15, 82);
+  const cap = paved ? tune.top : Math.min(tune.top, surface.max * tune.offroad);
+  if (car.speed > cap) car.speed = Math.max(cap, car.speed - 20 * dtSafe);
+  car.speed = clamp(car.speed, -15, cap);
 
   const moving = Math.abs(car.speed) > 0.15;
   if (moving) {
@@ -151,7 +161,8 @@ export function stepCar(car: Car, input: Input, surface: Surface, dt: number) {
     car.yaw -= input.steer * 2.4 * Math.sign(car.speed) * dtSafe;
   }
 
-  const grip = surface.grip * (input.handbrake ? 0.28 : 1);
+  const gripBase = paved ? surface.grip : Math.min(1.15, surface.grip * tune.offroad);
+  const grip = gripBase * (input.handbrake ? 0.28 : 1);
   car.lat -= input.steer * car.speed * 0.55 * dtSafe;
   car.lat *= Math.exp(-(2 + grip * 6) * dtSafe);
   car.lat = clamp(car.lat, -16, 16);

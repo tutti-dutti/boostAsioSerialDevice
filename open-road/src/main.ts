@@ -1,6 +1,7 @@
 import "./style.css";
-import { LAKE, ROADS, SPAWN } from "./drive/mapData";
+import { GARAGE } from "./drive/garage";
 import { DriveGame, type FrameInfo } from "./drive/Game";
+import { LAKE, ROADS, SPAWN } from "./drive/mapData";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Missing #app");
@@ -24,11 +25,12 @@ app.innerHTML = `
     <header class="top">
       <div>
         <div class="brand">Open Road</div>
-        <div class="sub">Comet · <span id="surface">Road</span> · <span id="cam-name">Chase</span></div>
+        <div class="sub"><span id="car-name">Comet</span> · <span id="surface">Road</span> · <span id="cam-name">Chase</span></div>
       </div>
       <div class="top-buttons">
         <button id="cam-btn" type="button">Camera</button>
         <button id="horn-btn" type="button">Horn</button>
+        <button id="garage-btn" type="button">Garage</button>
         <button id="reset-btn" type="button">Reset</button>
         <button id="menu-btn" type="button">Menu</button>
       </div>
@@ -36,7 +38,7 @@ app.innerHTML = `
     <canvas id="map" class="map" width="180" height="180"></canvas>
     <div id="toast" class="toast"></div>
     <div id="engine" class="engine">Engine off</div>
-    <p class="hints">Arrows or WASD to drive · Space slide · C camera · H horn · R reset</p>
+    <p class="hints">Arrows or WASD to drive · Space slide · C camera · H horn · G garage · R reset</p>
     <footer class="bottom">
       <div class="cluster">
         <div class="rpm"><div id="rpm-bar"></div></div>
@@ -53,6 +55,18 @@ app.innerHTML = `
       <button data-hold="right" type="button">Right</button>
     </div>
   </div>
+  <section id="garage" class="garage is-hidden" aria-label="Garage">
+    <div class="garage-panel">
+      <div class="garage-head">
+        <div>
+          <h2>Garage</h2>
+          <p>Every car is free. Pick one and you stay right where you are.</p>
+        </div>
+        <button id="garage-close" type="button">Close</button>
+      </div>
+      <div id="garage-list" class="garage-list"></div>
+    </div>
+  </section>
 `;
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view");
@@ -61,6 +75,9 @@ const hud = document.querySelector<HTMLElement>("#hud");
 const playBtn = document.querySelector<HTMLButtonElement>("#play");
 if (!canvas || !home || !hud || !playBtn) throw new Error("Missing game UI");
 
+const carNameEl = document.querySelector<HTMLElement>("#car-name")!;
+const garageEl = document.querySelector<HTMLElement>("#garage")!;
+const garageList = document.querySelector<HTMLElement>("#garage-list")!;
 const speedEl = document.querySelector<HTMLElement>("#speed")!;
 const gearEl = document.querySelector<HTMLElement>("#gear")!;
 const surfaceEl = document.querySelector<HTMLElement>("#surface")!;
@@ -77,6 +94,7 @@ const game = new DriveGame(canvas, (info) => {
 });
 
 function paintHud(info: FrameInfo) {
+  carNameEl.textContent = info.carName;
   speedEl.textContent = String(info.mph);
   gearEl.textContent = info.gear;
   surfaceEl.textContent = info.surface;
@@ -147,6 +165,47 @@ playBtn.addEventListener("click", () => {
 document.querySelector("#menu-btn")?.addEventListener("click", showMenu);
 document.querySelector("#reset-btn")?.addEventListener("click", () => game.reset());
 document.querySelector("#horn-btn")?.addEventListener("click", () => game.horn());
+
+function paintGarage() {
+  const current = game.currentCarId();
+  garageList.innerHTML = GARAGE.map(
+    (car) => `
+      <button type="button" data-car="${car.id}" class="${car.id === current ? "is-current" : ""}">
+        <b>${car.name}</b>
+        <span>${car.kind} · ${car.note}</span>
+      </button>
+    `,
+  ).join("");
+}
+
+function openGarage() {
+  paintGarage();
+  garageEl.classList.remove("is-hidden");
+  game.setInputBlocked(true);
+}
+
+function closeGarage() {
+  garageEl.classList.add("is-hidden");
+  game.setInputBlocked(false);
+}
+
+document.querySelector("#garage-btn")?.addEventListener("click", openGarage);
+document.querySelector("#garage-close")?.addEventListener("click", closeGarage);
+garageList.addEventListener("click", (event) => {
+  const target = event.target;
+  const button = target instanceof HTMLElement ? target.closest("button") : null;
+  const id = button?.getAttribute("data-car");
+  if (!id) return;
+  closeGarage();
+  void game.switchCar(id);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key.toLowerCase() !== "g" || event.repeat) return;
+  if (hud.classList.contains("is-hidden")) return;
+  if (garageEl.classList.contains("is-hidden")) openGarage();
+  else closeGarage();
+});
 document.querySelector("#cam-btn")?.addEventListener("click", () => game.cycleCam());
 
 for (const el of document.querySelectorAll<HTMLButtonElement>("[data-hold]")) {

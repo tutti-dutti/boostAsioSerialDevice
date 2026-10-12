@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { EngineAudio } from "./audio";
-import { loadSportsCar, type CarVisual } from "./car";
+import { loadCarModel, type CarVisual } from "./car";
+import { GARAGE, carById, type GarageCar } from "./garage";
 import {
   REDLINE,
   gearLabel,
@@ -11,6 +12,7 @@ import {
   surfaceAt,
   type Car,
   type Input,
+  type Tune,
 } from "./sim";
 import { createWorld } from "./world";
 
@@ -26,6 +28,7 @@ export type FrameInfo = {
   camera: string;
   toast: string;
   audioOn: boolean;
+  carName: string;
 };
 
 type CamMode = "chase" | "bumper" | "hood";
@@ -60,6 +63,10 @@ export class DriveGame {
   private hornHeld = false;
   private camHeld = false;
   private resetHeld = false;
+  private inputBlocked = false;
+  private ride: GarageCar = GARAGE[0];
+  private tune: Tune = GARAGE[0].tune;
+  private switching = false;
   private readonly desired = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   private readonly sunDir = new THREE.Vector3(0.84, 0.3, 0.36).normalize();
@@ -96,7 +103,7 @@ export class DriveGame {
 
   private async mountCar() {
     try {
-      const next = await loadSportsCar();
+      const next = await loadCarModel(this.ride.model);
       this.scene.remove(this.visual.root);
       this.visual = next;
       this.scene.add(next.root);
@@ -113,6 +120,37 @@ export class DriveGame {
 
   playMusic() {
     this.audio.playMusic();
+  }
+
+  setInputBlocked(blocked: boolean) {
+    this.inputBlocked = blocked;
+    if (blocked) this.holds.clear();
+  }
+
+  currentCarId() {
+    return this.ride.id;
+  }
+
+  async switchCar(id: string) {
+    const nextRide = carById(id);
+    if (nextRide.id === this.ride.id || this.switching) return;
+    this.switching = true;
+    this.say(`Getting the ${nextRide.name}...`);
+    try {
+      const next = await loadCarModel(nextRide.model);
+      this.scene.remove(this.visual.root);
+      this.visual = next;
+      this.scene.add(next.root);
+      this.ride = nextRide;
+      this.tune = nextRide.tune;
+      this.placeCar();
+      this.say(`${nextRide.name} is ready`);
+    } catch (err) {
+      console.error("Could not switch cars", err);
+      this.say("That car did not load");
+    } finally {
+      this.switching = false;
+    }
   }
 
   async start() {
@@ -182,6 +220,9 @@ export class DriveGame {
   };
 
   private readInput(): Input {
+    if (this.inputBlocked) {
+      return { throttle: 0, brake: 0, steer: 0, handbrake: false };
+    }
     let steer = 0;
     if (this.keys.has("a") || this.keys.has("arrowleft") || this.holds.has("left")) steer -= 1;
     if (this.keys.has("d") || this.keys.has("arrowright") || this.holds.has("right")) steer += 1;
@@ -249,7 +290,7 @@ export class DriveGame {
   private step(dt: number) {
     const input = this.readInput();
     const surface = surfaceAt(this.car.x, this.car.z, this.world.roads);
-    const { skid } = stepCar(this.car, input, surface, dt);
+    const { skid } = stepCar(this.car, input, surface, dt, this.tune);
     const impact = resolveCollisions(this.car, this.world.colliders);
     this.impactCool = Math.max(0, this.impactCool - dt);
     if (impact > 8 && this.impactCool <= 0) {
@@ -307,6 +348,7 @@ export class DriveGame {
       camera: CAM_LABEL[this.camMode],
       toast: this.toast,
       audioOn: this.audio.on,
+      carName: this.ride.name,
     });
   }
 
@@ -360,6 +402,7 @@ export class DriveGame {
         camera: CAM_LABEL[this.camMode],
         toast: this.toast,
         audioOn: this.audio.on,
+        carName: this.ride.name,
       });
     }
     this.renderer.render(this.scene, this.camera);

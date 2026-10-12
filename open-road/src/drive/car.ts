@@ -16,29 +16,26 @@ export type CarVisual = {
   wheelRadius: number;
 };
 
-const WHEEL_NAMES = new Set([
-  "wheel-front-left",
-  "wheel-front-right",
-  "wheel-back-left",
-  "wheel-back-right",
-]);
-
-/** Kenney's CC0 sedan-sports is about 2.5 units long. Scale it up to a real car. */
 const MODEL_SCALE = 1.85;
 
-export async function loadSportsCar(): Promise<CarVisual> {
+function isWheel(name: string) {
+  return name.startsWith("wheel-") && (name.includes("left") || name.includes("right"));
+}
+
+/** Load a CC0 Kenney car and split its wheels so they can spin and steer. */
+export async function loadCarModel(url: string): Promise<CarVisual> {
   const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync("/models/sedan-sports.glb");
+  const gltf = await loader.loadAsync(url);
   const model = gltf.scene;
 
   const root = new THREE.Group();
-  root.name = "comet";
+  root.name = "car";
   const chassis = new THREE.Group();
   root.add(chassis);
 
   const wheels: WheelRig[] = [];
   for (const child of [...model.children]) {
-    if (WHEEL_NAMES.has(child.name)) {
+    if (isWheel(child.name)) {
       const front = child.name.includes("front");
       const pivot = new THREE.Group();
       pivot.position.copy(child.position);
