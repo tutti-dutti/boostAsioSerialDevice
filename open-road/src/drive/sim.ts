@@ -251,6 +251,11 @@ export function stepCar(
 
   let throttle = inWater ? 0 : input.throttle;
   let brake = input.brake;
+  // Arcade auto: once in reverse, hold brake to reverse (kids expect S = reverse).
+  if (setup.auto && car.reverse && !inWater && throttle < 0.1 && brake > 0) {
+    throttle = brake;
+    brake = 0;
+  }
   if (car.grind > 0 || (setup.clutchNeeded && !setup.auto && input.clutch)) throttle *= 0.08;
 
   const gearMul = GEAR_POWER[car.gear] ?? 0.46;
@@ -266,10 +271,20 @@ export function stepCar(
           ? tune.top * 0.97
           : Math.min(tune.top, surface.max * Math.max(0.55, tune.offroad))
         : tune.top;
-  const pull = Math.abs(car.speed) / Math.max(12, speedCap);
+  // Reverse: same for cars and trucks, same on road and grass. ~23 mph top,
+  // about 0–15 mph in 2–3 seconds.
+  const revCap = inWater ? 3 : 10.5;
+  const pull = Math.abs(car.speed) / Math.max(12, car.reverse ? revCap : speedCap);
   const curve = pull < 0.6 ? 1 : Math.max(0.24, 1 - (pull - 0.6) * 1.7);
-  const push = mass * 12.5 * tune.accel * gearMul * curve;
-  let drive = throttle * push * (car.reverse ? -1 : 1);
+  let drive: number;
+  if (car.reverse) {
+    // Fixed reverse shove so trucks reverse as quickly as sports cars.
+    const revPush = mass * 4.2 * curve;
+    drive = -throttle * revPush;
+  } else {
+    const push = mass * 12.5 * tune.accel * gearMul * curve;
+    drive = throttle * push;
+  }
   // Sports cars ~60→0 in about 3s. Trucks take longer.
   const brakeG = tune.mass >= 2400 ? 6.8 : 14.5;
   let brakeForce = brake * mass * brakeG;
@@ -313,9 +328,6 @@ export function stepCar(
   car.ay = fy / mass;
   car.speed += car.ax * dtSafe;
   car.lat += car.ay * dtSafe;
-  if (setup.auto && !car.reverse && input.brake > 0 && input.throttle === 0 && car.speed < 0.45 && car.speed > -14) {
-    car.speed -= 7 * dtSafe;
-  }
   if (Math.abs(input.steer) < 0.001 && throttle === 0 && brake === 0 && Math.abs(car.speed) < 0.45) {
     car.speed = 0;
     car.lat = 0;
@@ -345,9 +357,8 @@ export function stepCar(
     car.lat *= Math.exp(-(4 + plant * stick) * dtSafe);
   }
 
-  // One reverse gear, about 15–20 mph, and grass slows reverse the same way.
-  const revCap = Math.min(8.5, speedCap);
-  car.speed = clamp(car.speed, car.reverse || (setup.auto && car.speed < 0) ? -revCap : -3, speedCap);
+  // One reverse gear: ~20–25 mph top on any dry/grass surface.
+  car.speed = clamp(car.speed, car.reverse ? -revCap : -3, speedCap);
   const latMax = input.handbrake ? 10 : arcade ? 1.6 : 2.4;
   car.lat = clamp(car.lat, -latMax, latMax);
   if (Math.abs(car.speed) < 0.35) car.lat *= Math.exp(-10 * dtSafe);
@@ -399,7 +410,21 @@ export function stepCar(
 function shiftGears(car: Car, input: Input, setup: Setup, dt: number) {
   car.grind = Math.max(0, car.grind - dt);
   if (setup.auto) {
-    car.reverse = false;
+    // Stopped + brake → reverse. Gas from a stop → drive. Brake while
+    // reversing only slows; throttle drives reverse.
+    if (car.reverse) {
+      car.gear = 0;
+      if (input.throttle > 0.2 && car.speed > -0.35) car.reverse = false;
+      if (input.brake > 0.5 && Math.abs(car.speed) < 0.35 && input.throttle < 0.1) {
+        /* stay in reverse at a stop while holding brake */
+      }
+      return;
+    }
+    if (Math.abs(car.speed) < 0.5 && input.brake > 0.4 && input.throttle < 0.1) {
+      car.reverse = true;
+      car.gear = 0;
+      return;
+    }
     if (car.speed > 2.2) {
       if (car.gear < 5 && car.speed > UPS[car.gear]) car.gear += 1;
       else if (car.gear > 0 && car.speed < DOWNS[car.gear - 1]) car.gear -= 1;
