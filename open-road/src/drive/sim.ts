@@ -254,10 +254,31 @@ export function stepCar(
 
   let throttle = inWater ? 0 : input.throttle;
   let brake = input.brake;
-  // Arcade auto: once in reverse, hold brake to reverse (kids expect S = reverse).
-  if (setup.auto && car.reverse && !inWater && throttle < 0.1 && brake > 0) {
-    throttle = brake;
-    brake = 0;
+  // Direction rules:
+  // - Forward while rolling backward → brake to a stop, then leave reverse.
+  // - Back while rolling forward → brake to a stop (reverse engages only when stopped).
+  // - In reverse with S held (auto) → reverse drive.
+  if (!inWater) {
+    if (car.speed < -0.4 && input.throttle > 0.1) {
+      brake = Math.max(brake, input.throttle);
+      throttle = 0;
+      if (Math.abs(car.speed) < 0.55) car.reverse = false;
+    } else if (car.reverse && input.throttle > 0.1) {
+      // Stopped / nearly stopped in reverse + W → go forward.
+      if (car.speed > -0.4) {
+        car.reverse = false;
+      } else {
+        brake = Math.max(brake, input.throttle);
+        throttle = 0;
+      }
+    } else if (setup.auto && car.reverse && input.brake > 0 && input.throttle < 0.1) {
+      // Kids expect S = reverse once reverse is selected.
+      throttle = input.brake;
+      brake = 0;
+    } else if (!car.reverse && car.speed > 0.4 && input.brake > 0.1) {
+      // Keep braking forward; reverse only after a stop (handled in shiftGears).
+      throttle = 0;
+    }
   }
   if (car.grind > 0 || (setup.clutchNeeded && !setup.auto && input.clutch)) throttle *= 0.08;
 

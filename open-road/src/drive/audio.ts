@@ -145,12 +145,17 @@ export class EngineAudio {
   private lastThrottle = 0;
   private lambSource: AudioBuffer | null = null;
   private lambLoopBuf: AudioBuffer | null = null;
-  private lambLoop: AudioBufferSourceNode | null = null;
-  private lambLoopGain: GainNode | null = null;
+  private lambLoopA: AudioBufferSourceNode | null = null;
+  private lambLoopB: AudioBufferSourceNode | null = null;
+  private lambLoopGainA: GainNode | null = null;
+  private lambLoopGainB: GainNode | null = null;
+  private lambBus: GainNode | null = null;
   private lambRevGain: GainNode | null = null;
   private lambLoading: Promise<void> | null = null;
   private revUntil = 0;
   private lastRpm = 900;
+  private wobblePhase = 0;
+  private burblePhase = 0;
   /** Latest mix values, for tests. */
   debug = {
     rate: 0,
@@ -162,6 +167,7 @@ export class EngineAudio {
     mid: 0,
     high: 0,
     filterHz: 0,
+    rpmRising: false,
   };
 
   get on() {
@@ -222,18 +228,26 @@ export class EngineAudio {
     this.idleLayer?.bus.gain.setTargetAtTime(0.0001, now, 0.03);
     this.midLayer?.bus.gain.setTargetAtTime(0.0001, now, 0.03);
     this.highLayer?.bus.gain.setTargetAtTime(0.0001, now, 0.03);
-    this.lambLoopGain?.gain.setTargetAtTime(0.0001, now, 0.03);
+    this.lambBus?.gain.setTargetAtTime(0.0001, now, 0.03);
     this.lambRevGain?.gain.setTargetAtTime(0.0001, now, 0.03);
   }
 
   private async ensureLambchop() {
     if (!this.ctx || !this.master || this.ctx.state !== "running") return;
-    if (!this.lambLoopGain) {
+    if (!this.lambBus) {
       // Hot bus: skip the compressor so the sample stays loud and clear.
-      const loopGain = this.ctx.createGain();
-      loopGain.gain.value = 0.0001;
-      loopGain.connect(this.ctx.destination);
-      this.lambLoopGain = loopGain;
+      const bus = this.ctx.createGain();
+      bus.gain.value = 0.0001;
+      bus.connect(this.ctx.destination);
+      this.lambBus = bus;
+      const a = this.ctx.createGain();
+      a.gain.value = 0.55;
+      a.connect(bus);
+      this.lambLoopGainA = a;
+      const b = this.ctx.createGain();
+      b.gain.value = 0.45;
+      b.connect(bus);
+      this.lambLoopGainB = b;
       const revGain = this.ctx.createGain();
       revGain.gain.value = 0.0001;
       revGain.connect(this.ctx.destination);
@@ -249,7 +263,8 @@ export class EngineAudio {
           .then((raw) => this.ctx!.decodeAudioData(raw))
           .then((buffer) => {
             this.lambSource = buffer;
-            this.lambLoopBuf = makeCrossfadeLoop(buffer, LAMB_LOOP_START, LAMB_LOOP_END, 0.07);
+            // Longer crossfade so the seam disappears.
+            this.lambLoopBuf = makeCrossfadeLoop(buffer, LAMB_LOOP_START, LAMB_LOOP_END, 0.18);
             this.debug.ready = true;
           })
           .catch((err) => {
@@ -263,35 +278,44 @@ export class EngineAudio {
   }
 
   private startLambLoop() {
-    if (!this.ctx || !this.lambLoopBuf || !this.lambLoopGain || this.lambLoop) return;
-    const src = this.ctx.createBufferSource();
-    src.buffer = this.lambLoopBuf;
-    src.loop = true;
-    src.playbackRate.value = 0.85;
-    src.connect(this.lambLoopGain);
-    src.start();
-    this.lambLoop = src;
+    if (!this.ctx || !this.lambLoopBuf || !this.lambLoopGainA || !this.lambLoopGainB) return;
+    if (this.lambLoopA) return;
+    const dur = this.lambLoopBuf.duration;
+    const make = (gain: GainNode, offset: number) => {
+      const src = this.ctx!.createBufferSource();
+      src.buffer = this.lambLoopBuf;
+      src.loop = true;
+      src.playbackRate.value = 0.9;
+      src.connect(gain);
+      src.start(0, offset % dur);
+      return src;
+    };
+    // Two offset copies so the loop seam never lines up.
+    this.lambLoopA = make(this.lambLoopGainA, 0);
+    this.lambLoopB = make(this.lambLoopGainB, dur * 0.5);
     this.debug.looping = true;
   }
 
   private stopLambLoop() {
-    if (this.lambLoop) {
+    for (const src of [this.lambLoopA, this.lambLoopB]) {
+      if (!src) continue;
       try {
-        this.lambLoop.stop();
+        src.stop();
       } catch {
         /* already stopped */
       }
-      this.lambLoop.disconnect();
-      this.lambLoop = null;
+      src.disconnect();
     }
+    this.lambLoopA = null;
+    this.lambLoopB = null;
     this.debug.looping = false;
-    if (this.ctx && this.lambLoopGain) {
-      this.lambLoopGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.03);
+    if (this.ctx && this.lambBus) {
+      this.lambBus.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.03);
     }
   }
 
   private playLaunchRev() {
-    if (!this.ctx || !this.lambSource || !this.lambRevGain || !this.lambLoopGain) return;
+    if (!this.ctx || !this.lambSource || !this.lambRevGain || !this.lambBus) return;
     const now = this.ctx.currentTime;
     if (now < this.revUntil) return;
     const src = this.ctx.createBufferSource();
@@ -302,8 +326,7 @@ export class EngineAudio {
     this.lambRevGain.gain.exponentialRampToValueAtTime(0.85, now + 0.04);
     this.lambRevGain.gain.setValueAtTime(0.7, now + LAMB_REV_DUR - 0.45);
     this.lambRevGain.gain.exponentialRampToValueAtTime(0.0001, now + LAMB_REV_DUR);
-    // Keep the driving loop under the rev, then hand off smoothly.
-    this.lambLoopGain.gain.value = Math.max(this.lambLoopGain.gain.value, 0.32);
+    this.lambBus.gain.value = Math.max(this.lambBus.gain.value, 0.32);
     src.start(now, LAMB_REV_START, LAMB_REV_DUR);
     this.revUntil = now + LAMB_REV_DUR - 0.35;
     this.debug.revVol = 0.62;
@@ -460,15 +483,17 @@ export class EngineAudio {
 
   private applyVoiceMix() {
     const profile = VOICE[this.voice];
+    const diesel = this.voice === "diesel";
     const layers = [this.idleLayer, this.midLayer, this.highLayer];
     for (const layer of layers) {
       if (!layer) continue;
       for (let i = 0; i < layer.oscs.length; i++) {
-        layer.oscs[i].type = "sawtooth";
-        // Keep levels even; layer bus gains do the RPM crossfade.
-        layer.gains[i].gain.value = 0.1 + profile.growl * 0.05;
+        // Trucks: soft triangle burble. Cars: saws.
+        layer.oscs[i].type = diesel ? "triangle" : "sawtooth";
+        layer.gains[i].gain.value = diesel ? 0.14 : 0.1 + profile.growl * 0.05;
       }
-      layer.noiseGain.gain.value = 0.025 + profile.bright * 0.04;
+      layer.noiseGain.gain.value = diesel ? 0.012 : 0.02 + profile.bright * 0.03;
+      if (diesel) layer.noiseFilter.frequency.value = 90;
     }
   }
 
@@ -501,96 +526,112 @@ export class EngineAudio {
     const audible = opts.active ? 1 : 0;
     const rpm = Math.max(700, opts.rpm);
 
+    const gas = opts.throttle;
+    const rpmRising = gas > 0.15 && rpm > this.lastRpm + 12;
+    this.debug.rpmRising = rpmRising;
+    this.wobblePhase += 0.07 + Math.random() * 0.02;
+    this.burblePhase += 0.035;
+
     if (this.voice === "lambchop") {
       if (this.ctx.state !== "running") void this.ctx.resume();
       if (!this.lambLoopBuf) void this.ensureLambchop();
-      else if (!this.lambLoop) this.startLambLoop();
+      else if (!this.lambLoopA) this.startLambLoop();
 
-      // Pitch follows RPM every frame. Upshifts drop RPM, so pitch drops with it.
       const rpmN = Math.max(0, Math.min(1, (rpm - 850) / 6750));
-      let rate = 0.75 + rpmN * 0.9;
-      if (opts.gear !== this.lastGear && this.lastGear !== "" && rpm < this.lastRpm - 180) {
-        rate *= 0.88;
-      }
-      rate = Math.max(0.68, Math.min(1.7, rate));
-      if (this.lambLoop) this.lambLoop.playbackRate.value = rate;
+      // Idle: steady low rate. Only climb pitch when gas is on and RPM is rising.
+      let rate = 0.88;
+      if (gas > 0.12) rate = 0.88 + rpmN * 0.55;
+      if (opts.gear !== this.lastGear && this.lastGear !== "" && rpm < this.lastRpm - 180) rate *= 0.92;
+      rate = Math.max(0.8, Math.min(1.55, rate));
+      // Tiny random wobble hides the loop seam (not a trill).
+      const wobble = 1 + Math.sin(this.wobblePhase) * 0.006 + (Math.random() - 0.5) * 0.004;
+      const rateA = rate * wobble;
+      const rateB = rate * (2 - wobble);
+      if (this.lambLoopA) this.lambLoopA.playbackRate.value = rateA;
+      if (this.lambLoopB) this.lambLoopB.playbackRate.value = rateB;
+      // Slow crossfade between the two offset copies.
+      const xfade = 0.5 + 0.2 * Math.sin(this.wobblePhase * 0.35);
+      if (this.lambLoopGainA) this.lambLoopGainA.gain.setTargetAtTime(xfade, now, 0.08);
+      if (this.lambLoopGainB) this.lambLoopGainB.gain.setTargetAtTime(1.05 - xfade, now, 0.08);
 
       const inRev = now < this.revUntil;
-      // Loop is always audible while active. Gas makes it louder right away.
-      const loopVol = audible
-        ? inRev
-          ? 0.35 + opts.throttle * 0.2
-          : 0.28 + opts.throttle * 0.72 + rpmN * 0.18 + Math.min(0.12, opts.speed / 100)
-        : 0.0001;
-      if (this.lambLoopGain) this.lambLoopGain.gain.value = Math.max(0.0001, loopVol);
+      const idleVol = 0.22;
+      const drivenVol = 0.28 + gas * 0.65 + (rpmRising ? rpmN * 0.15 : 0);
+      const loopVol = audible ? (inRev ? 0.32 + gas * 0.15 : gas > 0.12 ? drivenVol : idleVol) : 0.0001;
+      if (this.lambBus) this.lambBus.gain.value = Math.max(0.0001, loopVol);
       this.debug.rate = rate;
       this.debug.loopVol = loopVol;
       this.debug.revVol = inRev ? 0.7 : 0;
-      this.debug.looping = !!this.lambLoop && loopVol > 0.05;
+      this.debug.looping = !!this.lambLoopA && loopVol > 0.05;
+      this.debug.idle = gas > 0.12 ? 0 : loopVol;
+      this.debug.mid = gas > 0.12 ? loopVol : 0;
+      this.debug.high = 0;
 
       this.engineGain.gain.setTargetAtTime(0.0001, now, 0.05);
       this.exhaustGain.gain.setTargetAtTime(0.0001, now, 0.05);
       this.whooshGain?.gain.setTargetAtTime(0.0001, now, 0.05);
 
-      // Launch rev only when flooring from a near-stop, then blend into the loop.
-      if (audible && opts.throttle > 0.9 && opts.speed < 2.8 && this.lastThrottle <= 0.9) {
+      if (audible && rpmRising && gas > 0.9 && opts.speed < 2.8 && this.lastThrottle <= 0.9) {
         this.playLaunchRev();
       }
       this.lastRpm = rpm;
     } else {
       const profile = VOICE[this.voice];
+      const diesel = this.voice === "diesel";
       const rpmN = Math.max(0, Math.min(1, (rpm - 850) / 6750));
-      let pitch = this.pitchFromRpm(rpm);
-      if (opts.gear !== this.lastGear && this.lastGear !== "" && rpm < this.lastRpm - 180) {
-        pitch *= 0.94;
+      // Idle pitch is locked. Climb only when gas is on.
+      let pitch = diesel ? 0.85 : 0.9;
+      if (gas > 0.12) pitch = this.pitchFromRpm(rpm);
+      if (opts.gear !== this.lastGear && this.lastGear !== "" && rpm < this.lastRpm - 180) pitch *= 0.94;
+      pitch = Math.max(0.8, Math.min(diesel ? 1.25 : 1.55, pitch));
+      // Cars: tiny random wobble. Trucks: slow uneven burble only (no chirp).
+      if (diesel) {
+        pitch *= 1 + Math.sin(this.burblePhase) * 0.012 + Math.sin(this.burblePhase * 0.37) * 0.008;
+      } else if (gas > 0.12) {
+        pitch *= 1 + Math.sin(this.wobblePhase) * 0.005 + (Math.random() - 0.5) * 0.003;
       }
-      pitch = Math.max(0.8, Math.min(1.6, pitch));
 
-      // Fundamental from firing order, then pitch-scaled within 0.8–1.6.
       const firing = (rpm * profile.cyl) / 120;
-      const idleBase = profile.base * 0.45 + firing * 0.22;
-      const midBase = profile.base * 0.7 + firing * 0.55;
-      const highBase = profile.base * 0.55 + firing * 1.05;
+      const idleBase = diesel ? 55 + firing * 0.08 : profile.base * 0.4 + firing * 0.08;
+      const midBase = diesel ? 70 + firing * 0.18 : profile.base * 0.65 + firing * 0.45;
+      const highBase = diesel ? 85 + firing * 0.22 : profile.base * 0.55 + firing * 0.95;
       this.setLayerPitch(this.idleLayer, idleBase, pitch, now);
       this.setLayerPitch(this.midLayer, midBase, pitch, now);
       this.setLayerPitch(this.highLayer, highBase, pitch, now);
 
       for (const osc of this.bassOscs) {
-        osc.frequency.setTargetAtTime(Math.max(32, (profile.base * 0.28 + firing * 0.12) * pitch), now, 0.04);
+        const bassHz = diesel
+          ? Math.max(28, (42 + firing * 0.06) * pitch)
+          : Math.max(32, (profile.base * 0.28 + firing * 0.12) * pitch);
+        osc.frequency.setTargetAtTime(bassHz, now, 0.05);
       }
 
-      // Smooth RPM crossfade: idle → mid → high scream.
-      const idleMix = Math.max(0, 1 - rpmN * 1.6);
-      const midMix = Math.max(0, 1 - Math.abs(rpmN - 0.45) * 2.4);
-      const highMix = Math.max(0, (rpmN - 0.35) / 0.65);
-      const gas = opts.throttle;
-      // Loop is always running; gas brings volume up immediately (no gaps).
-      const driven = audible * (0.22 + gas * 0.78 + rpmN * 0.15);
-      const idleVol = Math.max(0.0001, driven * (0.55 * idleMix + 0.12));
-      const midVol = Math.max(0.0001, driven * (0.7 * midMix + gas * 0.15));
-      const highVol = Math.max(0.0001, driven * (0.85 * highMix + gas * 0.2 * rpmN));
-      this.idleLayer?.bus.gain.setTargetAtTime(idleVol, now, 0.04);
-      this.midLayer?.bus.gain.setTargetAtTime(midVol, now, 0.04);
-      this.highLayer?.bus.gain.setTargetAtTime(highVol, now, 0.04);
+      // Idle: only calm rumble. Mid/high only when gas is on (and RPM climbing for high).
+      const idleVol = Math.max(0.0001, audible * (diesel ? 0.55 : 0.4));
+      const midVol = Math.max(0.0001, audible * (gas > 0.12 ? (diesel ? 0.35 + gas * 0.25 : 0.45 + gas * 0.35 + rpmN * 0.2) : 0.0001));
+      const highVol = Math.max(
+        0.0001,
+        audible * (diesel ? 0.0001 : gas > 0.2 && rpmRising ? 0.2 + rpmN * 0.7 : gas > 0.35 ? rpmN * 0.25 : 0.0001),
+      );
+      this.idleLayer?.bus.gain.setTargetAtTime(idleVol, now, 0.06);
+      this.midLayer?.bus.gain.setTargetAtTime(midVol, now, 0.05);
+      this.highLayer?.bus.gain.setTargetAtTime(highVol, now, 0.05);
 
-      const masterEng = this.voice === "ev" ? 0.45 : this.voice === "v12" ? 0.72 : 0.62;
-      this.engineGain.gain.setTargetAtTime(Math.max(0.0001, audible * masterEng), now, 0.04);
+      const masterEng = diesel ? 0.78 : this.voice === "ev" ? 0.45 : this.voice === "v12" ? 0.7 : 0.6;
+      this.engineGain.gain.setTargetAtTime(Math.max(0.0001, audible * masterEng), now, 0.05);
       this.bassGain?.gain.setTargetAtTime(
-        Math.max(0.0001, audible * (0.14 + gas * 0.18 + rpmN * 0.08)),
+        Math.max(0.0001, audible * (diesel ? 0.32 + gas * 0.12 : 0.12 + gas * 0.16)),
         now,
-        0.05,
+        0.06,
       );
 
-      // Low-pass keeps high RPM smooth; gas opens it a bit so it breathes.
-      const filterHz =
-        (this.voice === "v12" ? 700 : 600) +
-        rpmN * (this.voice === "v12" ? 1400 : 1600) +
-        gas * 900 -
-        (this.voice === "v12" ? rpmN * rpmN * 200 : 0);
-      this.filter.frequency.setTargetAtTime(filterHz, now, 0.05);
+      const filterHz = diesel
+        ? 280 + gas * 220 + rpmN * 180
+        : 650 + (gas > 0.12 ? rpmN * 1200 + gas * 700 : 0);
+      this.filter.frequency.setTargetAtTime(filterHz, now, 0.06);
       this.debug.rate = pitch;
-      this.debug.loopVol = driven;
-      this.debug.looping = driven > 0.05;
+      this.debug.loopVol = idleVol + midVol;
+      this.debug.looping = audible > 0;
       this.debug.idle = idleVol;
       this.debug.mid = midVol;
       this.debug.high = highVol;
@@ -598,15 +639,15 @@ export class EngineAudio {
       this.lastRpm = rpm;
 
       this.exhaustGain.gain.setTargetAtTime(
-        audible * (profile.growl * 0.35 + rpmN * profile.growl + gas * 0.06),
+        audible * (diesel ? 0.18 + gas * 0.08 : profile.growl * 0.3 + (gas > 0.12 ? rpmN * profile.growl : 0)),
         now,
-        0.05,
+        0.06,
       );
       if (this.whooshGain) {
         if (this.voice === "turbo") {
-          const rising = opts.throttle > this.lastThrottle + 0.02 ? opts.throttle : opts.throttle * 0.35;
-          this.whooshGain.gain.setTargetAtTime(audible * rising * 0.09, now, 0.04);
-          if (this.lastThrottle > 0.55 && opts.throttle < 0.2) this.blowOff();
+          const rising = rpmRising ? gas : gas * 0.25;
+          this.whooshGain.gain.setTargetAtTime(audible * rising * 0.08, now, 0.05);
+          if (this.lastThrottle > 0.55 && gas < 0.2) this.blowOff();
         } else if (this.voice === "ev") {
           this.whooshGain.gain.setTargetAtTime(audible * Math.min(0.08, opts.speed / 120), now, 0.08);
         } else {
