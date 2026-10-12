@@ -636,12 +636,46 @@ export type CollisionHit = {
   overs: { x: number; z: number; soft: ColliderSoft; r: number }[];
 };
 
-/** Push the car out of trees and buildings. Trucks can roll over small rocks/shrubs. */
+/**
+ * Extra height a truck wheel gets while climbing a small rock/shrub.
+ * Returns 0 for sports cars (they don't climb rocks).
+ */
+export function climbBumpAt(x: number, z: number, colliders: Collider[], isTruck: boolean): number {
+  if (!isTruck) return 0;
+  let h = 0;
+  for (const c of colliders) {
+    if (c.kind !== "circle") continue;
+    if (c.soft !== "rock" && c.soft !== "shrub") continue;
+    const d = Math.hypot(x - c.x, z - c.z);
+    const reach = c.r + 1.15;
+    if (d >= reach) continue;
+    const t = 1 - d / reach;
+    const peak = c.soft === "rock" ? Math.min(0.62, 0.22 + c.r * 1.35) : 0.14;
+    // Smooth hump: wheel rolls up, over, and down.
+    h = Math.max(h, peak * Math.sin(t * Math.PI));
+  }
+  return h;
+}
+
+/** Push the car out of trees and buildings. Trucks climb small rocks/shrubs. */
 export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = DEFAULT_TUNE): CollisionHit {
   let impact = 0;
   const overs: CollisionHit["overs"] = [];
   const radius = 1.5;
   const isTruck = tune.offroad >= 1.2 || tune.mass >= 2300;
+  const fx = Math.sin(car.yaw);
+  const fz = Math.cos(car.yaw);
+  const rx = Math.cos(car.yaw);
+  const rz = -Math.sin(car.yaw);
+  const axle = 1.35;
+  const track = 0.9;
+  const wheelXZ = [
+    { x: car.x + fx * axle - rx * track, z: car.z + fz * axle - rz * track },
+    { x: car.x + fx * axle + rx * track, z: car.z + fz * axle + rz * track },
+    { x: car.x - fx * axle - rx * track, z: car.z - fz * axle - rz * track },
+    { x: car.x - fx * axle + rx * track, z: car.z - fz * axle + rz * track },
+  ];
+
   for (const c of colliders) {
     const soft = c.soft ?? "solid";
     if (c.kind === "circle") {
@@ -651,12 +685,15 @@ export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = 
       if (soft === "shrub" || soft === "rock") {
         if (isTruck) {
           overs.push({ x: c.x, z: c.z, soft, r: c.r });
-          // Light suspension jolt instead of a hard stop.
-          const bump = soft === "rock" ? 0.55 : 0.28;
-          car.suspV[0] -= bump;
-          car.suspV[1] -= bump * 0.9;
-          car.suspV[2] -= bump * 0.85;
-          car.suspV[3] -= bump * 0.8;
+          // Compress whichever wheels are on the rock — no hard stop.
+          for (let i = 0; i < 4; i++) {
+            const wd = Math.hypot(wheelXZ[i].x - c.x, wheelXZ[i].z - c.z);
+            if (wd < c.r + 1.1) {
+              const amt = soft === "rock" ? 0.9 : 0.35;
+              car.susp[i] = clamp(car.susp[i] + amt * (1 - wd / (c.r + 1.1)), 0, 0.28);
+              car.suspV[i] -= amt * 0.8;
+            }
+          }
           continue;
         }
         // Sports cars: rocks bump hard and slow them; shrubs are a soft brush.
@@ -666,7 +703,6 @@ export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = 
           overs.push({ x: c.x, z: c.z, soft, r: c.r });
           continue;
         }
-        // Shrub: small slowdown, no hard wall.
         car.speed *= 0.96;
         overs.push({ x: c.x, z: c.z, soft, r: c.r });
         continue;

@@ -9,6 +9,7 @@ import {
   gearLabel,
   makeCar,
   resetCar,
+  climbBumpAt,
   resolveBorder,
   resolveCollisions,
   resolveWater,
@@ -19,7 +20,7 @@ import {
   type Setup,
   type Tune,
 } from "./sim";
-import { SURFACE_LIFT, heightAt, wheelHeights } from "./mapData";
+import { SURFACE_LIFT, heightAt } from "./mapData";
 import { createWorld } from "./world";
 
 export type FrameInfo = {
@@ -38,12 +39,13 @@ export type FrameInfo = {
   assists: string;
 };
 
-type CamMode = "chase" | "bumper" | "hood";
+type CamMode = "chase" | "bumper" | "hood" | "free";
 
 const CAM_LABEL: Record<CamMode, string> = {
   chase: "Chase",
   bumper: "Bumper",
   hood: "Hood",
+  free: "Freecam",
 };
 
 export class DriveGame {
@@ -63,6 +65,10 @@ export class DriveGame {
   private roll = 0;
   private snap = true;
   private camMode: CamMode = "chase";
+  private camBeforeFree: CamMode = "chase";
+  private freeYaw = 0;
+  private freeDist = 14;
+  private freeHeight = 5;
   private impactCool = 0;
   private toast = "";
   private toastTimer = 0;
@@ -221,8 +227,27 @@ export class DriveGame {
   }
 
   cycleCam() {
+    if (this.camMode === "free") return;
     this.camMode = this.camMode === "chase" ? "bumper" : this.camMode === "bumper" ? "hood" : "chase";
     this.snap = true;
+  }
+
+  toggleFreecam() {
+    if (this.camMode === "free") {
+      this.camMode = this.camBeforeFree;
+      this.snap = true;
+      this.setInputBlocked(false);
+      this.say("Camera: " + CAM_LABEL[this.camMode]);
+    } else {
+      this.camBeforeFree = this.camMode;
+      this.camMode = "free";
+      this.freeYaw = this.car.yaw + Math.PI;
+      this.freeDist = 14;
+      this.freeHeight = 5;
+      this.snap = true;
+      this.setInputBlocked(true);
+      this.say("Freecam · WASD move · Q/E up/down · F exit");
+    }
   }
 
   private say(text: string) {
@@ -236,11 +261,12 @@ export class DriveGame {
     this.keys.add(k);
     if (k.startsWith("arrow") || e.code === "Space") e.preventDefault();
     if (!this.running || e.repeat) return;
-    if (k === "c") this.cycleCam();
+    if (k === "f") this.toggleFreecam();
+    if (k === "c" && this.camMode !== "free") this.cycleCam();
     if (k === "r") this.reset();
     if (k === "h") this.audio.horn();
-    if (!this.setup.auto && k === "e") this.shiftUp = true;
-    if (!this.setup.auto && k === "q") this.shiftDown = true;
+    if (!this.setup.auto && this.camMode !== "free" && k === "e") this.shiftUp = true;
+    if (!this.setup.auto && this.camMode !== "free" && k === "q") this.shiftDown = true;
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
@@ -404,40 +430,72 @@ export class DriveGame {
   }
 
   private placeCar() {
-    const wheels = wheelHeights(this.car.x, this.car.z, this.car.yaw);
-    const y = wheels.y + SURFACE_LIFT + this.visual.ride;
+    const isTruck = this.tune.offroad >= 1.2 || this.tune.mass >= 2300;
+    const fx = Math.sin(this.car.yaw);
+    const fz = Math.cos(this.car.yaw);
+    const rx = Math.cos(this.car.yaw);
+    const rz = -Math.sin(this.car.yaw);
+    const axle = 1.35;
+    const track = 0.9;
+    const sample = (ox: number, oz: number) =>
+      heightAt(ox, oz) + climbBumpAt(ox, oz, this.world.colliders, isTruck);
+    const fl = sample(this.car.x + fx * axle - rx * track, this.car.z + fz * axle - rz * track);
+    const fr = sample(this.car.x + fx * axle + rx * track, this.car.z + fz * axle + rz * track);
+    const rl = sample(this.car.x - fx * axle - rx * track, this.car.z - fz * axle - rz * track);
+    const rr = sample(this.car.x - fx * axle + rx * track, this.car.z - fz * axle + rz * track);
+    const y = (fl + fr + rl + rr) * 0.25 + SURFACE_LIFT + this.visual.ride;
     this.visual.root.position.set(this.car.x, y, this.car.z);
     this.visual.root.rotation.order = "YXZ";
     this.visual.root.rotation.y = this.car.yaw;
-    // Follow the ground under the four wheels gently — never tip over on hills.
-    const pitch = THREE.MathUtils.clamp(((wheels.rl + wheels.rr) - (wheels.fl + wheels.fr)) * 0.12, -0.12, 0.12);
-    const roll = THREE.MathUtils.clamp(((wheels.fr + wheels.rr) - (wheels.fl + wheels.rl)) * 0.12, -0.08, 0.08);
+    // Follow ground + rock humps under each wheel (trucks tilt climbing rocks).
+    const pitch = THREE.MathUtils.clamp(((rl + rr) - (fl + fr)) * 0.18, -0.22, 0.22);
+    const roll = THREE.MathUtils.clamp(((fr + rr) - (fl + rl)) * 0.2, -0.2, 0.2);
     this.visual.root.rotation.x = pitch;
     this.visual.root.rotation.z = roll;
   }
 
   private placeCamera(dt: number) {
-    const fx = Math.sin(this.car.yaw);
-    const fz = Math.cos(this.car.yaw);
     const carY = this.visual.root.position.y;
-    if (this.camMode === "chase") {
-      this.desired.set(this.car.x - fx * 13.5, carY + 5.2, this.car.z - fz * 13.5);
-      this.look.set(this.car.x + fx * 10, carY + 1.1, this.car.z + fz * 10);
-    } else if (this.camMode === "bumper") {
-      this.desired.set(this.car.x - fx * 4.3, carY + 1.55, this.car.z - fz * 4.3);
-      this.look.set(this.car.x + fx * 8, carY + 0.85, this.car.z + fz * 8);
+    if (this.camMode === "free") {
+      // Orbit / fly around the car. WASD strafe & dolly, Q/E height.
+      let yaw = this.freeYaw;
+      let dist = this.freeDist;
+      let height = this.freeHeight;
+      if (this.keys.has("a") || this.keys.has("arrowleft")) yaw += 1.4 * dt;
+      if (this.keys.has("d") || this.keys.has("arrowright")) yaw -= 1.4 * dt;
+      if (this.keys.has("w") || this.keys.has("arrowup")) dist = Math.max(4, dist - 10 * dt);
+      if (this.keys.has("s") || this.keys.has("arrowdown")) dist = Math.min(40, dist + 10 * dt);
+      if (this.keys.has("e")) height = Math.min(28, height + 8 * dt);
+      if (this.keys.has("q")) height = Math.max(1.5, height - 8 * dt);
+      this.freeYaw = yaw;
+      this.freeDist = dist;
+      this.freeHeight = height;
+      const fx = Math.sin(yaw);
+      const fz = Math.cos(yaw);
+      this.desired.set(this.car.x - fx * dist, carY + height, this.car.z - fz * dist);
+      this.look.set(this.car.x, carY + 1.0, this.car.z);
     } else {
-      this.desired.set(this.car.x + fx * 0.7, carY + 1.1, this.car.z + fz * 0.7);
-      this.look.set(this.car.x + fx * 14, carY + 0.9, this.car.z + fz * 14);
+      const fx = Math.sin(this.car.yaw);
+      const fz = Math.cos(this.car.yaw);
+      if (this.camMode === "chase") {
+        this.desired.set(this.car.x - fx * 13.5, carY + 5.2, this.car.z - fz * 13.5);
+        this.look.set(this.car.x + fx * 10, carY + 1.1, this.car.z + fz * 10);
+      } else if (this.camMode === "bumper") {
+        this.desired.set(this.car.x - fx * 4.3, carY + 1.55, this.car.z - fz * 4.3);
+        this.look.set(this.car.x + fx * 8, carY + 0.85, this.car.z + fz * 8);
+      } else {
+        this.desired.set(this.car.x + fx * 0.7, carY + 1.1, this.car.z + fz * 0.7);
+        this.look.set(this.car.x + fx * 14, carY + 0.9, this.car.z + fz * 14);
+      }
     }
     // Keep the camera above the terrain and out of the car.
     const floor = heightAt(this.desired.x, this.desired.z) + SURFACE_LIFT + 2.4;
-    this.desired.y = Math.max(this.desired.y, floor, carY + 1.2);
+    this.desired.y = Math.max(this.desired.y, floor, carY + (this.camMode === "free" ? 0.5 : 1.2));
     if (this.snap) {
       this.camera.position.copy(this.desired);
       this.snap = false;
     } else {
-      const k = this.camMode === "chase" ? 4.2 : 10;
+      const k = this.camMode === "chase" ? 4.2 : this.camMode === "free" ? 8 : 10;
       this.camera.position.lerp(this.desired, 1 - Math.exp(-k * dt));
     }
     const camFloor = heightAt(this.camera.position.x, this.camera.position.z) + SURFACE_LIFT + 2.2;

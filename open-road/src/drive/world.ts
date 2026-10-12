@@ -490,19 +490,20 @@ export function createWorld(): World {
       const mesh = new THREE.InstancedMesh(rockGeo, rockMat, rocks.length);
       const dummy = new THREE.Object3D();
       rocks.forEach((p, i) => {
-        const big = p.s > 1.25;
-        dummy.scale.set(p.s, p.s * 0.7, p.s);
+        // Only the rare oversized rocks are solid boulders. Most are climbable.
+        const boulder = p.s >= 1.45;
+        const scale = boulder ? p.s * 1.35 : p.s;
+        dummy.scale.set(scale, scale * (boulder ? 0.9 : 0.65), scale);
         dummy.rotation.set(rand() * 1.2, rand() * 6, rand() * 0.4);
-        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.25 * p.s, p.z);
+        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.22 * scale, p.z);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
-        // Big rocks stay solid; small ones trucks can crawl over.
         local.push({
           kind: "circle",
           x: p.x,
           z: p.z,
-          r: 0.5 * p.s,
-          soft: big ? "solid" : "rock",
+          r: boulder ? 0.85 * scale : 0.42 * p.s,
+          soft: boulder ? "solid" : "rock",
         });
       });
       group.add(mesh);

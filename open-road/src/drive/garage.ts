@@ -39,15 +39,15 @@ function car(
  * Mastodon uses the custom lifted pickup. Shape refs are never shown.
  */
 export const GARAGE: GarageCar[] = [
-  // Supercars / hypers → hatchback-sports (covered wheels, roof, windshield)
-  car("Lambchop", "Chupacabra", "/models/hatchback-sports.glb", famous, {
-    scale: 1.08, ride: 0, wheel: 1.02, color: 0xff6a00, spoiler: true, roofLights: false,
+  // Low, wide wedge supercars (custom GLBs — covered wheels, not F1)
+  car("Lambchop", "Chupacabra", "/models/lambchop-chupacabra.glb", famous, {
+    scale: 1, ride: 0, wheel: 1, color: 0xff6a00, spoiler: false, roofLights: false, realistic: true,
   }, "lambchop"),
-  car("Lambchop", "Minotaur", "/models/hatchback-sports.glb", fastest, {
-    scale: 1.12, ride: 0, wheel: 1.05, color: 0xff3b1f, spoiler: true, roofLights: false,
+  car("Lambchop", "Minotaur", "/models/lambchop-minotaur.glb", fastest, {
+    scale: 1, ride: 0, wheel: 1, color: 0xff3b1f, spoiler: false, roofLights: false, realistic: true,
   }, "lambchop"),
-  car("Lambchop", "Bonehorn", "/models/sedan-sports.glb", { ...famous, accel: 1.3, top: 90 }, {
-    scale: 1.06, ride: 0, wheel: 1.02, color: 0x22e05a, spoiler: true, roofLights: false,
+  car("Lambchop", "Bonehorn", "/models/lambchop-bonehorn.glb", { ...famous, accel: 1.3, top: 90 }, {
+    scale: 1, ride: 0, wheel: 1, color: 0x22e05a, spoiler: false, roofLights: false, realistic: true,
   }, "lambchop"),
   car("Shovel-A", "Thresher", "/models/sedan-sports.glb", famous, {
     scale: 1.02, ride: 0, wheel: 1, color: 0xe23b2f, spoiler: true, roofLights: false,

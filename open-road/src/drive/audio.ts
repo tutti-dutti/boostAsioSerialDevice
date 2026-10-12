@@ -156,6 +156,9 @@ export class EngineAudio {
   private lastRpm = 900;
   private wobblePhase = 0;
   private burblePhase = 0;
+  private lumpPhase = 0;
+  private crackleGain: GainNode | null = null;
+  private nextCrackle = 0;
   /** Latest mix values, for tests. */
   debug = {
     rate: 0,
@@ -479,6 +482,18 @@ export class EngineAudio {
     noise.connect(skidFilter);
     skidFilter.connect(skidGain);
     skidGain.connect(master);
+
+    // Soft idle crackle (short pops through a tight bandpass).
+    const crackleFilter = ctx.createBiquadFilter();
+    crackleFilter.type = "bandpass";
+    crackleFilter.frequency.value = 2400;
+    crackleFilter.Q.value = 1.2;
+    const crackleGain = ctx.createGain();
+    crackleGain.gain.value = 0.0001;
+    this.crackleGain = crackleGain;
+    noise.connect(crackleFilter);
+    crackleFilter.connect(crackleGain);
+    crackleGain.connect(master);
   }
 
   private applyVoiceMix() {
@@ -531,6 +546,25 @@ export class EngineAudio {
     this.debug.rpmRising = rpmRising;
     this.wobblePhase += 0.07 + Math.random() * 0.02;
     this.burblePhase += 0.035;
+    // V8 lump ~8 Hz; V12 smoother ~3 Hz.
+    this.lumpPhase += this.voice === "v12" || this.voice === "lambchop" ? 0.09 : 0.22;
+
+    const isV12 = this.voice === "v12" || this.voice === "lambchop";
+    const isV8 = this.voice === "v8" || this.voice === "turbo";
+    const diesel = this.voice === "diesel";
+    const atIdle = gas < 0.12;
+
+    // Soft crackle ticks at idle for sports / supercars.
+    if (this.crackleGain && audible && atIdle && (isV8 || isV12) && now >= this.nextCrackle) {
+      const pop = 0.03 + Math.random() * 0.04;
+      this.crackleGain.gain.cancelScheduledValues(now);
+      this.crackleGain.gain.setValueAtTime(0.0001, now);
+      this.crackleGain.gain.linearRampToValueAtTime(pop, now + 0.008);
+      this.crackleGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+      this.nextCrackle = now + (isV12 ? 0.55 + Math.random() * 0.7 : 0.28 + Math.random() * 0.45);
+    } else if (this.crackleGain && (!atIdle || !audible)) {
+      this.crackleGain.gain.setTargetAtTime(0.0001, now, 0.03);
+    }
 
     if (this.voice === "lambchop") {
       if (this.ctx.state !== "running") void this.ctx.resume();
@@ -538,38 +572,52 @@ export class EngineAudio {
       else if (!this.lambLoopA) this.startLambLoop();
 
       const rpmN = Math.max(0, Math.min(1, (rpm - 850) / 6750));
-      // Idle: steady low rate. Only climb pitch when gas is on and RPM is rising.
-      let rate = 0.88;
-      if (gas > 0.12) rate = 0.88 + rpmN * 0.55;
+      // Idle: locked low rate. Climb only with gas.
+      let rate = 0.82;
+      if (!atIdle) rate = 0.82 + rpmN * 0.6;
       if (opts.gear !== this.lastGear && this.lastGear !== "" && rpm < this.lastRpm - 180) rate *= 0.92;
       rate = Math.max(0.8, Math.min(1.55, rate));
-      // Tiny random wobble hides the loop seam (not a trill).
-      const wobble = 1 + Math.sin(this.wobblePhase) * 0.006 + (Math.random() - 0.5) * 0.004;
-      const rateA = rate * wobble;
-      const rateB = rate * (2 - wobble);
-      if (this.lambLoopA) this.lambLoopA.playbackRate.value = rateA;
-      if (this.lambLoopB) this.lambLoopB.playbackRate.value = rateB;
-      // Slow crossfade between the two offset copies.
+      const wobble = 1 + Math.sin(this.wobblePhase) * 0.005 + (Math.random() - 0.5) * 0.003;
+      if (this.lambLoopA) this.lambLoopA.playbackRate.value = rate * wobble;
+      if (this.lambLoopB) this.lambLoopB.playbackRate.value = rate * (2 - wobble);
       const xfade = 0.5 + 0.2 * Math.sin(this.wobblePhase * 0.35);
       if (this.lambLoopGainA) this.lambLoopGainA.gain.setTargetAtTime(xfade, now, 0.08);
       if (this.lambLoopGainB) this.lambLoopGainB.gain.setTargetAtTime(1.05 - xfade, now, 0.08);
 
       const inRev = now < this.revUntil;
-      const idleVol = 0.22;
-      const drivenVol = 0.28 + gas * 0.65 + (rpmRising ? rpmN * 0.15 : 0);
-      const loopVol = audible ? (inRev ? 0.32 + gas * 0.15 : gas > 0.12 ? drivenVol : idleVol) : 0.0001;
-      if (this.lambBus) this.lambBus.gain.value = Math.max(0.0001, loopVol);
-      this.debug.rate = rate;
-      this.debug.loopVol = loopVol;
-      this.debug.revVol = inRev ? 0.7 : 0;
-      this.debug.looping = !!this.lambLoopA && loopVol > 0.05;
-      this.debug.idle = gas > 0.12 ? 0 : loopVol;
-      this.debug.mid = gas > 0.12 ? loopVol : 0;
-      this.debug.high = 0;
+      // Sample quieter at idle; synth idle burble sits underneath, then blends out with gas.
+      const sampleVol = audible
+        ? inRev
+          ? 0.3 + gas * 0.15
+          : atIdle
+            ? 0.1
+            : 0.28 + gas * 0.68 + (rpmRising ? rpmN * 0.12 : 0)
+        : 0.0001;
+      if (this.lambBus) this.lambBus.gain.setTargetAtTime(Math.max(0.0001, sampleVol), now, atIdle ? 0.08 : 0.04);
 
-      this.engineGain.gain.setTargetAtTime(0.0001, now, 0.05);
-      this.exhaustGain.gain.setTargetAtTime(0.0001, now, 0.05);
+      // Smooth high idle burble under the sample (deeper than the rev).
+      const idlePitch = 0.9;
+      const lump = 1 + Math.sin(this.lumpPhase) * 0.015;
+      this.setLayerPitch(this.idleLayer, 70, idlePitch * lump, now);
+      this.setLayerPitch(this.midLayer, 110, idlePitch, now);
+      const idleBurble = Math.max(0.0001, audible * (atIdle ? 0.38 : Math.max(0.0001, 0.38 * (1 - gas * 2.2))));
+      this.idleLayer?.bus.gain.setTargetAtTime(idleBurble, now, 0.05);
+      this.midLayer?.bus.gain.setTargetAtTime(0.0001, now, 0.04);
+      this.highLayer?.bus.gain.setTargetAtTime(0.0001, now, 0.04);
+      this.engineGain.gain.setTargetAtTime(Math.max(0.0001, audible * (atIdle ? 0.55 : 0.12)), now, 0.05);
+      this.bassGain?.gain.setTargetAtTime(Math.max(0.0001, audible * (atIdle ? 0.18 : 0.08 + gas * 0.1)), now, 0.06);
+      this.filter.frequency.setTargetAtTime(atIdle ? 480 : 900 + rpmN * 1000 + gas * 600, now, 0.05);
+      this.exhaustGain.gain.setTargetAtTime(audible * (atIdle ? 0.08 : 0.02), now, 0.06);
       this.whooshGain?.gain.setTargetAtTime(0.0001, now, 0.05);
+
+      this.debug.rate = rate;
+      this.debug.loopVol = sampleVol;
+      this.debug.revVol = inRev ? 0.7 : 0;
+      this.debug.looping = !!this.lambLoopA && sampleVol > 0.05;
+      this.debug.idle = idleBurble;
+      this.debug.mid = atIdle ? 0 : sampleVol;
+      this.debug.high = 0;
+      this.debug.filterHz = atIdle ? 480 : 900;
 
       if (audible && rpmRising && gas > 0.9 && opts.speed < 2.8 && this.lastThrottle <= 0.9) {
         this.playLaunchRev();
@@ -577,58 +625,76 @@ export class EngineAudio {
       this.lastRpm = rpm;
     } else {
       const profile = VOICE[this.voice];
-      const diesel = this.voice === "diesel";
       const rpmN = Math.max(0, Math.min(1, (rpm - 850) / 6750));
-      // Idle pitch is locked. Climb only when gas is on.
-      let pitch = diesel ? 0.85 : 0.9;
-      if (gas > 0.12) pitch = this.pitchFromRpm(rpm);
+      // Idle pitch locked (V12 a bit higher/smoother, V8 deeper/lumpier).
+      let pitch = diesel ? 0.85 : isV12 ? 0.95 : 0.88;
+      if (!atIdle) pitch = this.pitchFromRpm(rpm);
       if (opts.gear !== this.lastGear && this.lastGear !== "" && rpm < this.lastRpm - 180) pitch *= 0.94;
       pitch = Math.max(0.8, Math.min(diesel ? 1.25 : 1.55, pitch));
-      // Cars: tiny random wobble. Trucks: slow uneven burble only (no chirp).
       if (diesel) {
         pitch *= 1 + Math.sin(this.burblePhase) * 0.012 + Math.sin(this.burblePhase * 0.37) * 0.008;
-      } else if (gas > 0.12) {
+      } else if (atIdle && isV8) {
+        pitch *= 1 + Math.sin(this.lumpPhase) * 0.03 + Math.sin(this.lumpPhase * 0.5) * 0.015;
+      } else if (atIdle && isV12) {
+        pitch *= 1 + Math.sin(this.lumpPhase) * 0.01;
+      } else if (!atIdle) {
         pitch *= 1 + Math.sin(this.wobblePhase) * 0.005 + (Math.random() - 0.5) * 0.003;
       }
 
       const firing = (rpm * profile.cyl) / 120;
-      const idleBase = diesel ? 55 + firing * 0.08 : profile.base * 0.4 + firing * 0.08;
+      // Idle fundamentals are deeper than the rev layers.
+      const idleBase = diesel
+        ? 55 + firing * 0.08
+        : isV12
+          ? 95
+          : isV8
+            ? 62
+            : profile.base * 0.38;
       const midBase = diesel ? 70 + firing * 0.18 : profile.base * 0.65 + firing * 0.45;
       const highBase = diesel ? 85 + firing * 0.22 : profile.base * 0.55 + firing * 0.95;
       this.setLayerPitch(this.idleLayer, idleBase, pitch, now);
-      this.setLayerPitch(this.midLayer, midBase, pitch, now);
+      this.setLayerPitch(this.midLayer, midBase, atIdle ? pitch : pitch, now);
       this.setLayerPitch(this.highLayer, highBase, pitch, now);
 
       for (const osc of this.bassOscs) {
         const bassHz = diesel
           ? Math.max(28, (42 + firing * 0.06) * pitch)
-          : Math.max(32, (profile.base * 0.28 + firing * 0.12) * pitch);
+          : Math.max(30, (isV8 ? 38 : 48) * pitch + (atIdle ? 0 : firing * 0.08));
         osc.frequency.setTargetAtTime(bassHz, now, 0.05);
       }
 
-      // Idle: only calm rumble. Mid/high only when gas is on (and RPM climbing for high).
-      const idleVol = Math.max(0.0001, audible * (diesel ? 0.55 : 0.4));
-      const midVol = Math.max(0.0001, audible * (gas > 0.12 ? (diesel ? 0.35 + gas * 0.25 : 0.45 + gas * 0.35 + rpmN * 0.2) : 0.0001));
+      // Idle burble only. Mid/high blend in as soon as gas is pressed.
+      const lumpAmp = atIdle && isV8 ? 0.12 * (0.5 + 0.5 * Math.sin(this.lumpPhase)) : 0;
+      const idleVol = Math.max(0.0001, audible * (diesel ? 0.55 : isV12 ? 0.32 : 0.36 + lumpAmp));
+      const midVol = Math.max(
+        0.0001,
+        audible * (!atIdle ? (diesel ? 0.35 + gas * 0.25 : 0.2 + gas * 0.55 + rpmN * 0.25) : 0.0001),
+      );
       const highVol = Math.max(
         0.0001,
-        audible * (diesel ? 0.0001 : gas > 0.2 && rpmRising ? 0.2 + rpmN * 0.7 : gas > 0.35 ? rpmN * 0.25 : 0.0001),
+        audible * (diesel ? 0.0001 : !atIdle && rpmRising ? 0.15 + rpmN * 0.75 : !atIdle ? gas * rpmN * 0.35 : 0.0001),
       );
-      this.idleLayer?.bus.gain.setTargetAtTime(idleVol, now, 0.06);
-      this.midLayer?.bus.gain.setTargetAtTime(midVol, now, 0.05);
-      this.highLayer?.bus.gain.setTargetAtTime(highVol, now, 0.05);
+      // Fast blend idle → rev when gas hits.
+      this.idleLayer?.bus.gain.setTargetAtTime(idleVol * (atIdle ? 1 : Math.max(0.15, 1 - gas * 1.4)), now, atIdle ? 0.08 : 0.035);
+      this.midLayer?.bus.gain.setTargetAtTime(midVol, now, 0.035);
+      this.highLayer?.bus.gain.setTargetAtTime(highVol, now, 0.04);
 
-      const masterEng = diesel ? 0.78 : this.voice === "ev" ? 0.45 : this.voice === "v12" ? 0.7 : 0.6;
+      const masterEng = diesel ? 0.78 : this.voice === "ev" ? 0.45 : isV12 ? 0.68 : 0.62;
       this.engineGain.gain.setTargetAtTime(Math.max(0.0001, audible * masterEng), now, 0.05);
       this.bassGain?.gain.setTargetAtTime(
-        Math.max(0.0001, audible * (diesel ? 0.32 + gas * 0.12 : 0.12 + gas * 0.16)),
+        Math.max(0.0001, audible * (diesel ? 0.32 + gas * 0.12 : atIdle ? (isV8 ? 0.22 : 0.14) : 0.1 + gas * 0.16)),
         now,
         0.06,
       );
 
       const filterHz = diesel
         ? 280 + gas * 220 + rpmN * 180
-        : 650 + (gas > 0.12 ? rpmN * 1200 + gas * 700 : 0);
-      this.filter.frequency.setTargetAtTime(filterHz, now, 0.06);
+        : atIdle
+          ? isV12
+            ? 520
+            : 380
+          : 700 + rpmN * 1200 + gas * 700;
+      this.filter.frequency.setTargetAtTime(filterHz, now, 0.05);
       this.debug.rate = pitch;
       this.debug.loopVol = idleVol + midVol;
       this.debug.looping = audible > 0;
@@ -639,7 +705,7 @@ export class EngineAudio {
       this.lastRpm = rpm;
 
       this.exhaustGain.gain.setTargetAtTime(
-        audible * (diesel ? 0.18 + gas * 0.08 : profile.growl * 0.3 + (gas > 0.12 ? rpmN * profile.growl : 0)),
+        audible * (diesel ? 0.18 + gas * 0.08 : atIdle ? 0.1 : profile.growl * 0.25 + rpmN * profile.growl),
         now,
         0.06,
       );
