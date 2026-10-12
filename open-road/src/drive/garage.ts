@@ -41,52 +41,52 @@ function car(
 export const GARAGE: GarageCar[] = [
   // Supercars → race / race-future
   car("Lambchop", "Chupacabra", "/models/race-future.glb", famous, {
-    scale: 1.05, ride: 0.02, wheel: 1.05, color: 0xff6a00, spoiler: true, roofLights: false,
+    scale: 1.05, ride: 0, wheel: 1, color: 0xff6a00, spoiler: true, roofLights: false,
   }, "lambchop"),
   car("Lambchop", "Minotaur", "/models/race-future.glb", fastest, {
-    scale: 1.08, ride: 0.02, wheel: 1.08, color: 0xff3b1f, spoiler: true, roofLights: false,
+    scale: 1.08, ride: 0, wheel: 1, color: 0xff3b1f, spoiler: true, roofLights: false,
   }, "lambchop"),
   car("Lambchop", "Bonehorn", "/models/race.glb", { ...famous, accel: 1.3, top: 90 }, {
-    scale: 1.04, ride: 0.02, wheel: 1.05, color: 0x22e05a, spoiler: true, roofLights: false,
+    scale: 1.04, ride: 0, wheel: 1, color: 0x22e05a, spoiler: true, roofLights: false,
   }, "lambchop"),
   // Sports → sedan-sports / hatchback-sports
   car("Shovel-A", "Thresher", "/models/sedan-sports.glb", famous, {
-    scale: 1.02, ride: 0.04, wheel: 1, color: 0xe23b2f, spoiler: true, roofLights: false,
+    scale: 1.02, ride: 0, wheel: 1, color: 0xe23b2f, spoiler: true, roofLights: false,
   }, "v8"),
   car("Shovel-A", "Megalodon", "/models/hatchback-sports.glb", fastest, {
-    scale: 1.04, ride: 0.03, wheel: 1.05, color: 0x2f6fed, spoiler: true, roofLights: false,
+    scale: 1.04, ride: 0, wheel: 1, color: 0x2f6fed, spoiler: true, roofLights: false,
   }, "v8"),
   // Truck → truck
   car("Shovel-A", "Mastodon", "/models/truck.glb", truck, {
-    scale: 1.2, ride: 0.08, wheel: 1.15, color: 0x2a3328, spoiler: false, roofLights: true,
+    scale: 1.15, ride: 0, wheel: 1.05, color: 0x2a3328, spoiler: false, roofLights: true,
   }, "diesel"),
   // Hyper → race-future
   car("Baguetti", "Hellhound", "/models/race-future.glb", famous, {
-    scale: 1.06, ride: 0.02, wheel: 1.06, color: 0x1a1c22, spoiler: true, roofLights: false,
+    scale: 1.06, ride: 0, wheel: 1, color: 0x1a1c22, spoiler: true, roofLights: false,
   }, "turbo"),
   car("Baguetti", "Cerberus", "/models/race-future.glb", fastest, {
-    scale: 1.1, ride: 0.01, wheel: 1.1, color: 0x8d1218, spoiler: true, roofLights: false,
+    scale: 1.1, ride: 0, wheel: 1, color: 0x8d1218, spoiler: true, roofLights: false,
   }, "turbo"),
   car("Ferocity", "Jackal", "/models/hatchback-sports.glb", famous, {
-    scale: 1.0, ride: 0.04, wheel: 1, color: 0xd42323, spoiler: true, roofLights: false,
+    scale: 1.0, ride: 0, wheel: 1, color: 0xd42323, spoiler: true, roofLights: false,
   }, "v8"),
   car("Ferocity", "Manticore", "/models/race.glb", fastest, {
-    scale: 1.08, ride: 0.02, wheel: 1.08, color: 0xff5a1f, spoiler: true, roofLights: false,
+    scale: 1.08, ride: 0, wheel: 1, color: 0xff5a1f, spoiler: true, roofLights: false,
   }, "v12"),
   car("Porch", "Deathstalker", "/models/sedan-sports.glb", famous, {
-    scale: 0.98, ride: 0.05, wheel: 1, color: 0xc8ccd2, spoiler: false, roofLights: false,
+    scale: 0.98, ride: 0, wheel: 1, color: 0xc8ccd2, spoiler: false, roofLights: false,
   }, "turbo"),
   car("Porch", "Hellbender", "/models/race.glb", fastest, {
-    scale: 1.06, ride: 0.02, wheel: 1.06, color: 0x1e3a5f, spoiler: true, roofLights: false,
+    scale: 1.06, ride: 0, wheel: 1, color: 0x1e3a5f, spoiler: true, roofLights: false,
   }, "v8"),
   car("McRoar", "Pterodactyl", "/models/race-future.glb", famous, {
-    scale: 1.05, ride: 0.02, wheel: 1.05, color: 0xff8a00, spoiler: true, roofLights: false,
+    scale: 1.05, ride: 0, wheel: 1, color: 0xff8a00, spoiler: true, roofLights: false,
   }, "v8"),
   car("McRoar", "Great White", "/models/race.glb", fastest, {
-    scale: 1.12, ride: 0.01, wheel: 1.02, color: 0xf0f4f8, spoiler: false, roofLights: false,
+    scale: 1.12, ride: 0, wheel: 1, color: 0xf0f4f8, spoiler: false, roofLights: false,
   }, "v12"),
   car("King Egg", "Leviathan", "/models/race-future.glb", famous, {
-    scale: 1.07, ride: 0.02, wheel: 1.08, color: 0xb8ff2a, spoiler: true, roofLights: false,
+    scale: 1.07, ride: 0, wheel: 1, color: 0xb8ff2a, spoiler: true, roofLights: false,
   }, "v8"),
 ];
 

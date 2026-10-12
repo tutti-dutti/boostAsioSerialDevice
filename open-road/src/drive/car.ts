@@ -115,6 +115,12 @@ export async function loadCarModel(url: string, look: CarLook): Promise<CarVisua
     mesh.receiveShadow = false;
   });
 
+  // Lift so the lowest wheel tread sits on y=0 (Kenney models vary).
+  const grounded = new THREE.Box3();
+  for (const wheel of wheels) grounded.expandByObject(wheel.pivot);
+  if (grounded.isEmpty()) grounded.setFromObject(root);
+  const autoRide = Number.isFinite(grounded.min.y) ? -grounded.min.y + look.ride : look.ride;
+
   const tail = new THREE.MeshStandardMaterial({
     color: 0xff1a1a,
     emissive: 0xff1a1a,
@@ -134,7 +140,7 @@ export async function loadCarModel(url: string, look: CarLook): Promise<CarVisua
     head,
     tailLights,
     wheelRadius: measureWheel(wheels[0]?.pivot, look),
-    ride: look.ride,
+    ride: autoRide,
   };
 }
 
@@ -190,27 +196,41 @@ function finishRealistic(root: THREE.Group, look: CarLook) {
 }
 
 function tintChassis(chassis: THREE.Group, color: number) {
+  // Kenney Car Kit uses a shared colormap atlas. Replace body paint with a
+  // solid material so each garage car gets a clear unique color.
+  const paint = new THREE.MeshPhysicalMaterial({
+    name: "paint",
+    color,
+    metalness: 0.55,
+    roughness: 0.28,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.15,
+    envMap: carEnvironment ?? undefined,
+    envMapIntensity: 1.0,
+  });
+  const dark = new THREE.MeshStandardMaterial({
+    color: 0x1a1c20,
+    metalness: 0.4,
+    roughness: 0.55,
+    envMap: carEnvironment ?? undefined,
+    envMapIntensity: 0.5,
+  });
   chassis.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
-    const name = (mesh.name || mesh.parent?.name || "").toLowerCase();
-    // Leave glass / lights / spoilers alone when named; tint the body paint.
-    if (name.includes("glass") || name.includes("window") || name.includes("light")) return;
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    const tinted = materials.map((material) => {
-      const next = material.clone();
-      if (next instanceof THREE.MeshStandardMaterial || next instanceof THREE.MeshPhysicalMaterial) {
-        next.color.setHex(color);
-        next.metalness = Math.max(next.metalness ?? 0, 0.35);
-        next.roughness = Math.min(next.roughness ?? 0.5, 0.45);
-        if (carEnvironment) {
-          next.envMap = carEnvironment;
-          next.envMapIntensity = 0.85;
-        }
-      }
-      return next;
-    });
-    mesh.material = Array.isArray(mesh.material) ? tinted : tinted[0];
+    const name = (mesh.name || "").toLowerCase();
+    const parent = (mesh.parent?.name || "").toLowerCase();
+    if (name.includes("wheel") || parent.includes("wheel")) return;
+    if (name.includes("spoiler") || parent.includes("spoiler")) {
+      mesh.material = paint;
+      return;
+    }
+    // Body and misc chassis parts get paint; grill stays dark.
+    if (name.includes("grill") || name.includes("grille")) {
+      mesh.material = dark;
+      return;
+    }
+    mesh.material = paint;
   });
 }
 
