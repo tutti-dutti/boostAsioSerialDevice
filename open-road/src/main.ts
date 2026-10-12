@@ -22,11 +22,12 @@ app.innerHTML = `
     <div class="assists">
       <button id="gear-mode" type="button">Gearbox: Auto</button>
       <button id="clutch-mode" type="button">Clutch: Off</button>
+      <button id="handling-mode" type="button">Handling: Arcade</button>
       <button id="tc-mode" type="button">Traction: On</button>
       <button id="abs-mode" type="button">ABS: On</button>
     </div>
     <p class="note">Turn your sound on. Manual uses Q and E to shift, and Shift is the clutch. A song plays while you drive.</p>
-    <p class="credits">Models: the Lambchop cars are original bodies made for this game. The other cars are Kenney's Car Kit (CC0).</p>
+    <p class="credits">Models: all garage cars are original bodies made for this game. Road props use Kenney's Car Kit (CC0).</p>
   </section>
   <div id="hud" class="hud is-hidden">
     <header class="top">
@@ -176,10 +177,12 @@ function paintAssists() {
   const setup = game.getSetup();
   const gear = document.querySelector<HTMLButtonElement>("#gear-mode");
   const clutch = document.querySelector<HTMLButtonElement>("#clutch-mode");
+  const handling = document.querySelector<HTMLButtonElement>("#handling-mode");
   const tc = document.querySelector<HTMLButtonElement>("#tc-mode");
   const abs = document.querySelector<HTMLButtonElement>("#abs-mode");
   if (gear) gear.textContent = `Gearbox: ${setup.auto ? "Auto" : "Manual"}`;
   if (clutch) clutch.textContent = `Clutch: ${setup.clutchNeeded ? "On" : "Off"}`;
+  if (handling) handling.textContent = `Handling: ${setup.handling === "sim" ? "Sim" : "Arcade"}`;
   if (tc) tc.textContent = `Traction: ${setup.tc ? "On" : "Off"}`;
   if (abs) abs.textContent = `ABS: ${setup.abs ? "On" : "Off"}`;
 }
@@ -190,6 +193,11 @@ document.querySelector("#gear-mode")?.addEventListener("click", () => {
 });
 document.querySelector("#clutch-mode")?.addEventListener("click", () => {
   game.setSetup({ clutchNeeded: !game.getSetup().clutchNeeded });
+  paintAssists();
+});
+document.querySelector("#handling-mode")?.addEventListener("click", () => {
+  const next = game.getSetup().handling === "arcade" ? "sim" : "arcade";
+  game.setSetup({ handling: next });
   paintAssists();
 });
 document.querySelector("#tc-mode")?.addEventListener("click", () => {
@@ -256,6 +264,7 @@ document.addEventListener("keydown", (event) => {
   else closeGarage();
 });
 document.querySelector("#cam-btn")?.addEventListener("click", () => game.cycleCam());
+paintAssists();
 
 for (const el of document.querySelectorAll<HTMLButtonElement>("[data-hold]")) {
   const name = el.dataset.hold;

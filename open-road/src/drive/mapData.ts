@@ -15,9 +15,9 @@ export type RoadDef = {
 
 /** Loose or slick ground. Wet sits on the main road. Mud and ice are off to the side. */
 export const PATCHES: { name: string; x: number; z: number; hx: number; hz: number; mu: number; max: number }[] = [
-  { name: "Wet", x: 90, z: 0, hx: 55, hz: 11, mu: 0.62, max: 70 },
-  { name: "Mud", x: -170, z: 70, hx: 24, hz: 16, mu: 0.34, max: 18 },
-  { name: "Ice", x: 210, z: -36, hx: 30, hz: 18, mu: 0.2, max: 24 },
+  { name: "Wet", x: 90, z: 0, hx: 55, hz: 11, mu: 0.85, max: 78 },
+  { name: "Mud", x: -170, z: 70, hx: 24, hz: 16, mu: 0.42, max: 22 },
+  { name: "Ice", x: 210, z: -36, hx: 30, hz: 18, mu: 0.28, max: 28 },
 ];
 
 export const ROADS: RoadDef[] = [

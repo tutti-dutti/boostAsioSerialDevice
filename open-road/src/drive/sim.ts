@@ -52,15 +52,19 @@ export type Tune = {
   cg: number;
 };
 
+export type Handling = "arcade" | "sim";
+
 export type Setup = {
   auto: boolean;
   clutchNeeded: boolean;
   tc: boolean;
   abs: boolean;
+  /** Arcade turns sharp at high speed. Sim slides if you push too hard. */
+  handling: Handling;
 };
 
 export const DEFAULT_TUNE: Tune = { accel: 1, top: 78, offroad: 1, drive: "rwd", mass: 1400, cg: 0.5 };
-export const DEFAULT_SETUP: Setup = { auto: true, clutchNeeded: false, tc: true, abs: true };
+export const DEFAULT_SETUP: Setup = { auto: true, clutchNeeded: false, tc: true, abs: true, handling: "arcade" };
 
 export type StepInfo = {
   skid: number;
@@ -159,17 +163,18 @@ export function surfaceAt(x: number, z: number, roads: RoadSeg[]): Surface {
     }
   }
   if (best <= half + 0.4) {
-    if (grip < 0.85) return ground("Dirt", 0.55, 36);
+    if (grip < 0.85) return ground("Dirt", 0.7, 50);
     const wet = patchAt(x, z, "Wet");
     if (wet) return wet;
-    return ground("Dry", 1.32, 90);
+    return ground("Dry", 1.55, 98);
   }
   const mud = patchAt(x, z, "Mud");
   if (mud) return mud;
   const ice = patchAt(x, z, "Ice");
   if (ice) return ice;
-  if (ld < LAKE.r + 16) return ground("Sand", 0.4, 22);
-  return ground("Grass", 0.48, 26);
+  if (ld < LAKE.r + 16) return ground("Sand", 0.5, 28);
+  // Grass is a bit less sticky than pavement, but still fast.
+  return ground("Grass", 0.92, 72);
 }
 
 function patchAt(x: number, z: number, name: string): Surface | null {
@@ -206,20 +211,23 @@ export function stepCar(
   const mass = tune.mass;
   const weight = mass * 9.81;
   const cg = tune.cg;
+  const arcade = setup.handling !== "sim";
   const frontShare = tune.drive === "fwd" ? 0.58 : tune.drive === "rwd" ? 0.48 : 0.52;
   const inWater = surface.name === "Water";
-  const loose = !inWater && surface.name !== "Dry" && surface.name !== "Wet";
-  const mu = clamp(surface.grip * (loose ? tune.offroad : 1), 0.04, 1.45);
-  // Turning radius in meters. Full lock is a tight circle at low and medium
-  // speed, then opens with speed so a fast car stays stable.
+  const onGrass = surface.name === "Grass";
+  const loose = !inWater && !onGrass && surface.name !== "Dry" && surface.name !== "Wet";
+  const gripBoost = arcade ? 1.35 : 1;
+  const mu = clamp(surface.grip * (loose ? Math.max(0.55, tune.offroad) : 1) * gripBoost, 0.04, 2.2);
+  // Turning radius in meters. Full lock U-turns in about 36–40 ft on dry road.
   const speedAbs = Math.abs(car.speed);
-  const gripAy = (input.handbrake ? 0.4 : 1.25) * mu * 9.81;
+  const gripAy = (input.handbrake ? 0.45 : arcade ? 2.4 : 1.55) * mu * 9.81;
   const gripR = (speedAbs * speedAbs) / Math.max(5, gripAy);
-  const tightR = input.handbrake ? 7.5 : 4.6;
-  const blend = clamp((speedAbs - 4) / 22, 0, 1);
+  const tightR = input.handbrake ? 6.0 : 5.2;
+  const blend = arcade ? clamp((speedAbs - 18) / 40, 0, 0.45) : clamp((speedAbs - 4) / 20, 0, 1);
   const turnR = tightR * (1 - blend) + Math.max(tightR, gripR) * blend;
   const steerSign = Math.sign(input.steer) || 0;
-  const delta = steerSign * Math.atan2(WHEELBASE, Math.max(turnR, 1.5));
+  const maxSteer = arcade ? 0.72 : 0.55;
+  const delta = steerSign * Math.min(maxSteer, Math.atan2(WHEELBASE, Math.max(turnR, 1.4)));
 
   const longShift = clamp((mass * car.ax * cg) / WHEELBASE, -0.38 * weight, 0.38 * weight);
   const latShift = clamp((mass * car.ay * cg) / TRACK, -0.34 * weight, 0.34 * weight);
@@ -246,13 +254,24 @@ export function stepCar(
   if (car.grind > 0 || (setup.clutchNeeded && !setup.auto && input.clutch)) throttle *= 0.08;
 
   const gearMul = GEAR_POWER[car.gear] ?? 0.46;
-  const speedCap = inWater ? 3 : loose ? Math.min(tune.top, surface.max * tune.offroad) : tune.top;
+  // Grass keeps most of top speed. Trucks are almost as fast as on road.
+  const grassFrac = tune.offroad >= 1.2 ? 0.95 : 0.75;
+  const speedCap = inWater
+    ? 3
+    : onGrass
+      ? tune.top * grassFrac
+      : loose
+        ? Math.min(tune.top, surface.max * Math.max(0.55, tune.offroad))
+        : tune.top;
   const pull = Math.abs(car.speed) / Math.max(12, speedCap);
   const curve = pull < 0.6 ? 1 : Math.max(0.24, 1 - (pull - 0.6) * 1.7);
   const push = mass * 12.5 * tune.accel * gearMul * curve;
   let drive = throttle * push * (car.reverse ? -1 : 1);
-  let brakeForce = brake * mass * 10.5;
-  if (input.handbrake) brakeForce += mass * 4.2;
+  // Sports cars ~60→0 in about 3s. Trucks take longer.
+  const brakeG = tune.mass >= 2400 ? 6.8 : 14.5;
+  let brakeForce = brake * mass * brakeG;
+  if (tune.mass >= 2400) brakeForce = Math.min(brakeForce, mass * 6.8);
+  if (input.handbrake) brakeForce += mass * 5.5;
 
   const frontCap = mu * frontN;
   const rearMu = mu * (input.handbrake ? 0.22 : 1);
@@ -266,8 +285,8 @@ export function stepCar(
     if (limit < 1) drive *= limit;
   }
   if (setup.abs && brake > 0) {
-    const brakeCap = frontCap * 0.64 + rearCap * 0.36;
-    const limit = (brakeCap * 0.92) / Math.max(1, brakeForce);
+    const brakeCap = frontCap * 0.66 + rearCap * 0.4;
+    const limit = (brakeCap * 1.05) / Math.max(1, brakeForce);
     if (limit < 1) brakeForce *= limit;
   }
 
@@ -302,29 +321,33 @@ export function stepCar(
   }
 
   // Heading follows the front wheels. A stopped car cannot pivot.
-  const yawMag = rolling && !inWater ? Math.min(1.8, speedAbs / Math.max(turnR, 1.5)) : 0;
+  const yawCeil = arcade ? 2.6 : 1.9;
+  const yawMag = rolling && !inWater ? Math.min(yawCeil, speedAbs / Math.max(turnR, 1.4)) : 0;
   const yawTarget = -Math.sign(car.speed || 1) * steerSign * yawMag;
   if (!rolling || inWater) {
     car.yawRate = 0;
     car.lat = 0;
     car.ay = 0;
   } else if (steerSign === 0) {
-    car.yawRate *= Math.exp(-4 * dtSafe);
+    car.yawRate *= Math.exp(-(arcade ? 6 : 4) * dtSafe);
   } else {
-    const follow = 1 - Math.exp(-(input.handbrake ? 2.5 : 10) * dtSafe);
+    const follow = 1 - Math.exp(-(input.handbrake ? 2.8 : arcade ? 14 : 10) * dtSafe);
     car.yawRate += (yawTarget - car.yawRate) * follow;
   }
-  car.yawRate = clamp(car.yawRate, -1.8, 1.8);
+  car.yawRate = clamp(car.yawRate, -yawCeil, yawCeil);
   car.yaw += car.yawRate * dtSafe;
   if (rolling && !inWater && !input.handbrake) {
-    const stick = clamp(mu, 0.25, 1.2);
-    car.lat *= Math.exp(-(3 + 11 * stick) * dtSafe);
+    const stick = clamp(mu, 0.35, 2);
+    const plant = arcade ? 18 : 12;
+    car.lat *= Math.exp(-(4 + plant * stick) * dtSafe);
   }
 
-  const cap = car.reverse ? 16 : speedCap;
-  car.speed = clamp(car.speed, car.reverse || (setup.auto && car.speed < 0) ? -16 : -4, cap);
-  car.lat = clamp(car.lat, input.handbrake ? -12 : -3.2, input.handbrake ? 12 : 3.2);
-  if (Math.abs(car.speed) < 0.35) car.lat *= Math.exp(-8 * dtSafe);
+  // One reverse gear, about 15–20 mph, and grass slows reverse the same way.
+  const revCap = Math.min(8.5, speedCap);
+  car.speed = clamp(car.speed, car.reverse || (setup.auto && car.speed < 0) ? -revCap : -3, speedCap);
+  const latMax = input.handbrake ? 10 : arcade ? 1.6 : 2.4;
+  car.lat = clamp(car.lat, -latMax, latMax);
+  if (Math.abs(car.speed) < 0.35) car.lat *= Math.exp(-10 * dtSafe);
 
   const fxw = Math.sin(car.yaw);
   const fzw = Math.cos(car.yaw);
@@ -335,12 +358,17 @@ export function stepCar(
 
   const loads = [fl, fr, rl, rr];
   const rest = weight / 4;
+  // Sports cars are stiff and low. Trucks are softer and taller.
+  const stiff = tune.mass >= 2400 ? 42 : 95;
+  const damp = tune.mass >= 2400 ? 14 : 22;
+  const throwAmt = tune.mass >= 2400 ? 0.11 : 0.055;
   for (let i = 0; i < 4; i++) {
-    const target = 0.05 + clamp((loads[i] - rest) / rest, -0.8, 1.4) * 0.07;
-    const spring = (target - car.susp[i]) * 70;
-    const damper = -car.suspV[i] * 11;
+    const target = (tune.mass >= 2400 ? 0.09 : 0.045) + clamp((loads[i] - rest) / rest, -0.9, 1.5) * throwAmt;
+    const spring = (target - car.susp[i]) * stiff;
+    const damper = -car.suspV[i] * damp;
     car.suspV[i] += (spring + damper) * dtSafe;
-    car.susp[i] = clamp(car.susp[i] + car.suspV[i] * dtSafe, -0.02, 0.22);
+    car.suspV[i] *= Math.exp(-1.8 * dtSafe);
+    car.susp[i] = clamp(car.susp[i] + car.suspV[i] * dtSafe, -0.02, tune.mass >= 2400 ? 0.28 : 0.16);
   }
 
   const ratio = GEAR_RATIO[car.gear] ?? 1;
@@ -358,8 +386,8 @@ export function stepCar(
   const rightComp = (car.susp[1] + car.susp[3]) * 0.5;
   return {
     skid,
-    pitch: clamp((frontComp - rearComp) * 2.4, -0.12, 0.12),
-    roll: clamp((leftComp - rightComp) * 2.8, -0.14, 0.14),
+    pitch: clamp((frontComp - rearComp) * 3.4, -0.14, 0.14),
+    roll: clamp((leftComp - rightComp) * 3.8, -0.16, 0.16),
     wheel: inWater ? 0 : delta,
     wheels: [...car.susp] as [number, number, number, number],
   };
@@ -396,7 +424,7 @@ function shiftGears(car: Car, input: Input, setup: Setup, dt: number) {
  * Positive force pushes the car to its right.
  */
 function tireSide(slip: number, load: number, mu: number, longUse: number) {
-  const peak = 0.12;
+  const peak = 0.09;
   const s = slip / peak;
   const shape = s / (1 + 0.45 * s * s);
   const norm = shape / 0.745;

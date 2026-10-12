@@ -40,7 +40,19 @@ function isWheel(name: string) {
   return name.startsWith("wheel-") && (name.includes("left") || name.includes("right"));
 }
 
-/** Load a CC0 Kenney car and dress it up as one garage vehicle. */
+/** Top-level parts, or one nesting level if the exporter wrapped the car. */
+function carParts(scene: THREE.Object3D): THREE.Object3D[] {
+  const top = [...scene.children];
+  if (top.some((child) => isWheel(child.name))) return top;
+  const nested: THREE.Object3D[] = [];
+  for (const child of top) {
+    if (child.children.length > 0) nested.push(...child.children);
+    else nested.push(child);
+  }
+  return nested.some((child) => isWheel(child.name)) ? nested : top;
+}
+
+/** Load a car GLB and dress it up as one garage vehicle. */
 export async function loadCarModel(url: string, look: CarLook): Promise<CarVisual> {
   const loader = new GLTFLoader();
   const gltf = await loader.loadAsync(url);
@@ -51,24 +63,32 @@ export async function loadCarModel(url: string, look: CarLook): Promise<CarVisua
   const chassis = new THREE.Group();
   root.add(chassis);
 
+  model.updateMatrixWorld(true);
   const wheels: WheelRig[] = [];
-  for (const child of [...model.children]) {
+  for (const child of carParts(model)) {
     if (isWheel(child.name)) {
       const front = child.name.includes("front");
+      const world = new THREE.Vector3();
+      child.getWorldPosition(world);
       const pivot = new THREE.Group();
-      pivot.position.copy(child.position);
+      pivot.position.copy(world);
       const spin = new THREE.Group();
       child.position.set(0, 0, 0);
       child.rotation.set(0, 0, 0);
       child.scale.set(1, 1, 1);
+      if (child.parent) child.parent.remove(child);
       spin.add(child);
       pivot.add(spin);
       root.add(pivot);
       pivot.scale.setScalar(look.wheel);
       wheels.push({ pivot, spin, front });
     } else {
+      if (child.parent) child.parent.remove(child);
       chassis.add(child);
     }
+  }
+  if (wheels.length === 0) {
+    throw new Error(`No wheels found in ${url}`);
   }
 
   const tailLights = look.realistic ? finishRealistic(root, look) : [];

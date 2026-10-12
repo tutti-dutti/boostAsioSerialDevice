@@ -119,6 +119,7 @@ export class DriveGame {
       this.scene.remove(this.visual.root);
       this.visual = next;
       this.scene.add(next.root);
+      this.audio.setVoice(this.ride.voice);
       this.placeCar();
     } catch (err) {
       console.error("Could not load the car model", err);
@@ -163,6 +164,7 @@ export class DriveGame {
       this.scene.add(next.root);
       this.ride = nextRide;
       this.tune = nextRide.tune;
+      this.audio.setVoice(nextRide.voice);
       this.placeCar();
       this.say(`${nextRide.label} is ready`);
     } catch (err) {
@@ -427,7 +429,7 @@ export class DriveGame {
       toast: this.toast,
       audioOn: this.audio.on,
       carName: this.ride.label,
-      assists: `${this.setup.auto ? "Auto" : "Manual"} · TC ${this.setup.tc ? "on" : "off"} · ABS ${this.setup.abs ? "on" : "off"}`,
+      assists: `${this.setup.auto ? "Auto" : "Manual"} · ${this.setup.handling === "sim" ? "Sim" : "Arcade"} · TC ${this.setup.tc ? "on" : "off"} · ABS ${this.setup.abs ? "on" : "off"}`,
     };
   }
 

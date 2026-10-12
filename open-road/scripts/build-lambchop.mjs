@@ -43,9 +43,9 @@ const rubber = new THREE.MeshStandardMaterial({
 });
 const chrome = new THREE.MeshStandardMaterial({
   name: "chrome",
-  color: 0xd5dde6,
-  metalness: 0.94,
-  roughness: 0.16,
+  color: 0xf2f6fb,
+  metalness: 0.72,
+  roughness: 0.28,
 });
 const dark = new THREE.MeshStandardMaterial({
   name: "dark",
@@ -68,10 +68,9 @@ const tail = new THREE.MeshStandardMaterial({
   roughness: 0.28,
 });
 
-const TIRE_R = 0.305;
-const TIRE_TUBE = 0.074;
-const TIRE_AXLE = 1.72;
-const TIRE_OUTER = TIRE_R + TIRE_TUBE;
+const TIRE_R = 0.34;
+const TIRE_W = 0.24;
+const TIRE_OUTER = TIRE_R;
 
 function sample(keys, u) {
   if (u <= keys[0][0]) return keys[0][1];
@@ -158,30 +157,37 @@ function wheel(front, left, spokes, x, z) {
   const pivot = new THREE.Group();
   pivot.name = `wheel-${front ? "front" : "back"}-${left ? "left" : "right"}`;
   const spin = new THREE.Group();
-  const tire = new THREE.Mesh(new THREE.TorusGeometry(TIRE_R, TIRE_TUBE, 12, 28), rubber);
-  tire.rotation.y = Math.PI / 2;
-  tire.scale.z = TIRE_AXLE;
-  const groove = new THREE.Mesh(new THREE.TorusGeometry(TIRE_OUTER - 0.008, 0.01, 8, 24), dark);
-  groove.rotation.y = Math.PI / 2;
-  groove.scale.z = TIRE_AXLE * 0.28;
-  const rimR = TIRE_R - 0.02;
-  const disc = new THREE.Mesh(new THREE.CylinderGeometry(rimR * 0.28, rimR * 0.28, 0.04, 16), dark);
-  disc.rotation.z = Math.PI / 2;
-  const lip = new THREE.Mesh(new THREE.TorusGeometry(rimR * 0.96, 0.02, 8, 28), chrome);
-  lip.rotation.y = Math.PI / 2;
-  const bead = new THREE.Mesh(new THREE.TorusGeometry(rimR * 0.78, 0.012, 8, 24), chrome);
-  bead.rotation.y = Math.PI / 2;
-  spin.add(tire, groove, disc, lip, bead);
+  const rimR = TIRE_R * 0.62;
+  const tire = new THREE.Mesh(new THREE.CylinderGeometry(TIRE_R, TIRE_R, TIRE_W, 28), rubber);
+  tire.rotation.z = Math.PI / 2;
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(TIRE_R * 0.97, TIRE_R * 0.97, TIRE_W * 1.05, 28), dark);
+  wall.rotation.z = Math.PI / 2;
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(rimR, rimR, TIRE_W * 0.55, 24), chrome);
+  rim.rotation.z = Math.PI / 2;
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(rimR * 0.72, rimR * 0.72, TIRE_W * 0.7, 20), dark);
+  barrel.rotation.z = Math.PI / 2;
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(rimR * 0.28, rimR * 0.28, TIRE_W * 0.85, 16), chrome);
+  hub.rotation.z = Math.PI / 2;
+  spin.add(tire, wall, rim, barrel, hub);
+  const faceX = left ? -TIRE_W * 0.55 : TIRE_W * 0.55;
+  const dish = new THREE.Mesh(new THREE.CylinderGeometry(rimR * 0.95, rimR * 0.95, 0.02, 28), dark);
+  dish.rotation.z = Math.PI / 2;
+  dish.position.x = faceX;
+  spin.add(dish);
   for (let i = 0; i < spokes; i++) {
-    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.022, rimR * 0.7, 0.07), chrome);
-    spoke.geometry.translate(0, rimR * 0.48, 0);
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.04, rimR * 0.7, 0.06), chrome);
+    spoke.geometry.translate(0, rimR * 0.38, 0);
     spoke.rotation.x = (i / spokes) * Math.PI * 2;
+    spoke.position.x = faceX + (left ? -0.02 : 0.02);
     spin.add(spoke);
   }
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 12), chrome);
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(rimR * 0.92, 0.028, 8, 28), chrome);
+  lip.rotation.y = Math.PI / 2;
+  lip.position.x = faceX + (left ? -0.01 : 0.01);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(rimR * 0.22, rimR * 0.22, 0.05, 16), chrome);
   cap.rotation.z = Math.PI / 2;
-  cap.position.x = left ? -0.03 : 0.03;
-  spin.add(cap);
+  cap.position.x = faceX + (left ? -0.025 : 0.025);
+  spin.add(lip, cap);
   pivot.add(spin);
   pivot.position.set(left ? -x : x, TIRE_OUTER, z);
   return pivot;
@@ -258,9 +264,12 @@ function details(style, body, half, hw, frontZ, rearZ) {
     group.add(box(0.14, 0.02, 0.045, dark, side * (hw + 0.02), mirrorY, mirrorZ));
     group.add(box(0.1, 0.065, 0.13, dark, side * (hw + 0.14), mirrorY + 0.015, mirrorZ));
     group.add(box(0.018, 0.045, 0.09, chrome, side * (hw + 0.19), mirrorY + 0.015, mirrorZ));
-    const intake = box(0.025, 0.07, 0.28, dark, side * (hw * 1.005), 0.42, rearZ + 0.62);
-    intake.rotation.y = side * -0.2;
+    const intake = box(0.08, 0.18, 0.55, dark, side * (hw * 0.98), 0.38, rearZ + 0.55);
+    intake.rotation.y = side * -0.22;
     group.add(intake);
+    const scoop = box(0.05, 0.12, 0.32, dark, side * (hw * 1.02), 0.4, rearZ + 0.55);
+    scoop.rotation.y = side * -0.22;
+    group.add(scoop);
   }
 
   const mouth = shoot(body, 0, style.nose + 0.02, half + 2, -1);
@@ -403,78 +412,78 @@ const styles = [
     id: "chupacabra",
     file: "lambchop-chupacabra.glb",
     length: 1,
-    width: 1,
-    round: 3.4,
-    top: 4.4,
-    bot: 3,
-    nose: 0.36,
-    belt: 0.7,
-    haunch: 0.98,
-    roof: 1.14,
-    crown: 0.05,
+    width: 1.12,
+    round: 4.8,
+    top: 6.5,
+    bot: 3.4,
+    nose: 0.28,
+    belt: 0.58,
+    haunch: 0.86,
+    roof: 0.98,
+    crown: 0.04,
     wing: "sport",
     spokes: 5,
     grille: 4,
     lamps: "blade",
-    widthKeys: widthKeys(0.2),
+    widthKeys: widthKeys(0.14),
     heightKeys: [
-      [0, 0.38],
-      [0.2, 0.86],
-      [0.42, 0.74],
-      [0.72, 1.02],
-      [1, 0.76],
+      [0, 0.28],
+      [0.18, 0.7],
+      [0.4, 0.58],
+      [0.72, 0.86],
+      [1, 0.66],
     ],
   },
   {
     id: "minotaur",
     file: "lambchop-minotaur.glb",
-    length: 1.12,
-    width: 1.06,
-    round: 5.2,
-    top: 6.2,
-    bot: 3.8,
-    nose: 0.3,
-    belt: 0.68,
-    haunch: 1.1,
-    roof: 1.06,
-    crown: 0.07,
+    length: 1.14,
+    width: 1.18,
+    round: 6.2,
+    top: 8,
+    bot: 4,
+    nose: 0.22,
+    belt: 0.54,
+    haunch: 0.98,
+    roof: 0.92,
+    crown: 0.06,
     wing: "race",
     spokes: 10,
     grille: 6,
     lamps: "stack",
-    widthKeys: widthKeys(0.12),
+    widthKeys: widthKeys(0.1),
     heightKeys: [
-      [0, 0.32],
-      [0.18, 0.84],
-      [0.4, 0.7],
-      [0.74, 1.14],
-      [1, 0.84],
+      [0, 0.22],
+      [0.16, 0.66],
+      [0.38, 0.54],
+      [0.74, 0.98],
+      [1, 0.72],
     ],
   },
   {
     id: "bonehorn",
     file: "lambchop-bonehorn.glb",
-    length: 0.92,
-    width: 0.98,
-    round: 2.2,
-    top: 2.8,
-    bot: 2.2,
-    nose: 0.42,
-    belt: 0.74,
-    haunch: 0.86,
-    roof: 1.22,
+    length: 0.9,
+    width: 1.06,
+    round: 2.6,
+    top: 3.2,
+    bot: 2.4,
+    nose: 0.34,
+    belt: 0.62,
+    haunch: 0.78,
+    roof: 1.08,
     crown: 0.02,
     wing: "lip",
     spokes: 7,
     grille: 3,
     lamps: "pill",
-    widthKeys: widthKeys(0.34),
+    widthKeys: widthKeys(0.28),
     heightKeys: [
-      [0, 0.46],
-      [0.22, 0.84],
-      [0.48, 0.78],
-      [0.74, 0.9],
-      [1, 0.68],
+      [0, 0.36],
+      [0.2, 0.7],
+      [0.46, 0.64],
+      [0.74, 0.78],
+      [1, 0.58],
     ],
   },
 ];

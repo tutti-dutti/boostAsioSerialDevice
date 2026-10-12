@@ -1,5 +1,6 @@
-import type { Tune } from "./sim";
+import type { EngineVoice } from "./audio";
 import type { CarLook } from "./car";
+import type { Tune } from "./sim";
 
 export type GarageCar = {
   id: string;
@@ -10,6 +11,7 @@ export type GarageCar = {
   model: string;
   tune: Tune;
   look: CarLook;
+  voice: EngineVoice;
 };
 
 const famous: Tune = { accel: 1.22, top: 86, offroad: 0.58, drive: "rwd", mass: 1450, cg: 0.42 };
@@ -22,9 +24,10 @@ function car(
   model: string,
   tune: Tune,
   look: CarLook,
+  voice: EngineVoice,
 ): GarageCar {
   const id = `${brand}-${name}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  return { id, brand, name, label: `${brand} ${name}`, model, tune, look };
+  return { id, brand, name, label: `${brand} ${name}`, model, tune, look, voice };
 }
 
 /**
@@ -33,35 +36,35 @@ function car(
  */
 export const GARAGE: GarageCar[] = [
   car("Lambchop", "Chupacabra", "/models/lambchop-chupacabra.glb", famous, {
-    scale: 1, ride: 0.07, wheel: 1, color: 0xf2c14e, spoiler: false, roofLights: false, realistic: true,
-  }),
+    scale: 1, ride: 0.04, wheel: 1, color: 0xff6a00, spoiler: false, roofLights: false, realistic: true,
+  }, "v12"),
   car("Lambchop", "Minotaur", "/models/lambchop-minotaur.glb", fastest, {
-    scale: 1, ride: 0.07, wheel: 1, color: 0xf4f4f4, spoiler: false, roofLights: false, realistic: true,
-  }),
+    scale: 1, ride: 0.04, wheel: 1, color: 0xff3b1f, spoiler: false, roofLights: false, realistic: true,
+  }, "v12"),
   car("Lambchop", "Bonehorn", "/models/lambchop-bonehorn.glb", { ...famous, accel: 1.3, top: 90 }, {
-    scale: 1, ride: 0.07, wheel: 1, color: 0x3ddc7a, spoiler: false, roofLights: false, realistic: true,
-  }),
-  car("Shovel-A", "Thresher", "/models/sedan-sports.glb", famous, {
-    scale: 1.82, ride: 0.05, wheel: 1, color: 0xe23b2f, spoiler: true, roofLights: false,
-  }),
-  car("Shovel-A", "Megalodon", "/models/sedan-sports.glb", fastest, {
-    scale: 1.74, ride: 0.01, wheel: 1.14, color: 0x2f6fed, spoiler: true, roofLights: false,
-  }),
-  car("Shovel-A", "Mastodon", "/models/truck.glb", truck, {
-    scale: 2.15, ride: 0.2, wheel: 1.28, color: 0x2f6b3a, spoiler: false, roofLights: true,
-  }),
-  car("Baguetti", "Hellhound", "/models/race-future.glb", famous, {
-    scale: 1.9, ride: 0.02, wheel: 1.08, color: 0x1a1c22, spoiler: false, roofLights: false,
-  }),
-  car("Baguetti", "Cerberus", "/models/race-future.glb", fastest, {
-    scale: 1.96, ride: 0, wheel: 1.16, color: 0x8d1218, spoiler: true, roofLights: false,
-  }),
-  car("Ferocity", "Jackal", "/models/sedan-sports.glb", famous, {
-    scale: 1.64, ride: 0.03, wheel: 1, color: 0xd42323, spoiler: true, roofLights: false,
-  }),
-  car("Ferocity", "Manticore", "/models/race-future.glb", fastest, {
-    scale: 1.78, ride: 0, wheel: 1.08, color: 0xff5a1f, spoiler: true, roofLights: false,
-  }),
+    scale: 1, ride: 0.04, wheel: 1, color: 0x22e05a, spoiler: false, roofLights: false, realistic: true,
+  }, "v10"),
+  car("Shovel-A", "Thresher", "/models/shovel-thresher.glb", famous, {
+    scale: 1, ride: 0.06, wheel: 1, color: 0xe23b2f, spoiler: true, roofLights: false, realistic: true,
+  }, "v8"),
+  car("Shovel-A", "Megalodon", "/models/shovel-megalodon.glb", fastest, {
+    scale: 1, ride: 0.05, wheel: 1, color: 0x2f6fed, spoiler: true, roofLights: false, realistic: true,
+  }, "v8"),
+  car("Shovel-A", "Mastodon", "/models/shovel-mastodon.glb", truck, {
+    scale: 1, ride: 0.12, wheel: 1, color: 0x2f6b3a, spoiler: false, roofLights: true, realistic: true,
+  }, "diesel"),
+  car("Baguetti", "Hellhound", "/models/baguetti-hellhound.glb", famous, {
+    scale: 1, ride: 0.04, wheel: 1, color: 0x1a1c22, spoiler: false, roofLights: false, realistic: true,
+  }, "turbo"),
+  car("Baguetti", "Cerberus", "/models/baguetti-cerberus.glb", fastest, {
+    scale: 1, ride: 0.03, wheel: 1, color: 0x8d1218, spoiler: true, roofLights: false, realistic: true,
+  }, "turbo"),
+  car("Ferocity", "Jackal", "/models/ferocity-jackal.glb", famous, {
+    scale: 1, ride: 0.05, wheel: 1, color: 0xd42323, spoiler: true, roofLights: false, realistic: true,
+  }, "v8"),
+  car("Ferocity", "Manticore", "/models/ferocity-manticore.glb", fastest, {
+    scale: 1, ride: 0.03, wheel: 1, color: 0xff5a1f, spoiler: true, roofLights: false, realistic: true,
+  }, "v12"),
 ];
 
 export function carById(id: string) {
