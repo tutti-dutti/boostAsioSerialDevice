@@ -9,6 +9,7 @@ import {
   makeCar,
   resetCar,
   resolveCollisions,
+  resolveWater,
   stepCar,
   surfaceAt,
   type Car,
@@ -73,6 +74,7 @@ export class DriveGame {
   private shiftUp = false;
   private shiftDown = false;
   private switching = false;
+  private inWater = false;
   private readonly desired = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   private readonly sunDir = new THREE.Vector3(0.84, 0.3, 0.36).normalize();
@@ -190,6 +192,7 @@ export class DriveGame {
 
   reset() {
     resetCar(this.car);
+    this.inWater = false;
     this.snap = true;
     this.say("Back to the start");
   }
@@ -323,7 +326,10 @@ export class DriveGame {
   private step(dt: number) {
     const input = this.readInput();
     const surface = surfaceAt(this.car.x, this.car.z, this.world.roads);
-    const { skid, pitch, roll, wheels } = stepCar(this.car, input, surface, dt, this.tune, this.setup);
+    const { skid, pitch, roll, wheels, wheel } = stepCar(this.car, input, surface, dt, this.tune, this.setup);
+    const wet = resolveWater(this.car);
+    if (wet && !this.inWater) this.say("You can't drive on the water");
+    this.inWater = wet;
     const impact = resolveCollisions(this.car, this.world.colliders);
     this.impactCool = Math.max(0, this.impactCool - dt);
     if (impact > 8 && this.impactCool <= 0) {
@@ -347,7 +353,7 @@ export class DriveGame {
     });
 
     this.roll += (this.car.speed / this.visual.wheelRadius) * dt;
-    const steerVis = -input.steer * 0.65;
+    const steerVis = -wheel;
     for (const wheel of this.visual.wheels) {
       wheel.spin.rotation.x = this.roll;
       if (wheel.front) wheel.pivot.rotation.y = steerVis;

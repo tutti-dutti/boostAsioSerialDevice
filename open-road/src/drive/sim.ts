@@ -35,8 +35,11 @@ export type Input = {
 
 export type Surface = {
   name: string;
+  /** Peak tire/road friction coefficient. */
   grip: number;
   max: number;
+  /** Rolling resistance. Pavement is near 0.013. Soft ground is higher. */
+  roll: number;
 };
 
 export type Tune = {
@@ -63,6 +66,8 @@ export type StepInfo = {
   skid: number;
   pitch: number;
   roll: number;
+  /** Front wheel angle in radians. Positive turns right. */
+  wheel: number;
   wheels: [number, number, number, number];
 };
 
@@ -83,7 +88,7 @@ export const REDLINE = 7600;
 
 const UPS = [16, 28, 41, 55, 68];
 const DOWNS = [11, 22, 34, 47, 58];
-const GEAR_POWER = [1, 0.84, 0.7, 0.58, 0.48, 0.4];
+const GEAR_POWER = [1, 0.92, 0.8, 0.68, 0.56, 0.46];
 export function makeCar(): Car {
   return {
     x: -70,
@@ -122,7 +127,26 @@ function segDist(px: number, pz: number, s: RoadSeg) {
   return Math.hypot(px - x, pz - z);
 }
 
+const ROLL: Record<string, number> = {
+  Dry: 0.013,
+  Wet: 0.016,
+  Dirt: 0.05,
+  Mud: 0.14,
+  Ice: 0.008,
+  Grass: 0.08,
+  Sand: 0.12,
+  Water: 0.45,
+};
+
+function ground(name: string, grip: number, max: number): Surface {
+  return { name, grip, max, roll: ROLL[name] ?? 0.02 };
+}
+
 export function surfaceAt(x: number, z: number, roads: RoadSeg[]): Surface {
+  // Water wins over roads so a path that touches the lake cannot be driven across.
+  const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
+  if (ld < LAKE.r) return ground("Water", 0.04, 3);
+
   let best = Infinity;
   let grip = 1;
   let half = 0;
@@ -135,26 +159,24 @@ export function surfaceAt(x: number, z: number, roads: RoadSeg[]): Surface {
     }
   }
   if (best <= half + 0.4) {
-    if (grip < 0.85) return { name: "Dirt", grip: 0.55, max: 36 };
+    if (grip < 0.85) return ground("Dirt", 0.55, 36);
     const wet = patchAt(x, z, "Wet");
     if (wet) return wet;
-    return { name: "Dry", grip: 1.02, max: 78 };
+    return ground("Dry", 1.32, 90);
   }
   const mud = patchAt(x, z, "Mud");
   if (mud) return mud;
   const ice = patchAt(x, z, "Ice");
   if (ice) return ice;
-  const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
-  if (ld < LAKE.r) return { name: "Water", grip: 0.22, max: 12 };
-  if (ld < LAKE.r + 16) return { name: "Sand", grip: 0.4, max: 22 };
-  return { name: "Grass", grip: 0.48, max: 26 };
+  if (ld < LAKE.r + 16) return ground("Sand", 0.4, 22);
+  return ground("Grass", 0.48, 26);
 }
 
 function patchAt(x: number, z: number, name: string): Surface | null {
   for (const patch of PATCHES) {
     if (patch.name !== name) continue;
     if (Math.abs(x - patch.x) <= patch.hx && Math.abs(z - patch.z) <= patch.hz) {
-      return { name: patch.name, grip: patch.mu, max: patch.max };
+      return ground(patch.name, patch.mu, patch.max);
     }
   }
   return null;
@@ -185,9 +207,13 @@ export function stepCar(
   const weight = mass * 9.81;
   const cg = tune.cg;
   const frontShare = tune.drive === "fwd" ? 0.58 : tune.drive === "rwd" ? 0.48 : 0.52;
-  const loose = surface.name !== "Dry" && surface.name !== "Wet";
-  const mu = clamp(surface.grip * (loose ? tune.offroad : 1), 0.12, 1.35);
-  const steer = input.steer * (0.46 / (1 + Math.abs(car.speed) * 0.018));
+  const inWater = surface.name === "Water";
+  const loose = !inWater && surface.name !== "Dry" && surface.name !== "Wet";
+  const mu = clamp(surface.grip * (loose ? tune.offroad : 1), 0.04, 1.45);
+  // Wheel angle. Positive is a right turn. Lock is high at walking speed so the
+  // wheels can overcome an old yaw rate, and it falls off as speed rises.
+  const lock = 0.56 / (1 + Math.abs(car.speed) * 0.034);
+  const delta = input.steer * lock;
 
   const longShift = clamp((mass * car.ax * cg) / WHEELBASE, -0.38 * weight, 0.38 * weight);
   const latShift = clamp((mass * car.ay * cg) / TRACK, -0.34 * weight, 0.34 * weight);
@@ -200,29 +226,37 @@ export function stepCar(
   frontN = fl + fr;
   rearN = rl + rr;
 
-  const vx = Math.max(Math.abs(car.speed), 0.8);
-  const slipF = Math.atan2(car.lat + car.yawRate * WHEELBASE * 0.55, vx) - steer * Math.sign(car.speed || 1);
-  const slipR = Math.atan2(car.lat - car.yawRate * WHEELBASE * 0.45, vx);
+  const frontAxle = WHEELBASE * 0.55;
+  const rearAxle = WHEELBASE * 0.45;
+  const rolling = Math.abs(car.speed) > 0.7;
+  const vx = Math.max(Math.abs(car.speed), 0.45);
+  const travel = Math.sign(car.speed || 1);
+  const slipF = Math.atan2(car.lat + car.yawRate * frontAxle, vx) - (rolling && !inWater ? delta * travel : 0);
+  const slipR = Math.atan2(car.lat - car.yawRate * rearAxle, vx);
   const driveSplit = tune.drive === "fwd" ? [1, 0] : tune.drive === "rwd" ? [0, 1] : [0.4, 0.6];
 
-  let throttle = input.throttle;
+  let throttle = inWater ? 0 : input.throttle;
   let brake = input.brake;
   if (car.grind > 0 || (setup.clutchNeeded && !setup.auto && input.clutch)) throttle *= 0.08;
 
-  const gearMul = GEAR_POWER[car.gear] ?? 0.4;
-  const speedCap = loose ? Math.min(tune.top, surface.max * tune.offroad) : tune.top;
-  const push = mass * 6.4 * tune.accel * gearMul * Math.max(0.18, 1 - Math.abs(car.speed) / (speedCap + 10));
+  const gearMul = GEAR_POWER[car.gear] ?? 0.46;
+  const speedCap = inWater ? 3 : loose ? Math.min(tune.top, surface.max * tune.offroad) : tune.top;
+  const pull = Math.abs(car.speed) / Math.max(12, speedCap);
+  const curve = pull < 0.6 ? 1 : Math.max(0.24, 1 - (pull - 0.6) * 1.7);
+  const push = mass * 12.5 * tune.accel * gearMul * curve;
   let drive = throttle * push * (car.reverse ? -1 : 1);
   let brakeForce = brake * mass * 10.5;
   if (input.handbrake) brakeForce += mass * 4.2;
 
   const frontCap = mu * frontN;
-  const rearCap = mu * rearN * (input.handbrake ? 0.28 : 1);
-  const wantFront = Math.abs(drive) * driveSplit[0] + brakeForce * 0.64;
-  const wantRear = Math.abs(drive) * driveSplit[1] + brakeForce * 0.36;
-  if (setup.tc && wantFront + wantRear > 0 && throttle > 0) {
+  const rearMu = mu * (input.handbrake ? 0.22 : 1);
+  const rearCap = rearMu * rearN;
+  if (setup.tc && throttle > 0) {
     const driveCap = frontCap * driveSplit[0] + rearCap * driveSplit[1];
-    const limit = (driveCap * 0.9) / Math.max(0.2, Math.abs(drive));
+    // Stronger cars may use more of the tire. The rest of the friction stays
+    // for cornering, so full throttle does not spin the car around.
+    const use = clamp(0.72 + 0.2 * tune.accel, 0.4, 0.98);
+    const limit = (driveCap * use) / Math.max(0.2, Math.abs(drive));
     if (limit < 1) drive *= limit;
   }
   if (setup.abs && brake > 0) {
@@ -231,15 +265,20 @@ export function stepCar(
     if (limit < 1) brakeForce *= limit;
   }
 
-  const useFront = clamp((Math.abs(drive) * driveSplit[0] + brakeForce * 0.64) / Math.max(1, frontCap), 0, 1);
-  const useRear = clamp((Math.abs(drive) * driveSplit[1] + brakeForce * 0.36) / Math.max(1, rearCap), 0, 1);
-  const fyF = tireSide(slipF, frontN, mu, useFront);
-  const fyR = tireSide(slipR, rearN, mu * (input.handbrake ? 0.28 : 1), useRear);
-  const fxDrive = clamp(drive, -(frontCap * driveSplit[0] + rearCap * driveSplit[1]), frontCap * driveSplit[0] + rearCap * driveSplit[1]);
-  const fxBrake = Math.min(brakeForce, frontCap * 0.64 + rearCap * 0.36) * Math.sign(car.speed || 1);
-  const drag = mass * (0.1 + 0.0015 * car.speed * Math.abs(car.speed));
-  const coast = Math.abs(car.speed) < 0.05 ? 0 : Math.sign(car.speed);
-  const fx = fxDrive - fxBrake - drag * coast;
+  const fxDrive = clamp(
+    drive,
+    -(frontCap * driveSplit[0] + rearCap * driveSplit[1]),
+    frontCap * driveSplit[0] + rearCap * driveSplit[1],
+  );
+  const fxBrakeMag = Math.min(brakeForce, frontCap * 0.64 + rearCap * 0.36);
+  const brakeSign = Math.abs(car.speed) < 0.05 ? 0 : Math.sign(car.speed);
+  const fxBrake = fxBrakeMag * brakeSign;
+  const useFront = clamp((Math.abs(fxDrive) * driveSplit[0] + fxBrakeMag * 0.64) / Math.max(1, frontCap), 0, 1);
+  const useRear = clamp((Math.abs(fxDrive) * driveSplit[1] + fxBrakeMag * 0.36) / Math.max(1, rearCap), 0, 1);
+  const fyF = limitTire(tireSide(slipF, frontN, mu, useFront), Math.abs(fxDrive) * driveSplit[0] + fxBrakeMag * 0.64, frontCap);
+  const fyR = limitTire(tireSide(slipR, rearN, rearMu, useRear), Math.abs(fxDrive) * driveSplit[1] + fxBrakeMag * 0.36, rearCap);
+  const drag = dragForce(car.speed, mass, inWater ? 0.8 : surface.roll);
+  const fx = fxDrive - fxBrake - drag;
   const fy = fyF + fyR;
 
   car.ax = fx / mass;
@@ -256,23 +295,34 @@ export function stepCar(
     car.ay = 0;
   }
 
-  const inertia = mass * 1.85;
-  const moment = -fyF * (WHEELBASE * 0.55) + fyR * (WHEELBASE * 0.45);
-  car.yawRate += (moment / inertia) * dtSafe;
-  if (Math.abs(input.steer) < 0.001) {
-    car.yawRate *= Math.exp(-2.4 * dtSafe);
-    car.lat *= Math.exp(-1.8 * dtSafe);
+  // The car goes where the front wheels point. Tire grip caps the turn so it
+  // cannot yaw harder than the road can hold, and a stopped car cannot pivot.
+  const ayMax = (input.handbrake ? 0.32 : 0.92) * mu * 9.81;
+  const speedAbs = Math.abs(car.speed);
+  // Low grip slides instead of locking the nose straight. The wheels can always
+  // rotate the car once it is rolling.
+  const yawLim = speedAbs > 2.5 ? Math.min(1.25, Math.max(0.55, ayMax / speedAbs)) : 1.15;
+  if (!rolling || inWater) {
+    car.yawRate = 0;
+    car.lat = 0;
+    car.ay = 0;
+  } else if (Math.abs(delta) < 0.001) {
+    car.yawRate *= Math.exp(-4 * dtSafe);
+  } else {
+    const yawTarget = clamp((-Math.tan(delta) * car.speed) / WHEELBASE, -yawLim, yawLim);
+    const follow = 1 - Math.exp(-(input.handbrake ? 2.5 : 8) * dtSafe);
+    car.yawRate += (yawTarget - car.yawRate) * follow;
   }
-  if (Math.abs(car.speed) < 3.2) {
-    const kin = (-car.speed * Math.tan(steer)) / WHEELBASE;
-    car.yawRate += (kin - car.yawRate) * (1 - Math.exp(-6 * dtSafe));
-  }
-  car.yawRate = clamp(car.yawRate, -2.6, 2.6);
+  car.yawRate = clamp(car.yawRate, -yawLim, yawLim);
   car.yaw += car.yawRate * dtSafe;
+  if (rolling && !inWater && !input.handbrake) {
+    const stick = clamp(mu, 0.25, 1.2);
+    car.lat *= Math.exp(-(3 + 11 * stick) * dtSafe);
+  }
 
   const cap = car.reverse ? 16 : speedCap;
   car.speed = clamp(car.speed, car.reverse || (setup.auto && car.speed < 0) ? -16 : -4, cap);
-  car.lat = clamp(car.lat, -14, 14);
+  car.lat = clamp(car.lat, input.handbrake ? -12 : -3.2, input.handbrake ? 12 : 3.2);
   if (Math.abs(car.speed) < 0.35) car.lat *= Math.exp(-8 * dtSafe);
 
   const fxw = Math.sin(car.yaw);
@@ -309,6 +359,7 @@ export function stepCar(
     skid,
     pitch: clamp((frontComp - rearComp) * 2.4, -0.12, 0.12),
     roll: clamp((leftComp - rightComp) * 2.8, -0.14, 0.14),
+    wheel: inWater ? 0 : delta,
     wheels: [...car.susp] as [number, number, number, number],
   };
 }
@@ -338,13 +389,76 @@ function shiftGears(car: Car, input: Input, setup: Setup, dt: number) {
   }
 }
 
-/** Lateral tire force. Positive pushes the car to its right. */
+/**
+ * Lateral tire force from slip angle. Peaks near 7 degrees, then falls off.
+ * Longitudinal use (drive or brake) takes a share of the friction circle.
+ * Positive force pushes the car to its right.
+ */
 function tireSide(slip: number, load: number, mu: number, longUse: number) {
-  const peak = 0.11;
-  const s = clamp(slip / peak, -1.8, 1.8);
-  const shape = s / (1 + 0.4 * s * s);
-  const remain = Math.sqrt(Math.max(0, 1 - clamp(longUse, 0, 1) ** 2));
-  return -shape * mu * remain * load * 1.15;
+  const peak = 0.12;
+  const s = slip / peak;
+  const shape = s / (1 + 0.45 * s * s);
+  const norm = shape / 0.745;
+  const used = clamp(longUse, 0, 1);
+  const remain = Math.sqrt(Math.max(0.22, 1 - used * used));
+  return -norm * mu * remain * load;
+}
+
+/** Keep the combined tire force inside the friction circle. */
+function limitTire(fy: number, fx: number, cap: number) {
+  const mag = Math.hypot(fx, fy);
+  if (mag <= cap || mag < 1) return fy;
+  return fy * (cap / mag);
+}
+
+/**
+ * Resistive force along the car, in newtons, signed with speed.
+ * Aero drag is ½ ρ CdA v². Rolling resistance is Crr × weight.
+ * Heavier vehicles use a larger frontal area.
+ */
+function dragForce(speed: number, mass: number, roll: number) {
+  const cdA = mass > 2200 ? 1.15 : 0.6;
+  const aero = 0.5 * 1.225 * cdA * speed * Math.abs(speed);
+  if (Math.abs(speed) < 0.05) return 0;
+  return aero + roll * mass * 9.81 * Math.sign(speed);
+}
+
+/**
+ * The lake is not a road. A car that reaches the water is put back on the
+ * bank, and the speed that was carrying it inward is removed.
+ * Returns true when the car was in the water this step.
+ */
+export function resolveWater(car: Car): boolean {
+  const dx = car.x - LAKE.x;
+  const dz = car.z - LAKE.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist >= LAKE.r) return false;
+
+  const nx = dist > 0.4 ? dx / dist : -Math.sin(car.yaw);
+  const nz = dist > 0.4 ? dz / dist : -Math.cos(car.yaw);
+  const shore = LAKE.r + 0.35;
+  car.x = LAKE.x + nx * shore;
+  car.z = LAKE.z + nz * shore;
+
+  const fx = Math.sin(car.yaw);
+  const fz = Math.cos(car.yaw);
+  const rx = Math.cos(car.yaw);
+  const rz = -Math.sin(car.yaw);
+  let vx = fx * car.speed + rx * car.lat;
+  let vz = fz * car.speed + rz * car.lat;
+  const inward = -(vx * nx + vz * nz);
+  if (inward > 0) {
+    vx += nx * inward;
+    vz += nz * inward;
+  }
+  vx *= 0.35;
+  vz *= 0.35;
+  car.speed = vx * fx + vz * fz;
+  car.lat = vx * rx + vz * rz;
+  car.yawRate = 0;
+  car.ax = 0;
+  car.ay = 0;
+  return true;
 }
 
 function separate(car: Car, nx: number, nz: number, pen: number) {

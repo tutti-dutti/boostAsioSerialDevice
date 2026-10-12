@@ -14,7 +14,7 @@ export type GarageCar = {
 
 const famous: Tune = { accel: 1.22, top: 86, offroad: 0.58, drive: "rwd", mass: 1450, cg: 0.42 };
 const fastest: Tune = { accel: 1.42, top: 98, offroad: 0.5, drive: "rwd", mass: 1380, cg: 0.4 };
-const truck: Tune = { accel: 0.64, top: 48, offroad: 1.6, drive: "rwd", mass: 2900, cg: 0.84 };
+const truck: Tune = { accel: 0.3, top: 48, offroad: 1.6, drive: "rwd", mass: 2900, cg: 0.84 };
 
 function car(
   brand: string,
