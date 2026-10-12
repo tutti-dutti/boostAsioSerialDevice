@@ -7,6 +7,7 @@ import {
   RAMPS,
   ROADS,
   SPAWN,
+  SURFACE_LIFT,
   WORLD_HALF,
   heightAt,
   type PathDef,
@@ -309,20 +310,11 @@ export function createWorld(): World {
   const dirtMat = roadMaterial(true, false);
 
   const allPaths: PathDef[] = [...PATHS, HIGHWAY, ...RAMPS];
+  // Wide gravel shoulder first, then asphalt on top so grass never pokes through.
   for (const path of allPaths) {
-    const geo = ribbonGeometry(path, 0.12);
-    if (!geo) continue;
-    const mat = path.grip < 0.85 ? dirtMat : path.highway ? asphaltHwy : asphalt;
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.receiveShadow = true;
-    object.add(mesh);
-  }
-
-  // Shoulders / gravel outside town roads.
-  for (const path of PATHS) {
     if (path.grip < 0.85) continue;
-    const shoulder: PathDef = { ...path, width: path.width + 4 };
-    const geo = ribbonGeometry(shoulder, 0.04);
+    const shoulder: PathDef = { ...path, width: path.width + (path.highway ? 8 : 5) };
+    const geo = ribbonGeometry(shoulder, SURFACE_LIFT * 0.35);
     if (!geo) continue;
     const mesh = new THREE.Mesh(
       geo,
@@ -330,10 +322,18 @@ export function createWorld(): World {
         color: 0x8a8678,
         roughness: 0.95,
         polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -2,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1,
       }),
     );
+    mesh.receiveShadow = true;
+    object.add(mesh);
+  }
+  for (const path of allPaths) {
+    const geo = ribbonGeometry(path, SURFACE_LIFT);
+    if (!geo) continue;
+    const mat = path.grip < 0.85 ? dirtMat : path.highway ? asphaltHwy : asphalt;
+    const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     object.add(mesh);
   }
@@ -376,7 +376,7 @@ export function createWorld(): World {
     new THREE.MeshStandardMaterial({ map: checker, roughness: 0.8 }),
   );
   start.rotation.x = -Math.PI / 2;
-  start.position.set(SPAWN.x, heightAt(SPAWN.x, SPAWN.z) + 0.14, SPAWN.z);
+  start.position.set(SPAWN.x, heightAt(SPAWN.x, SPAWN.z) + SURFACE_LIFT + 0.02, SPAWN.z);
   object.add(start);
 
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x4a433c, roughness: 0.86 });
@@ -687,7 +687,7 @@ function addPatches(object: THREE.Group) {
       }),
     );
     mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(patch.x, heightAt(patch.x, patch.z) + 0.14, patch.z);
+    mesh.position.set(patch.x, heightAt(patch.x, patch.z) + SURFACE_LIFT + 0.03, patch.z);
     object.add(mesh);
   }
 }
@@ -703,7 +703,7 @@ function addLamps(object: THREE.Group, colliders: Collider[]) {
   const poolMat = new THREE.MeshBasicMaterial({
     color: 0xffe0a0,
     transparent: true,
-    opacity: 0.12,
+    opacity: 0.06,
     depthWrite: false,
   });
   for (let x = -180; x <= 180; x += 40) {
@@ -778,22 +778,23 @@ function addClouds(object: THREE.Group) {
   const mat = new THREE.MeshStandardMaterial({
     color: 0xfff8f2,
     emissive: 0xfff1e2,
-    emissiveIntensity: 0.25,
+    emissiveIntensity: 0.08,
     roughness: 1,
+    depthWrite: false,
   });
   const rand = mulberry32(3);
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 10; i++) {
     const cloud = new THREE.Group();
-    const puff = 3 + Math.floor(rand() * 3);
+    const puff = 3 + Math.floor(rand() * 2);
     for (let p = 0; p < puff; p++) {
-      const s = 10 + rand() * 14;
+      const s = 6 + rand() * 8;
       const ball = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 6), mat);
-      ball.position.set((rand() - 0.5) * 28, rand() * 5, (rand() - 0.5) * 14);
+      ball.position.set((rand() - 0.5) * 20, rand() * 3, (rand() - 0.5) * 10);
       cloud.add(ball);
     }
     const ang = rand() * Math.PI * 2;
-    const dist = 220 + rand() * 500;
-    cloud.position.set(Math.cos(ang) * dist, 90 + rand() * 40, Math.sin(ang) * dist);
+    const dist = 350 + rand() * 550;
+    cloud.position.set(Math.cos(ang) * dist, 140 + rand() * 40, Math.sin(ang) * dist);
     object.add(cloud);
   }
 }

@@ -1,6 +1,8 @@
 /** Roads, lake, terrain height, highway, and spawn. The minimap uses this too. */
 
 export const WORLD_HALF = 1100;
+/** Road/car sit this far above the terrain mesh so wheels never sink. */
+export const SURFACE_LIFT = 0.1;
 export const LAKE = { x: 320, z: -300, r: 48 };
 export const SPAWN = { x: -70, z: 4, yaw: Math.PI / 2 };
 
@@ -32,7 +34,7 @@ export type PathDef = {
   closed?: boolean;
 };
 
-/** Town cross + ring + dirt spur + lake spur. */
+/** Town cross + ring + dirt spur + lake spur. Widths are ~2 lanes (~7m/lane). */
 export const PATHS: PathDef[] = [
   {
     points: [
@@ -43,7 +45,7 @@ export const PATHS: PathDef[] = [
       [180, 4],
       [420, 0],
     ],
-    width: 16,
+    width: 14,
     grip: 1,
   },
   {
@@ -55,7 +57,7 @@ export const PATHS: PathDef[] = [
       [-4, 180],
       [0, 420],
     ],
-    width: 16,
+    width: 14,
     grip: 1,
   },
   {
@@ -74,7 +76,7 @@ export const PATHS: PathDef[] = [
       [-255, -80],
       [-260, -260],
     ],
-    width: 14,
+    width: 12,
     grip: 1,
     closed: true,
   },
@@ -95,20 +97,20 @@ export const PATHS: PathDef[] = [
       [240, -210],
       [300, -260],
     ],
-    width: 11,
+    width: 12,
     grip: 1,
   },
 ];
 
-/** Giant highway loop — 4 lanes each way (~28 m wide). */
+/** Giant highway loop — 4 lanes each way (~3.7m × 8 ≈ 30 m). */
 const HWY_R = 820;
 export const HIGHWAY: PathDef = {
-  points: Array.from({ length: 48 }, (_, i) => {
-    const a = (i / 48) * Math.PI * 2;
+  points: Array.from({ length: 64 }, (_, i) => {
+    const a = (i / 64) * Math.PI * 2;
     const bulge = 1 + 0.08 * Math.sin(a * 2);
     return [Math.cos(a) * HWY_R * bulge, Math.sin(a) * HWY_R * bulge] as [number, number];
   }),
-  width: 28,
+  width: 30,
   grip: 1,
   highway: true,
   closed: true,
@@ -124,7 +126,7 @@ export const RAMPS: PathDef[] = [
       [720, 200],
       [780, 380],
     ],
-    width: 12,
+    width: 10,
     grip: 1,
     highway: true,
   },
@@ -136,7 +138,7 @@ export const RAMPS: PathDef[] = [
       [280, 740],
       [480, 800],
     ],
-    width: 12,
+    width: 10,
     grip: 1,
     highway: true,
   },
@@ -148,7 +150,7 @@ export const RAMPS: PathDef[] = [
       [-740, -260],
       [-800, -420],
     ],
-    width: 12,
+    width: 10,
     grip: 1,
     highway: true,
   },
@@ -160,7 +162,7 @@ export const RAMPS: PathDef[] = [
       [-300, -760],
       [-500, -810],
     ],
-    width: 12,
+    width: 10,
     grip: 1,
     highway: true,
   },
@@ -216,25 +218,25 @@ function fbm(x: number, z: number) {
   return sum / norm;
 }
 
-function distToSeg(px: number, pz: number, x1: number, z1: number, x2: number, z2: number) {
+function projectSeg(px: number, pz: number, x1: number, z1: number, x2: number, z2: number) {
   const dx = x2 - x1;
   const dz = z2 - z1;
   const l2 = dx * dx + dz * dz || 1;
   let t = ((px - x1) * dx + (pz - z1) * dz) / l2;
   t = Math.max(0, Math.min(1, t));
-  return Math.hypot(px - (x1 + t * dx), pz - (z1 + t * dz));
+  const x = x1 + t * dx;
+  const z = z1 + t * dz;
+  return { x, z, t, d: Math.hypot(px - x, pz - z) };
 }
 
 /** Raw rolling hills (before road flattening). */
 export function rawHeight(x: number, z: number): number {
   const n = fbm(x * 0.0042, z * 0.0042);
   const ridge = fbm(x * 0.0018 + 20, z * 0.0018 - 11);
-  let h = (n - 0.45) * 28 + (ridge - 0.5) * 18;
-  h += Math.sin(x * 0.006) * 4 + Math.cos(z * 0.0055) * 3.5;
-  // Soft bowl so the town sits a bit lower.
+  let h = (n - 0.45) * 22 + (ridge - 0.5) * 14;
+  h += Math.sin(x * 0.006) * 3 + Math.cos(z * 0.0055) * 2.5;
   const town = Math.hypot(x, z);
-  if (town < 320) h *= 0.35 + 0.65 * (town / 320);
-  // Lake basin.
+  if (town < 320) h *= 0.25 + 0.75 * (town / 320);
   const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
   if (ld < LAKE.r + 40) {
     const t = Math.max(0, (ld - LAKE.r) / 40);
@@ -243,42 +245,58 @@ export function rawHeight(x: number, z: number): number {
   return h;
 }
 
-/** Terrain height under the car / props. Roads are flattened into a soft corridor. */
+/**
+ * Terrain height under the car / props.
+ * Under and beside roads the ground is forced flat so asphalt edges stay clean.
+ */
 export function heightAt(x: number, z: number): number {
   let h = rawHeight(x, z);
-  let nearest = 80;
+  let best = { d: 1e9, half: 8, hx: x, hz: z, t: 0, x1: 0, z1: 0, x2: 0, z2: 0 };
   for (const road of ROADS) {
-    const d = distToSeg(x, z, road.x1, road.z1, road.x2, road.z2);
-    const pad = road.width * 0.5 + (road.highway ? 10 : 6);
-    if (d < pad) nearest = Math.min(nearest, d);
+    const hit = projectSeg(x, z, road.x1, road.z1, road.x2, road.z2);
+    const shoulder = road.width * 0.5 + (road.highway ? 14 : 10);
+    if (hit.d < shoulder && hit.d < best.d) {
+      best = {
+        d: hit.d,
+        half: road.width * 0.5,
+        hx: hit.x,
+        hz: hit.z,
+        t: hit.t,
+        x1: road.x1,
+        z1: road.z1,
+        x2: road.x2,
+        z2: road.z2,
+      };
+    }
   }
-  if (nearest < 80) {
-    // Pull toward a gentle average of nearby raw heights so roads stay smooth.
-    const blend = Math.max(0, Math.min(1, nearest / 18));
-    const flat = rawHeight(x, z) * 0.15 + (rawHeight(x + 8, z) + rawHeight(x - 8, z) + rawHeight(x, z + 8) + rawHeight(x, z - 8)) * 0.1;
-    // Strong flatten in the road corridor.
-    const roadBlend = Math.max(0, Math.min(1, nearest / (nearest < 14 ? 14 : 22)));
-    h = flat * (1 - roadBlend * 0.85) + h * (roadBlend * 0.85);
-    void blend;
+  if (best.d < 1e8) {
+    const h1 = rawHeight(best.x1, best.z1);
+    const h2 = rawHeight(best.x2, best.z2);
+    const hm = rawHeight((best.x1 + best.x2) * 0.5, (best.z1 + best.z2) * 0.5);
+    const centerH =
+      h1 * (1 - best.t) * 0.35 + h2 * best.t * 0.35 + hm * 0.3 + rawHeight(best.hx, best.hz) * 0.35;
+    const pad = best.half + 10;
+    const u = Math.max(0, Math.min(1, (best.d - best.half * 0.85) / Math.max(0.1, pad - best.half * 0.85)));
+    const flatAmt = 1 - u * u * (3 - 2 * u);
+    h = centerH * flatAmt + h * (1 - flatAmt);
   }
-  // Flatten spawn pad.
   const sd = Math.hypot(x - SPAWN.x, z - SPAWN.z);
-  if (sd < 40) {
-    const t = sd / 40;
-    h = h * t;
+  if (sd < 50) {
+    const t = sd / 50;
+    h = h * (t * t * (3 - 2 * t));
   }
   return h;
 }
 
-export function groundNormal(x: number, z: number): { nx: number; ny: number; nz: number } {
-  const e = 1.2;
-  const hx0 = heightAt(x - e, z);
-  const hx1 = heightAt(x + e, z);
-  const hz0 = heightAt(x, z - e);
-  const hz1 = heightAt(x, z + e);
-  const nx = hx0 - hx1;
-  const nz = hz0 - hz1;
-  const ny = e * 2;
-  const len = Math.hypot(nx, ny, nz) || 1;
-  return { nx: nx / len, ny: ny / len, nz: nz / len };
+/** Average height under the car's four wheels. */
+export function wheelHeights(x: number, z: number, yaw: number, axle = 1.35, track = 0.85) {
+  const fx = Math.sin(yaw);
+  const fz = Math.cos(yaw);
+  const rx = Math.cos(yaw);
+  const rz = -Math.sin(yaw);
+  const fl = heightAt(x + fx * axle - rx * track, z + fz * axle - rz * track);
+  const fr = heightAt(x + fx * axle + rx * track, z + fz * axle + rz * track);
+  const rl = heightAt(x - fx * axle - rx * track, z - fz * axle - rz * track);
+  const rr = heightAt(x - fx * axle + rx * track, z - fz * axle + rz * track);
+  return { fl, fr, rl, rr, y: (fl + fr + rl + rr) * 0.25 };
 }
