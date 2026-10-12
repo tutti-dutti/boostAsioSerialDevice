@@ -34,7 +34,7 @@ function car(
 }
 
 /**
- * First 10 vehicles from the official garage list.
+ * Official garage list (added in batches).
  * Body style is chosen from the shape guide and is never shown.
  */
 export const GARAGE: GarageCar[] = [
@@ -68,6 +68,21 @@ export const GARAGE: GarageCar[] = [
   car("Ferocity", "Manticore", "/models/ferocity-manticore.glb", fastest, {
     scale: 1, ride: 0.03, wheel: 1, color: 0xff5a1f, spoiler: true, roofLights: false, realistic: true,
   }, "v12"),
+  car("Porch", "Deathstalker", "/models/porch-deathstalker.glb", famous, {
+    scale: 1, ride: 0.05, wheel: 1, color: 0xc8ccd2, spoiler: false, roofLights: false, realistic: true,
+  }, "turbo"),
+  car("Porch", "Hellbender", "/models/porch-hellbender.glb", fastest, {
+    scale: 1, ride: 0.03, wheel: 1, color: 0x1e3a5f, spoiler: true, roofLights: false, realistic: true,
+  }, "v8"),
+  car("McRoar", "Pterodactyl", "/models/mcroar-pterodactyl.glb", famous, {
+    scale: 1, ride: 0.03, wheel: 1, color: 0xff8a00, spoiler: true, roofLights: false, realistic: true,
+  }, "v8"),
+  car("McRoar", "Great White", "/models/mcroar-great-white.glb", fastest, {
+    scale: 1, ride: 0.02, wheel: 1, color: 0xf0f4f8, spoiler: false, roofLights: false, realistic: true,
+  }, "v12"),
+  car("King Egg", "Leviathan", "/models/king-egg-leviathan.glb", famous, {
+    scale: 1, ride: 0.03, wheel: 1, color: 0xb8ff2a, spoiler: true, roofLights: false, realistic: true,
+  }, "v8"),
 ];
 
 export function carById(id: string) {

@@ -1,13 +1,28 @@
 import * as THREE from "three";
-import { LAKE, PATCHES, ROADS, SPAWN } from "./mapData";
+import {
+  HIGHWAY,
+  LAKE,
+  PATCHES,
+  PATHS,
+  RAMPS,
+  ROADS,
+  SPAWN,
+  WORLD_HALF,
+  heightAt,
+  type PathDef,
+} from "./mapData";
 import type { Collider, RoadSeg } from "./sim";
 
 export type World = {
   object: THREE.Group;
   colliders: Collider[];
   roads: RoadSeg[];
+  /** Keep decoration chunks loaded around the car. */
+  updateChunks: (x: number, z: number) => void;
 };
 
+const CHUNK = 160;
+const LOAD_RADIUS = 2;
 const BUILDINGS: { x: number; z: number; w: number; d: number; h: number; color: string }[] = [
   { x: 52, z: 42, w: 16, d: 14, h: 9, color: "#efe6d6" },
   { x: 86, z: 48, w: 14, d: 12, h: 16, color: "#f2efe6" },
@@ -17,6 +32,8 @@ const BUILDINGS: { x: number; z: number; w: number; d: number; h: number; color:
   { x: -56, z: -48, w: 16, d: 14, h: 13, color: "#e8dcc8" },
   { x: 120, z: -36, w: 14, d: 12, h: 8, color: "#f3e9da" },
   { x: -130, z: -40, w: 18, d: 14, h: 10, color: "#efe4d4" },
+  { x: 40, z: 70, w: 10, d: 10, h: 6, color: "#efe8dc" },
+  { x: -30, z: -60, w: 12, d: 9, h: 7, color: "#e9dccb" },
 ];
 
 function mulberry32(seed: number) {
@@ -36,6 +53,13 @@ function distToSeg(px: number, pz: number, x1: number, z1: number, x2: number, z
   let t = ((px - x1) * dx + (pz - z1) * dz) / l2;
   t = Math.max(0, Math.min(1, t));
   return Math.hypot(px - (x1 + t * dx), pz - (z1 + t * dz));
+}
+
+function nearRoad(x: number, z: number, pad: number) {
+  for (const road of ROADS) {
+    if (distToSeg(x, z, road.x1, road.z1, road.x2, road.z2) < road.width / 2 + pad) return true;
+  }
+  return false;
 }
 
 function canvasTex(draw: (g: CanvasRenderingContext2D, w: number, h: number) => void, w: number, h: number) {
@@ -62,44 +86,35 @@ function noiseFill(g: CanvasRenderingContext2D, w: number, h: number, amount: nu
   g.putImageData(img, 0, 0);
 }
 
-function roadGeometry(x1: number, z1: number, x2: number, z2: number, width: number, y: number) {
-  const dx = x2 - x1;
-  const dz = z2 - z1;
-  const len = Math.hypot(dx, dz) || 1;
-  const px = (-dz / len) * (width / 2);
-  const pz = (dx / len) * (width / 2);
-  const positions = new Float32Array([
-    x1 + px, y, z1 + pz,
-    x1 - px, y, z1 - pz,
-    x2 - px, y, z2 - pz,
-    x2 + px, y, z2 + pz,
-  ]);
-  const uvs = new Float32Array([0, 0, 1, 0, 1, len / 12, 0, len / 12]);
-  const normals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-  geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
-  geo.setIndex([0, 2, 1, 0, 3, 2]);
-  return geo;
-}
-
-function roadMaterial(dirt: boolean) {
+function roadMaterial(dirt: boolean, highway: boolean) {
   const tex = canvasTex((g, w, h) => {
-    g.fillStyle = dirt ? "#8a6240" : "#6e747c";
+    g.fillStyle = dirt ? "#8a6240" : highway ? "#5a6068" : "#6e747c";
     g.fillRect(0, 0, w, h);
-    noiseFill(g, w, h, dirt ? 22 : 16);
+    noiseFill(g, w, h, dirt ? 22 : 14);
     if (dirt) return;
     g.fillStyle = "#ececec";
-    g.fillRect(0, 0, 10, h);
-    g.fillRect(w - 10, 0, 10, h);
-    g.fillStyle = "#e2c64a";
-    g.fillRect(w / 2 - 6, 0, 4, h);
-    g.fillRect(w / 2 + 2, 0, 4, h);
-    g.fillStyle = "#f4f4f4";
-    for (let y = 8; y < h; y += 32) {
-      g.fillRect(w * 0.25, y, 4, 16);
-      g.fillRect(w * 0.75, y, 4, 16);
+    g.fillRect(0, 0, 8, h);
+    g.fillRect(w - 8, 0, 8, h);
+    if (highway) {
+      g.fillStyle = "#e2c64a";
+      g.fillRect(w / 2 - 5, 0, 3, h);
+      g.fillRect(w / 2 + 2, 0, 3, h);
+      g.fillStyle = "#f4f4f4";
+      for (let y = 6; y < h; y += 28) {
+        g.fillRect(w * 0.2, y, 3, 14);
+        g.fillRect(w * 0.35, y, 3, 14);
+        g.fillRect(w * 0.65, y, 3, 14);
+        g.fillRect(w * 0.8, y, 3, 14);
+      }
+    } else {
+      g.fillStyle = "#e2c64a";
+      g.fillRect(w / 2 - 5, 0, 3, h);
+      g.fillRect(w / 2 + 2, 0, 3, h);
+      g.fillStyle = "#f4f4f4";
+      for (let y = 8; y < h; y += 32) {
+        g.fillRect(w * 0.25, y, 4, 16);
+        g.fillRect(w * 0.75, y, 4, 16);
+      }
     }
   }, 256, 128);
   tex.wrapS = THREE.ClampToEdgeWrapping;
@@ -110,8 +125,9 @@ function roadMaterial(dirt: boolean) {
     metalness: 0.02,
     side: THREE.DoubleSide,
     polygonOffset: true,
-    polygonOffsetFactor: -1,
+    polygonOffsetFactor: -2,
     polygonOffsetUnits: -4,
+    depthWrite: true,
   });
 }
 
@@ -144,9 +160,133 @@ function labelTexture(text: string, stripe: string) {
   }, 512, 256);
 }
 
+/** Catmull-Rom sample of a 2D path. */
+function samplePath(path: PathDef, samples: number): { x: number; z: number; tx: number; tz: number }[] {
+  const pts = path.points;
+  if (pts.length < 2) return [];
+  const closed = Boolean(path.closed);
+  const ring = closed ? [...pts, pts[0], pts[1]] : pts;
+  const out: { x: number; z: number; tx: number; tz: number }[] = [];
+  const segs = closed ? pts.length : pts.length - 1;
+  for (let s = 0; s < samples; s++) {
+    const u = s / (samples - (closed ? 0 : 1) || 1);
+    const f = u * segs;
+    const i = Math.min(segs - 1, Math.floor(f));
+    const t = f - i;
+    const p0 = ring[i];
+    const p1 = ring[i + 1];
+    const p2 = ring[Math.min(ring.length - 1, i + 2)];
+    const pm = ring[Math.max(0, i - 1 + (closed && i === 0 ? pts.length : 0))];
+    // Fallback simple lerp if open path ends are short.
+    const a = closed || i > 0 ? pm : p0;
+    const b = p0;
+    const c = p1;
+    const d = closed || i < segs - 1 ? p2 : p1;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const x =
+      0.5 *
+      (2 * b[0] +
+        (-a[0] + c[0]) * t +
+        (2 * a[0] - 5 * b[0] + 4 * c[0] - d[0]) * t2 +
+        (-a[0] + 3 * b[0] - 3 * c[0] + d[0]) * t3);
+    const z =
+      0.5 *
+      (2 * b[1] +
+        (-a[1] + c[1]) * t +
+        (2 * a[1] - 5 * b[1] + 4 * c[1] - d[1]) * t2 +
+        (-a[1] + 3 * b[1] - 3 * c[1] + d[1]) * t3);
+    // Tangent from neighboring samples later; approx via derivative.
+    const dx =
+      0.5 *
+      ((-a[0] + c[0]) +
+        2 * (2 * a[0] - 5 * b[0] + 4 * c[0] - d[0]) * t +
+        3 * (-a[0] + 3 * b[0] - 3 * c[0] + d[0]) * t2);
+    const dz =
+      0.5 *
+      ((-a[1] + c[1]) +
+        2 * (2 * a[1] - 5 * b[1] + 4 * c[1] - d[1]) * t +
+        3 * (-a[1] + 3 * b[1] - 3 * c[1] + d[1]) * t2);
+    const len = Math.hypot(dx, dz) || 1;
+    out.push({ x, z, tx: dx / len, tz: dz / len });
+  }
+  if (closed && out.length) out.pop();
+  return out;
+}
+
+function ribbonGeometry(path: PathDef, yLift: number) {
+  const samples = path.highway ? 96 : path.closed ? 72 : 40;
+  const pts = samplePath(path, samples);
+  if (pts.length < 2) return null;
+  const half = path.width / 2;
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const idx: number[] = [];
+  let dist = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const px = -p.tz * half;
+    const pz = p.tx * half;
+    const y = heightAt(p.x, p.z) + yLift;
+    pos.push(p.x + px, y, p.z + pz, p.x - px, y, p.z - pz);
+    if (i > 0) {
+      const prev = pts[i - 1];
+      dist += Math.hypot(p.x - prev.x, p.z - prev.z);
+    }
+    uv.push(0, dist / 12, 1, dist / 12);
+    if (i > 0) {
+      const a = (i - 1) * 2;
+      const b = a + 1;
+      const c = i * 2;
+      const d = c + 1;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  if (path.closed && pts.length > 2) {
+    const a = (pts.length - 1) * 2;
+    idx.push(a, 0, a + 1, a + 1, 0, 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function buildTerrainChunk(cx: number, cz: number, grassMat: THREE.Material) {
+  const segs = 24;
+  const size = CHUNK;
+  const geo = new THREE.PlaneGeometry(size, size, segs, segs);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const ox = cx * CHUNK + CHUNK / 2;
+  const oz = cz * CHUNK + CHUNK / 2;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) + ox;
+    const z = pos.getZ(i) + oz;
+    pos.setY(i, heightAt(x, z));
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, grassMat);
+  mesh.position.set(ox, 0, oz);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 export function createWorld(): World {
   const object = new THREE.Group();
+  const baseColliders: Collider[] = [];
   const colliders: Collider[] = [];
+  const decoColliderLists = new Map<string, Collider[]>();
+  const decoRoot = new THREE.Group();
+  object.add(decoRoot);
+  const syncColliders = () => {
+    colliders.length = 0;
+    colliders.push(...baseColliders);
+    for (const list of decoColliderLists.values()) colliders.push(...list);
+  };
 
   const grassTex = canvasTex((g, w, h) => {
     g.fillStyle = "#3e7834";
@@ -158,21 +298,61 @@ export function createWorld(): World {
   }, 512, 512);
   grassTex.wrapS = THREE.RepeatWrapping;
   grassTex.wrapT = THREE.RepeatWrapping;
-  grassTex.repeat.set(64, 64);
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(1400, 1400),
-    new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1, metalness: 0 }),
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  object.add(ground);
+  grassTex.repeat.set(8, 8);
+  const grassMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1, metalness: 0 });
+
+  const terrainChunks = new Map<string, THREE.Object3D>();
+  const decoChunks = new Map<string, THREE.Object3D>();
+
+  const asphalt = roadMaterial(false, false);
+  const asphaltHwy = roadMaterial(false, true);
+  const dirtMat = roadMaterial(true, false);
+
+  const allPaths: PathDef[] = [...PATHS, HIGHWAY, ...RAMPS];
+  for (const path of allPaths) {
+    const geo = ribbonGeometry(path, 0.12);
+    if (!geo) continue;
+    const mat = path.grip < 0.85 ? dirtMat : path.highway ? asphaltHwy : asphalt;
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.receiveShadow = true;
+    object.add(mesh);
+  }
+
+  // Shoulders / gravel outside town roads.
+  for (const path of PATHS) {
+    if (path.grip < 0.85) continue;
+    const shoulder: PathDef = { ...path, width: path.width + 4 };
+    const geo = ribbonGeometry(shoulder, 0.04);
+    if (!geo) continue;
+    const mesh = new THREE.Mesh(
+      geo,
+      new THREE.MeshStandardMaterial({
+        color: 0x8a8678,
+        roughness: 0.95,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2,
+      }),
+    );
+    mesh.receiveShadow = true;
+    object.add(mesh);
+  }
+
+  const roads: RoadSeg[] = ROADS.map((road) => ({
+    x1: road.x1,
+    z1: road.z1,
+    x2: road.x2,
+    z2: road.z2,
+    half: road.width / 2,
+    grip: road.grip,
+  }));
 
   const sand = new THREE.Mesh(
     new THREE.RingGeometry(LAKE.r - 1, LAKE.r + 18, 48),
     new THREE.MeshStandardMaterial({ color: 0xd9c48a, roughness: 1 }),
   );
   sand.rotation.x = -Math.PI / 2;
-  sand.position.set(LAKE.x, 0.02, LAKE.z);
+  sand.position.set(LAKE.x, heightAt(LAKE.x, LAKE.z) + 0.02, LAKE.z);
   sand.receiveShadow = true;
   object.add(sand);
 
@@ -181,27 +361,8 @@ export function createWorld(): World {
     new THREE.MeshStandardMaterial({ color: 0x1d7ea0, roughness: 0.16, metalness: 0.55 }),
   );
   water.rotation.x = -Math.PI / 2;
-  water.position.set(LAKE.x, 0.04, LAKE.z);
+  water.position.set(LAKE.x, heightAt(LAKE.x, LAKE.z) + 0.04, LAKE.z);
   object.add(water);
-
-  const asphalt = roadMaterial(false);
-  const dirt = roadMaterial(true);
-  const roads: RoadSeg[] = ROADS.map((road) => {
-    const mesh = new THREE.Mesh(
-      roadGeometry(road.x1, road.z1, road.x2, road.z2, road.width, 0.06),
-      road.grip < 0.85 ? dirt : asphalt,
-    );
-    mesh.receiveShadow = true;
-    object.add(mesh);
-    return {
-      x1: road.x1,
-      z1: road.z1,
-      x2: road.x2,
-      z2: road.z2,
-      half: road.width / 2,
-      grip: road.grip,
-    };
-  });
 
   const checker = canvasTex((g, w, h) => {
     const n = 8;
@@ -215,40 +376,191 @@ export function createWorld(): World {
     new THREE.MeshStandardMaterial({ map: checker, roughness: 0.8 }),
   );
   start.rotation.x = -Math.PI / 2;
-  start.position.set(SPAWN.x, 0.09, 0);
+  start.position.set(SPAWN.x, heightAt(SPAWN.x, SPAWN.z) + 0.14, SPAWN.z);
   object.add(start);
 
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x4a433c, roughness: 0.86 });
   for (const b of BUILDINGS) {
+    const y0 = heightAt(b.x, b.z);
     const body = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), facade(b.color));
-    body.position.set(b.x, b.h / 2, b.z);
+    body.position.set(b.x, y0 + b.h / 2, b.z);
     body.castShadow = true;
     body.receiveShadow = true;
     const roof = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.8, 0.55, b.d + 0.8), roofMat);
-    roof.position.set(b.x, b.h + 0.25, b.z);
+    roof.position.set(b.x, y0 + b.h + 0.25, b.z);
     roof.castShadow = true;
     object.add(body, roof);
-    colliders.push({ kind: "box", x: b.x, z: b.z, hx: b.w / 2, hz: b.d / 2 });
+    baseColliders.push({ kind: "box", x: b.x, z: b.z, hx: b.w / 2, hz: b.d / 2 });
   }
 
-  addGas(object, colliders, 155, 70);
-  addBarn(object, colliders);
-  addFountain(object, colliders, 88, 88);
-  addSign(object, colliders, "OPEN ROAD", -46, 16, -Math.PI / 2, "#ffcc33");
-  addSign(object, colliders, "TOWN", 28, 16, -Math.PI / 2, "#7ec8ff");
-  addSign(object, colliders, "LAKE", 150, -110, facing(-210, 180), "#3ec6c6");
-  addSign(object, colliders, "FOREST", -150, 95, facing(170, -130), "#8dce6a");
-  addSign(object, colliders, "WET", 40, 16, -Math.PI / 2, "#7ec8ff");
-  addSign(object, colliders, "MUD", -170, 92, 0, "#c47a3a");
-  addSign(object, colliders, "ICE", 210, -16, -Math.PI / 2, "#d7e7f2");
+  addGas(object, baseColliders, 155, 70);
+  addBarn(object, baseColliders);
+  addFountain(object, baseColliders, 88, 88);
+  addSign(object, baseColliders, "OPEN ROAD", -46, 16, -Math.PI / 2, "#ffcc33");
+  addSign(object, baseColliders, "TOWN", 28, 16, -Math.PI / 2, "#7ec8ff");
+  addSign(object, baseColliders, "LAKE", 150, -110, facing(-210, 180), "#3ec6c6");
+  addSign(object, baseColliders, "FOREST", -150, 95, facing(170, -130), "#8dce6a");
+  addSign(object, baseColliders, "HIGHWAY", 380, 20, -Math.PI / 2, "#ffcc33");
+  addSign(object, baseColliders, "WET", 40, 16, -Math.PI / 2, "#7ec8ff");
+  addSign(object, baseColliders, "MUD", -170, 92, 0, "#c47a3a");
+  addSign(object, baseColliders, "ICE", 210, -16, -Math.PI / 2, "#d7e7f2");
   addPatches(object);
-  addLamps(object, colliders);
+  addLamps(object, baseColliders);
   addUmbrellas(object);
   addMountains(object);
   addClouds(object);
-  addTrees(object, colliders);
+  addCurbsAndRails(object);
 
-  return { object, colliders, roads };
+  const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2.4, 6);
+  const leafGeo = new THREE.ConeGeometry(1.35, 2.6, 7);
+  const topGeo = new THREE.ConeGeometry(0.9, 1.7, 7);
+  const rockGeo = new THREE.DodecahedronGeometry(0.7, 0);
+  const bushGeo = new THREE.SphereGeometry(0.7, 8, 6);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4630, roughness: 0.9 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x2f7a34, roughness: 0.85 });
+  const topMat = new THREE.MeshStandardMaterial({ color: 0x3d9442, roughness: 0.85 });
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x7a7268, roughness: 0.95 });
+  const bushMat = new THREE.MeshStandardMaterial({ color: 0x3f8a3a, roughness: 0.9 });
+
+  function chunkKey(cx: number, cz: number) {
+    return `${cx},${cz}`;
+  }
+
+  function buildDeco(cx: number, cz: number) {
+    const group = new THREE.Group();
+    const local: Collider[] = [];
+    const rand = mulberry32((cx * 73856093) ^ (cz * 19349663) ^ 11);
+    const ox = cx * CHUNK;
+    const oz = cz * CHUNK;
+    const spots: { x: number; z: number; s: number; kind: number }[] = [];
+    let guard = 0;
+    while (spots.length < 28 && guard < 500) {
+      guard += 1;
+      const x = ox + rand() * CHUNK;
+      const z = oz + rand() * CHUNK;
+      if (Math.abs(x) > WORLD_HALF || Math.abs(z) > WORLD_HALF) continue;
+      if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 22) continue;
+      if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 22) continue;
+      if (nearRoad(x, z, 7)) continue;
+      let blocked = false;
+      for (const b of BUILDINGS) {
+        if (Math.abs(x - b.x) < b.w / 2 + 4 && Math.abs(z - b.z) < b.d / 2 + 4) {
+          blocked = true;
+          break;
+        }
+      }
+      if (blocked) continue;
+      spots.push({ x, z, s: 0.75 + rand() * 0.9, kind: Math.floor(rand() * 5) });
+    }
+
+    const trees = spots.filter((s) => s.kind < 3);
+    const rocks = spots.filter((s) => s.kind === 3);
+    const bushes = spots.filter((s) => s.kind === 4);
+
+    if (trees.length) {
+      const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, trees.length);
+      const leaves = new THREE.InstancedMesh(leafGeo, leafMat, trees.length);
+      const tops = new THREE.InstancedMesh(topGeo, topMat, trees.length);
+      const dummy = new THREE.Object3D();
+      trees.forEach((p, i) => {
+        const y = heightAt(p.x, p.z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(p.s, p.s, p.s);
+        dummy.position.set(p.x, y + 1.2 * p.s, p.z);
+        dummy.updateMatrix();
+        trunks.setMatrixAt(i, dummy.matrix);
+        dummy.position.set(p.x, y + 2.2 * p.s, p.z);
+        dummy.updateMatrix();
+        leaves.setMatrixAt(i, dummy.matrix);
+        dummy.position.set(p.x, y + 3.15 * p.s, p.z);
+        dummy.updateMatrix();
+        tops.setMatrixAt(i, dummy.matrix);
+        local.push({ kind: "circle", x: p.x, z: p.z, r: 0.45 });
+      });
+      group.add(trunks, leaves, tops);
+    }
+    if (rocks.length) {
+      const mesh = new THREE.InstancedMesh(rockGeo, rockMat, rocks.length);
+      const dummy = new THREE.Object3D();
+      rocks.forEach((p, i) => {
+        dummy.scale.set(p.s, p.s * 0.7, p.s);
+        dummy.rotation.set(rand() * 1.2, rand() * 6, rand() * 0.4);
+        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.25 * p.s, p.z);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        local.push({ kind: "circle", x: p.x, z: p.z, r: 0.5 * p.s });
+      });
+      group.add(mesh);
+    }
+    if (bushes.length) {
+      const mesh = new THREE.InstancedMesh(bushGeo, bushMat, bushes.length);
+      const dummy = new THREE.Object3D();
+      bushes.forEach((p, i) => {
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(p.s * 1.2, p.s * 0.8, p.s * 1.2);
+        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.35 * p.s, p.z);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      });
+      group.add(mesh);
+    }
+    return { group, local };
+  }
+
+  let lastCx = Number.NaN;
+  let lastCz = Number.NaN;
+
+  function updateChunks(x: number, z: number) {
+    const cx = Math.floor(x / CHUNK);
+    const cz = Math.floor(z / CHUNK);
+    if (cx === lastCx && cz === lastCz) return;
+    lastCx = cx;
+    lastCz = cz;
+    const needed = new Set<string>();
+    for (let dz = -LOAD_RADIUS; dz <= LOAD_RADIUS; dz++) {
+      for (let dx = -LOAD_RADIUS; dx <= LOAD_RADIUS; dx++) {
+        needed.add(chunkKey(cx + dx, cz + dz));
+      }
+    }
+    for (const key of [...terrainChunks.keys()]) {
+      if (!needed.has(key)) {
+        const mesh = terrainChunks.get(key);
+        if (mesh) {
+          object.remove(mesh);
+          (mesh as THREE.Mesh).geometry?.dispose();
+        }
+        terrainChunks.delete(key);
+      }
+    }
+    for (const key of [...decoChunks.keys()]) {
+      if (!needed.has(key)) {
+        const g = decoChunks.get(key);
+        if (g) decoRoot.remove(g);
+        decoChunks.delete(key);
+        decoColliderLists.delete(key);
+      }
+    }
+    for (const key of needed) {
+      if (!terrainChunks.has(key)) {
+        const [sx, sz] = key.split(",").map(Number);
+        const mesh = buildTerrainChunk(sx, sz, grassMat);
+        terrainChunks.set(key, mesh);
+        object.add(mesh);
+      }
+      if (!decoChunks.has(key)) {
+        const [sx, sz] = key.split(",").map(Number);
+        const built = buildDeco(sx, sz);
+        decoChunks.set(key, built.group);
+        decoColliderLists.set(key, built.local);
+        decoRoot.add(built.group);
+      }
+    }
+    syncColliders();
+  }
+
+  updateChunks(SPAWN.x, SPAWN.z);
+
+  return { object, colliders, roads, updateChunks };
 }
 
 function facing(nx: number, nz: number) {
@@ -265,13 +577,14 @@ function addSign(
   rotY: number,
   stripe: string,
 ) {
+  const y0 = heightAt(x, z);
   const postMat = new THREE.MeshStandardMaterial({ color: 0x4a4038, roughness: 0.8 });
   for (const dx of [-1.7, 1.7]) {
     const along = rotY;
     const px = x + Math.cos(along) * dx;
     const pz = z - Math.sin(along) * dx;
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 3.1, 8), postMat);
-    post.position.set(px, 1.55, pz);
+    post.position.set(px, y0 + 1.55, pz);
     post.castShadow = true;
     object.add(post);
     colliders.push({ kind: "circle", x: px, z: pz, r: 0.34 });
@@ -280,12 +593,13 @@ function addSign(
     new THREE.PlaneGeometry(4.6, 2.15),
     new THREE.MeshStandardMaterial({ map: labelTexture(text, stripe), roughness: 0.55, side: THREE.DoubleSide }),
   );
-  board.position.set(x, 2.55, z);
+  board.position.set(x, y0 + 2.55, z);
   board.rotation.y = rotY;
   object.add(board);
 }
 
 function addGas(object: THREE.Group, colliders: Collider[], x: number, z: number) {
+  const y0 = heightAt(x, z);
   const poleMat = new THREE.MeshStandardMaterial({ color: 0xdedede, metalness: 0.35, roughness: 0.4 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0xd42323, roughness: 0.45, metalness: 0.15 });
   for (const [dx, dz] of [
@@ -295,59 +609,63 @@ function addGas(object: THREE.Group, colliders: Collider[], x: number, z: number
     [4.2, 3],
   ] as const) {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 4.2, 8), poleMat);
-    pole.position.set(x + dx, 2.1, z + dz);
+    pole.position.set(x + dx, y0 + 2.1, z + dz);
     pole.castShadow = true;
     object.add(pole);
     colliders.push({ kind: "circle", x: x + dx, z: z + dz, r: 0.4 });
   }
   const roof = new THREE.Mesh(new THREE.BoxGeometry(10.4, 0.32, 8), roofMat);
-  roof.position.set(x, 4.3, z);
+  roof.position.set(x, y0 + 4.3, z);
   roof.castShadow = true;
   object.add(roof);
   const sign = new THREE.Mesh(
     new THREE.PlaneGeometry(3.2, 0.7),
     new THREE.MeshStandardMaterial({ map: labelTexture("GAS", "#ffcc33"), roughness: 0.5, side: THREE.DoubleSide }),
   );
-  sign.position.set(x, 3.7, z + 4.05);
+  sign.position.set(x, y0 + 3.7, z + 4.05);
   object.add(sign);
 }
 
 function addBarn(object: THREE.Group, colliders: Collider[]) {
+  const x = 190;
+  const z = 175;
+  const y0 = heightAt(x, z);
   const wall = new THREE.MeshStandardMaterial({ color: 0x8d2d2a, roughness: 0.8 });
   const roof = new THREE.MeshStandardMaterial({ color: 0x3e2a28, roughness: 0.85 });
   const barn = new THREE.Mesh(new THREE.BoxGeometry(14, 7, 10), wall);
-  barn.position.set(190, 3.5, 175);
+  barn.position.set(x, y0 + 3.5, z);
   barn.castShadow = true;
   barn.receiveShadow = true;
   const top = new THREE.Mesh(new THREE.BoxGeometry(15, 0.5, 11), roof);
-  top.position.set(190, 7.2, 175);
+  top.position.set(x, y0 + 7.2, z);
   top.castShadow = true;
   object.add(barn, top);
-  colliders.push({ kind: "box", x: 190, z: 175, hx: 7, hz: 5 });
+  colliders.push({ kind: "box", x, z, hx: 7, hz: 5 });
 
   const siloMat = new THREE.MeshStandardMaterial({ color: 0xc8c2b4, roughness: 0.7, metalness: 0.15 });
   const silo = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.2, 11, 16), siloMat);
-  silo.position.set(206, 5.5, 188);
+  silo.position.set(206, heightAt(206, 188) + 5.5, 188);
   silo.castShadow = true;
   object.add(silo);
   colliders.push({ kind: "circle", x: 206, z: 188, r: 2.2 });
 }
 
 function addFountain(object: THREE.Group, colliders: Collider[], x: number, z: number) {
+  const y0 = heightAt(x, z);
   const stone = new THREE.MeshStandardMaterial({ color: 0xcfc6b8, roughness: 0.75 });
   const basin = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.5, 0.9, 24), stone);
-  basin.position.set(x, 0.45, z);
+  basin.position.set(x, y0 + 0.45, z);
   basin.castShadow = true;
   basin.receiveShadow = true;
   const lip = new THREE.Mesh(new THREE.TorusGeometry(4.2, 0.28, 8, 24), stone);
   lip.rotation.x = Math.PI / 2;
-  lip.position.set(x, 0.9, z);
+  lip.position.set(x, y0 + 0.9, z);
   const water = new THREE.Mesh(
     new THREE.CircleGeometry(3.6, 24),
     new THREE.MeshStandardMaterial({ color: 0x49b4d4, roughness: 0.15, metalness: 0.4 }),
   );
   water.rotation.x = -Math.PI / 2;
-  water.position.set(x, 0.82, z);
+  water.position.set(x, y0 + 0.82, z);
   object.add(basin, lip, water);
   colliders.push({ kind: "circle", x, z, r: 4.4 });
 }
@@ -369,7 +687,7 @@ function addPatches(object: THREE.Group) {
       }),
     );
     mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(patch.x, 0.09, patch.z);
+    mesh.position.set(patch.x, heightAt(patch.x, patch.z) + 0.14, patch.z);
     object.add(mesh);
   }
 }
@@ -379,18 +697,42 @@ function addLamps(object: THREE.Group, colliders: Collider[]) {
   const bulbMat = new THREE.MeshStandardMaterial({
     color: 0xffe7b0,
     emissive: 0xffcc77,
-    emissiveIntensity: 0.8,
+    emissiveIntensity: 1.1,
+    roughness: 0.35,
+  });
+  const poolMat = new THREE.MeshBasicMaterial({
+    color: 0xffe0a0,
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false,
   });
   for (let x = -180; x <= 180; x += 40) {
     for (const z of [-13, 13]) {
+      const y0 = heightAt(x, z);
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 4.2, 6), poleMat);
-      pole.position.set(x, 2.1, z);
+      pole.position.set(x, y0 + 2.1, z);
       pole.castShadow = true;
       const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), bulbMat);
-      bulb.position.set(x, 4.25, z);
-      object.add(pole, bulb);
+      bulb.position.set(x, y0 + 4.25, z);
+      const pool = new THREE.Mesh(new THREE.CircleGeometry(3.2, 16), poolMat);
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.set(x, y0 + 0.16, z);
+      object.add(pole, bulb, pool);
       colliders.push({ kind: "circle", x, z, r: 0.28 });
     }
+  }
+  // Highway lamps every so often.
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const r = 820 * (1 + 0.08 * Math.sin(a * 2));
+    const x = Math.cos(a) * (r + 16);
+    const z = Math.sin(a) * (r + 16);
+    const y0 = heightAt(x, z);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 5.2, 6), poleMat);
+    pole.position.set(x, y0 + 2.6, z);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), bulbMat);
+    bulb.position.set(x, y0 + 5.3, z);
+    object.add(pole, bulb);
   }
 }
 
@@ -404,16 +746,17 @@ function addUmbrellas(object: THREE.Group) {
   colors.forEach((color, i) => {
     const ox = sx + i * 3.2;
     const oz = sz + i * 1.4;
+    const y0 = heightAt(ox, oz);
     const pole = new THREE.Mesh(
       new THREE.CylinderGeometry(0.05, 0.07, 1.7, 6),
       new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.5 }),
     );
-    pole.position.set(ox, 0.85, oz);
+    pole.position.set(ox, y0 + 0.85, oz);
     const top = new THREE.Mesh(
       new THREE.ConeGeometry(1.15, 0.38, 8),
       new THREE.MeshStandardMaterial({ color, roughness: 0.6 }),
     );
-    top.position.set(ox, 1.75, oz);
+    top.position.set(ox, y0 + 1.75, oz);
     object.add(pole, top);
   });
 }
@@ -421,12 +764,12 @@ function addUmbrellas(object: THREE.Group) {
 function addMountains(object: THREE.Group) {
   const rock = new THREE.MeshStandardMaterial({ color: 0x7d6c5e, roughness: 0.95 });
   const snow = new THREE.MeshStandardMaterial({ color: 0xf3eee6, roughness: 0.75 });
-  for (let i = 0; i < 18; i++) {
-    const a = (i / 18) * Math.PI * 2 + 0.15;
-    const r = 540 + (i % 4) * 28;
-    const h = 80 + (i % 5) * 26;
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(40 + (i % 3) * 18, h, 6), i % 3 === 0 ? snow : rock);
-    cone.position.set(Math.cos(a) * r, h * 0.32, Math.sin(a) * r);
+  for (let i = 0; i < 22; i++) {
+    const a = (i / 22) * Math.PI * 2 + 0.15;
+    const r = 980 + (i % 4) * 40;
+    const h = 90 + (i % 5) * 30;
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(48 + (i % 3) * 20, h, 6), i % 3 === 0 ? snow : rock);
+    cone.position.set(Math.cos(a) * r, h * 0.28, Math.sin(a) * r);
     object.add(cone);
   }
 }
@@ -439,94 +782,48 @@ function addClouds(object: THREE.Group) {
     roughness: 1,
   });
   const rand = mulberry32(3);
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 14; i++) {
     const cloud = new THREE.Group();
     const puff = 3 + Math.floor(rand() * 3);
     for (let p = 0; p < puff; p++) {
-      const s = 8 + rand() * 10;
+      const s = 10 + rand() * 14;
       const ball = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 6), mat);
-      ball.position.set((rand() - 0.5) * 22, rand() * 4, (rand() - 0.5) * 12);
+      ball.position.set((rand() - 0.5) * 28, rand() * 5, (rand() - 0.5) * 14);
       cloud.add(ball);
     }
     const ang = rand() * Math.PI * 2;
-    const dist = 180 + rand() * 220;
-    cloud.position.set(Math.cos(ang) * dist, 70 + rand() * 30, Math.sin(ang) * dist);
+    const dist = 220 + rand() * 500;
+    cloud.position.set(Math.cos(ang) * dist, 90 + rand() * 40, Math.sin(ang) * dist);
     object.add(cloud);
   }
 }
 
-function addTrees(object: THREE.Group, colliders: Collider[]) {
-  const rand = mulberry32(11);
-  const spots: { x: number; z: number; s: number }[] = [];
-  let guard = 0;
-  while (spots.length < 80 && guard < 4000) {
-    guard += 1;
-    let x: number;
-    let z: number;
-    if (rand() < 0.6) {
-      x = -390 + rand() * 260;
-      z = -180 + rand() * 460;
-    } else {
-      x = (rand() - 0.5) * 760;
-      z = (rand() - 0.5) * 760;
+function addCurbsAndRails(object: THREE.Group) {
+  const curbMat = new THREE.MeshStandardMaterial({ color: 0xb8b4aa, roughness: 0.85 });
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x8a9098, metalness: 0.55, roughness: 0.4 });
+  // Town sidewalk strips along the main cross.
+  for (const z of [-11, 11]) {
+    for (let x = -100; x <= 100; x += 8) {
+      if (Math.abs(x) < 12) continue;
+      const y = heightAt(x, z) + 0.18;
+      const curb = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.22, 1.1), curbMat);
+      curb.position.set(x, y, z);
+      object.add(curb);
     }
-    if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 22) continue;
-    if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 22) continue;
-    if (Math.hypot(x - 155, z - 70) < 12) continue;
-    if (Math.hypot(x - 190, z - 175) < 16) continue;
-    if (Math.hypot(x - 206, z - 188) < 6) continue;
-    if (Math.hypot(x - 88, z - 88) < 8) continue;
-    let blocked = false;
-    for (const road of ROADS) {
-      if (distToSeg(x, z, road.x1, road.z1, road.x2, road.z2) < road.width / 2 + 6) {
-        blocked = true;
-        break;
-      }
-    }
-    if (blocked) continue;
-    for (const b of BUILDINGS) {
-      if (Math.abs(x - b.x) < b.w / 2 + 4 && Math.abs(z - b.z) < b.d / 2 + 4) {
-        blocked = true;
-        break;
-      }
-    }
-    if (blocked) continue;
-    spots.push({ x, z, s: 0.85 + rand() * 0.75 });
   }
-
-  const trunks = new THREE.InstancedMesh(
-    new THREE.CylinderGeometry(0.18, 0.28, 2.4, 6),
-    new THREE.MeshStandardMaterial({ color: 0x6b4630, roughness: 0.9 }),
-    spots.length,
-  );
-  const leaves = new THREE.InstancedMesh(
-    new THREE.ConeGeometry(1.35, 2.6, 7),
-    new THREE.MeshStandardMaterial({ color: 0x2f7a34, roughness: 0.85 }),
-    spots.length,
-  );
-  const tops = new THREE.InstancedMesh(
-    new THREE.ConeGeometry(0.9, 1.7, 7),
-    new THREE.MeshStandardMaterial({ color: 0x3d9442, roughness: 0.85 }),
-    spots.length,
-  );
-  trunks.castShadow = false;
-  leaves.castShadow = false;
-  tops.castShadow = false;
-
-  const dummy = new THREE.Object3D();
-  spots.forEach((p, i) => {
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(p.s, p.s, p.s);
-    dummy.position.set(p.x, 1.2 * p.s, p.z);
-    dummy.updateMatrix();
-    trunks.setMatrixAt(i, dummy.matrix);
-    dummy.position.set(p.x, 2.2 * p.s, p.z);
-    dummy.updateMatrix();
-    leaves.setMatrixAt(i, dummy.matrix);
-    dummy.position.set(p.x, 3.15 * p.s, p.z);
-    dummy.updateMatrix();
-    tops.setMatrixAt(i, dummy.matrix);
-    colliders.push({ kind: "circle", x: p.x, z: p.z, r: 0.45 });
-  });
-  object.add(trunks, leaves, tops);
+  // Guardrails on outer highway samples.
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * Math.PI * 2;
+    const bulge = 1 + 0.08 * Math.sin(a * 2);
+    const r = 820 * bulge + 16;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const y = heightAt(x, z) + 0.55;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.9, 0.12), railMat);
+    post.position.set(x, y, z);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 28), railMat);
+    rail.position.set(x, y + 0.25, z);
+    rail.rotation.y = -a;
+    object.add(post, rail);
+  }
 }

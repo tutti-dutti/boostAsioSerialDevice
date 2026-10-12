@@ -122,16 +122,27 @@ function paintHud(info: FrameInfo) {
 function paintMap(info: FrameInfo) {
   const w = mapCanvas.width;
   const h = mapCanvas.height;
-  const scale = w / 900;
+  const scale = w / 2000;
   const X = (x: number) => w / 2 + x * scale;
   const Y = (z: number) => h / 2 + z * scale;
   mapCtx.clearRect(0, 0, w, h);
   mapCtx.fillStyle = "#1d4a28";
   mapCtx.fillRect(0, 0, w, h);
   mapCtx.lineCap = "round";
+  // Highway first (wide yellow-edge loop), then local roads on top.
   for (const road of ROADS) {
+    if (!road.highway) continue;
+    mapCtx.strokeStyle = "#c9a227";
+    mapCtx.lineWidth = 5;
+    mapCtx.beginPath();
+    mapCtx.moveTo(X(road.x1), Y(road.z1));
+    mapCtx.lineTo(X(road.x2), Y(road.z2));
+    mapCtx.stroke();
+  }
+  for (const road of ROADS) {
+    if (road.highway) continue;
     mapCtx.strokeStyle = road.grip < 0.85 ? "#8a6238" : "#8d939a";
-    mapCtx.lineWidth = road.width > 16 ? 4 : 3;
+    mapCtx.lineWidth = road.width > 16 ? 3.5 : 2.5;
     mapCtx.beginPath();
     mapCtx.moveTo(X(road.x1), Y(road.z1));
     mapCtx.lineTo(X(road.x2), Y(road.z2));
@@ -139,7 +150,7 @@ function paintMap(info: FrameInfo) {
   }
   mapCtx.fillStyle = "#2a8eaf";
   mapCtx.beginPath();
-  mapCtx.arc(X(LAKE.x), Y(LAKE.z), LAKE.r * scale, 0, Math.PI * 2);
+  mapCtx.arc(X(LAKE.x), Y(LAKE.z), Math.max(2, LAKE.r * scale), 0, Math.PI * 2);
   mapCtx.fill();
   mapCtx.fillStyle = "#ffe08a";
   mapCtx.fillRect(X(SPAWN.x) - 2, Y(SPAWN.z) - 2, 4, 4);
@@ -148,9 +159,9 @@ function paintMap(info: FrameInfo) {
   mapCtx.rotate(-info.yaw);
   mapCtx.fillStyle = "#ff3355";
   mapCtx.beginPath();
-  mapCtx.moveTo(0, 7);
-  mapCtx.lineTo(4.5, -5);
-  mapCtx.lineTo(-4.5, -5);
+  mapCtx.moveTo(0, 6);
+  mapCtx.lineTo(3.5, -4);
+  mapCtx.lineTo(-3.5, -4);
   mapCtx.closePath();
   mapCtx.fill();
   mapCtx.restore();

@@ -18,6 +18,7 @@ import {
   type Setup,
   type Tune,
 } from "./sim";
+import { groundNormal, heightAt } from "./mapData";
 import { createWorld } from "./world";
 
 export type FrameInfo = {
@@ -92,11 +93,11 @@ export class DriveGame {
     setCarEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
     pmrem.dispose();
 
-    this.camera = new THREE.PerspectiveCamera(62, 1, 0.15, 2500);
+    this.camera = new THREE.PerspectiveCamera(62, 1, 0.15, 3200);
     this.resize();
 
     this.scene.background = new THREE.Color(0x8ecfff);
-    this.scene.fog = new THREE.Fog(0x9fd4f5, 90, 520);
+    this.scene.fog = new THREE.Fog(0x9fd4f5, 140, 900);
 
     const hemi = new THREE.HemisphereLight(0xfff0dc, 0x4e8a46, 1.15);
     this.scene.add(hemi);
@@ -387,6 +388,7 @@ export class DriveGame {
     for (const mat of this.visual.tailLights) mat.emissiveIntensity = glow;
 
     this.placeCar();
+    this.world.updateChunks(this.car.x, this.car.z);
     this.placeCamera(dt);
     this.followSun();
 
@@ -398,22 +400,31 @@ export class DriveGame {
   }
 
   private placeCar() {
-    this.visual.root.position.set(this.car.x, this.visual.ride, this.car.z);
+    const y = heightAt(this.car.x, this.car.z) + this.visual.ride;
+    this.visual.root.position.set(this.car.x, y, this.car.z);
+    this.visual.root.rotation.order = "YXZ";
     this.visual.root.rotation.y = this.car.yaw;
+    const n = groundNormal(this.car.x, this.car.z);
+    // Tip the car a little to follow the hill without fighting body lean.
+    const pitch = Math.atan2(n.nz * Math.cos(this.car.yaw) + n.nx * Math.sin(this.car.yaw), n.ny);
+    const roll = Math.atan2(n.nx * Math.cos(this.car.yaw) - n.nz * Math.sin(this.car.yaw), n.ny);
+    this.visual.root.rotation.x = THREE.MathUtils.clamp(pitch, -0.35, 0.35);
+    this.visual.root.rotation.z = THREE.MathUtils.clamp(-roll, -0.35, 0.35);
   }
 
   private placeCamera(dt: number) {
     const fx = Math.sin(this.car.yaw);
     const fz = Math.cos(this.car.yaw);
+    const groundY = heightAt(this.car.x, this.car.z);
     if (this.camMode === "chase") {
-      this.desired.set(this.car.x - fx * 13.5, 5.8, this.car.z - fz * 13.5);
-      this.look.set(this.car.x + fx * 10, 1.15, this.car.z + fz * 10);
+      this.desired.set(this.car.x - fx * 13.5, groundY + 5.8, this.car.z - fz * 13.5);
+      this.look.set(this.car.x + fx * 10, groundY + 1.15, this.car.z + fz * 10);
     } else if (this.camMode === "bumper") {
-      this.desired.set(this.car.x - fx * 4.3, 1.65, this.car.z - fz * 4.3);
-      this.look.set(this.car.x + fx * 8, 0.9, this.car.z + fz * 8);
+      this.desired.set(this.car.x - fx * 4.3, groundY + 1.65, this.car.z - fz * 4.3);
+      this.look.set(this.car.x + fx * 8, groundY + 0.9, this.car.z + fz * 8);
     } else {
-      this.desired.set(this.car.x + fx * 0.7, 1.15, this.car.z + fz * 0.7);
-      this.look.set(this.car.x + fx * 14, 0.95, this.car.z + fz * 14);
+      this.desired.set(this.car.x + fx * 0.7, groundY + 1.15, this.car.z + fz * 0.7);
+      this.look.set(this.car.x + fx * 14, groundY + 0.95, this.car.z + fz * 14);
     }
     if (this.snap) {
       this.camera.position.copy(this.desired);
@@ -444,8 +455,9 @@ export class DriveGame {
   }
 
   private followSun() {
-    this.sun.position.set(this.car.x, 0, this.car.z).addScaledVector(this.sunDir, 90);
-    this.sun.target.position.set(this.car.x, 0, this.car.z);
+    const y = heightAt(this.car.x, this.car.z);
+    this.sun.position.set(this.car.x, y, this.car.z).addScaledVector(this.sunDir, 120);
+    this.sun.target.position.set(this.car.x, y, this.car.z);
   }
 
   private draw(dt: number) {
