@@ -9,6 +9,33 @@ export const SURFACE_LIFT = 0.1;
 export const LAKE = { x: 320, z: -300, r: 48 };
 export const SPAWN = { x: -70, z: 4, yaw: Math.PI / 2 };
 
+/**
+ * Wide river crossing the northeast highway arc.
+ * Cars cannot drive on the water; the highway bridge crosses above it.
+ */
+export const RIVER = {
+  points: [
+    [-280, 1050],
+    [40, 960],
+    [320, 860],
+    [560, 740],
+    [780, 560],
+    [960, 300],
+    [1040, -40],
+  ] as [number, number][],
+  /** Water surface half-width (meters). */
+  halfWidth: 58,
+  /** Sandy/rocky bank beyond the water. */
+  bankExtra: 32,
+};
+
+/** How high the bridge deck sits above the local river banks. */
+export const BRIDGE_CLEARANCE = 18;
+/** Half-width of the driveable bridge deck (matches highway). */
+export const BRIDGE_HALF = 15;
+/** Length of each on/off ramp along the highway. */
+export const BRIDGE_RAMP = 200;
+
 export type RoadDef = {
   x1: number;
   z1: number;
@@ -188,6 +215,88 @@ export const ROADS: RoadDef[] = (() => {
   return out;
 })();
 
+/** Catmull-Rom samples along a path centerline (xz only). */
+export function samplePathXZ(path: PathDef, samples: number): { x: number; z: number }[] {
+  const pts = path.points;
+  if (pts.length < 2) return [];
+  const closed = Boolean(path.closed);
+  const ring = closed ? [...pts, pts[0], pts[1]] : pts;
+  const out: { x: number; z: number }[] = [];
+  const segs = closed ? pts.length : pts.length - 1;
+  for (let s = 0; s < samples; s++) {
+    const u = s / (samples - (closed ? 0 : 1) || 1);
+    const f = u * segs;
+    const i = Math.min(segs - 1, Math.floor(f));
+    const t = f - i;
+    const p0 = ring[i];
+    const p1 = ring[i + 1];
+    const p2 = ring[Math.min(ring.length - 1, i + 2)];
+    const pm = ring[Math.max(0, i - 1 + (closed && i === 0 ? pts.length : 0))];
+    const a = closed || i > 0 ? pm : p0;
+    const b = p0;
+    const c = p1;
+    const d = closed || i < segs - 1 ? p2 : p1;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const x =
+      0.5 *
+      (2 * b[0] +
+        (-a[0] + c[0]) * t +
+        (2 * a[0] - 5 * b[0] + 4 * c[0] - d[0]) * t2 +
+        (-a[0] + 3 * b[0] - 3 * c[0] + d[0]) * t3);
+    const z =
+      0.5 *
+      (2 * b[1] +
+        (-a[1] + c[1]) * t +
+        (2 * a[1] - 5 * b[1] + 4 * c[1] - d[1]) * t2 +
+        (-a[1] + 3 * b[1] - 3 * c[1] + d[1]) * t3);
+    out.push({ x, z });
+  }
+  if (closed && out.length) out.pop();
+  return out;
+}
+
+type RoadSample = { x: number; z: number; h: number; half: number; shoulder: number };
+
+/** Closest point on a polyline (xz). */
+export function closestOnPolyline(x: number, z: number, points: [number, number][]) {
+  let best = { d: 1e9, x, z, t: 0, seg: 0, nx: 1, nz: 0 };
+  for (let i = 0; i < points.length - 1; i++) {
+    const [x1, z1] = points[i];
+    const [x2, z2] = points[i + 1];
+    const dx = x2 - x1;
+    const dz = z2 - z1;
+    const l2 = dx * dx + dz * dz || 1;
+    let t = ((x - x1) * dx + (z - z1) * dz) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const px = x1 + t * dx;
+    const pz = z1 + t * dz;
+    const d = Math.hypot(x - px, z - pz);
+    if (d < best.d) {
+      const len = Math.hypot(dx, dz) || 1;
+      best = { d, x: px, z: pz, t, seg: i, nx: -dz / len, nz: dx / len };
+    }
+  }
+  return best;
+}
+
+export function riverDistance(x: number, z: number) {
+  const hit = closestOnPolyline(x, z, RIVER.points);
+  return {
+    d: hit.d,
+    cx: hit.x,
+    cz: hit.z,
+    nx: hit.nx,
+    nz: hit.nz,
+    half: RIVER.halfWidth,
+    bank: RIVER.halfWidth + RIVER.bankExtra,
+  };
+}
+
+export function inRiverWater(x: number, z: number) {
+  return riverDistance(x, z).d < RIVER.halfWidth;
+}
+
 function hash2(x: number, z: number) {
   const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
   return s - Math.floor(s);
@@ -221,18 +330,7 @@ function fbm(x: number, z: number) {
   return sum / norm;
 }
 
-function projectSeg(px: number, pz: number, x1: number, z1: number, x2: number, z2: number) {
-  const dx = x2 - x1;
-  const dz = z2 - z1;
-  const l2 = dx * dx + dz * dz || 1;
-  let t = ((px - x1) * dx + (pz - z1) * dz) / l2;
-  t = Math.max(0, Math.min(1, t));
-  const x = x1 + t * dx;
-  const z = z1 + t * dz;
-  return { x, z, t, d: Math.hypot(px - x, pz - z) };
-}
-
-/** Raw rolling hills (before road flattening). */
+/** Raw rolling hills (before road flattening / bridge). */
 export function rawHeight(x: number, z: number): number {
   const n = fbm(x * 0.0042, z * 0.0042);
   const ridge = fbm(x * 0.0018 + 20, z * 0.0018 - 11);
@@ -245,43 +343,183 @@ export function rawHeight(x: number, z: number): number {
     const t = Math.max(0, (ld - LAKE.r) / 40);
     h = h * t - (1 - t) * 1.2;
   }
+  // Carve a wide river bed with gentle banks.
+  const river = riverDistance(x, z);
+  if (river.d < river.bank) {
+    const bed = -2.8;
+    const waterEdge = river.half * 0.92;
+    if (river.d < waterEdge) {
+      const u = river.d / Math.max(0.1, waterEdge);
+      const carve = 1 - u * u * 0.15;
+      h = bed * carve + h * (1 - carve) * 0.15;
+    } else {
+      const u = (river.d - waterEdge) / Math.max(0.1, river.bank - waterEdge);
+      const carve = 1 - u * u * (3 - 2 * u);
+      h = h * (1 - carve * 0.85) + bed * carve * 0.55;
+    }
+  }
   return h;
 }
 
+type BridgeSample = {
+  x: number;
+  z: number;
+  /** Absolute deck / ramp height. */
+  h: number;
+  /** 0 at ramp toes, 1 on the high deck. */
+  lift: number;
+  tx: number;
+  tz: number;
+};
+
 /**
- * Terrain height under the car / props.
- * Under and beside roads the ground is forced flat so asphalt edges stay clean.
+ * Dense, longitudinally smoothed road centerline heights (at grade).
+ * Bridge deck height is applied separately in heightAt so terrain stays low under the span.
  */
-export function heightAt(x: number, z: number): number {
-  let h = rawHeight(x, z);
-  let best = { d: 1e9, half: 8, hx: x, hz: z, t: 0, x1: 0, z1: 0, x2: 0, z2: 0 };
-  for (const road of ROADS) {
-    const hit = projectSeg(x, z, road.x1, road.z1, road.x2, road.z2);
-    const shoulder = road.width * 0.5 + (road.highway ? 14 : 10);
-    if (hit.d < shoulder && hit.d < best.d) {
-      best = {
-        d: hit.d,
-        half: road.width * 0.5,
-        hx: hit.x,
-        hz: hit.z,
-        t: hit.t,
-        x1: road.x1,
-        z1: road.z1,
-        x2: road.x2,
-        z2: road.z2,
-      };
+const ROAD_SAMPLES: RoadSample[] = (() => {
+  const samples: RoadSample[] = [];
+  const addPath = (path: PathDef) => {
+    const n = path.highway ? 160 : path.closed ? 120 : 80;
+    const pts = samplePathXZ(path, n);
+    if (pts.length < 2) return;
+    const raw = pts.map((p) => rawHeight(p.x, p.z));
+    const win = path.highway ? 10 : 8;
+    const smooth: number[] = [];
+    for (let i = 0; i < raw.length; i++) {
+      let sum = 0;
+      let count = 0;
+      for (let k = -win; k <= win; k++) {
+        let j = i + k;
+        if (path.closed) j = (j + raw.length) % raw.length;
+        else j = Math.max(0, Math.min(raw.length - 1, j));
+        sum += raw[j];
+        count++;
+      }
+      smooth.push(sum / count);
+    }
+    const half = path.width * 0.5;
+    const shoulder = half + (path.highway ? 16 : 12);
+    for (let i = 0; i < pts.length; i++) {
+      samples.push({ x: pts[i].x, z: pts[i].z, h: smooth[i], half, shoulder });
+    }
+  };
+  for (const path of PATHS) addPath(path);
+  addPath(HIGHWAY);
+  for (const ramp of RAMPS) addPath(ramp);
+  return samples;
+})();
+
+/** Raised highway bridge samples (ramps + deck) over the river. */
+export const BRIDGE_SAMPLES: BridgeSample[] = (() => {
+  const hwy = samplePathXZ(HIGHWAY, 220);
+  if (hwy.length < 4) return [];
+  const wet = hwy.map((p) => riverDistance(p.x, p.z).d < RIVER.halfWidth + 36);
+  // Largest contiguous wet run on the loop.
+  let bestS = 0;
+  let bestE = 0;
+  let s = -1;
+  for (let i = 0; i < wet.length; i++) {
+    if (wet[i] && s < 0) s = i;
+    if ((!wet[i] || i === wet.length - 1) && s >= 0) {
+      const e = wet[i] && i === wet.length - 1 ? i : i - 1;
+      if (e - s > bestE - bestS) {
+        bestS = s;
+        bestE = e;
+      }
+      s = -1;
     }
   }
-  if (best.d < 1e8) {
-    const h1 = rawHeight(best.x1, best.z1);
-    const h2 = rawHeight(best.x2, best.z2);
-    const hm = rawHeight((best.x1 + best.x2) * 0.5, (best.z1 + best.z2) * 0.5);
-    const centerH =
-      h1 * (1 - best.t) * 0.35 + h2 * best.t * 0.35 + hm * 0.3 + rawHeight(best.hx, best.hz) * 0.35;
-    const pad = best.half + 10;
-    const u = Math.max(0, Math.min(1, (best.d - best.half * 0.85) / Math.max(0.1, pad - best.half * 0.85)));
+  // Also check wrap-around cluster for closed highway.
+  if (wet[0] && wet[wet.length - 1]) {
+    let a = 0;
+    while (a < wet.length && wet[a]) a++;
+    let b = wet.length - 1;
+    while (b >= 0 && wet[b]) b--;
+    const span = a + (wet.length - 1 - b);
+    if (span > bestE - bestS) {
+      bestS = b + 1;
+      bestE = a - 1 + wet.length;
+    }
+  }
+  const rampN = Math.max(8, Math.round((BRIDGE_RAMP / (Math.PI * 2 * 820)) * hwy.length));
+  const deckIndices: number[] = [];
+  const total = hwy.length;
+  const span = bestE - bestS;
+  const start = bestS - rampN;
+  const end = bestE + rampN;
+  for (let i = start; i <= end; i++) deckIndices.push(((i % total) + total) % total);
+
+  // Deck height from bank samples beside the river crossing.
+  let bankH = 0;
+  let bankN = 0;
+  for (let i = bestS; i <= bestE; i++) {
+    const idx = ((i % total) + total) % total;
+    const p = hwy[idx];
+    const riv = riverDistance(p.x, p.z);
+    bankH += rawHeight(p.x + riv.nx * (riv.half + 20), p.z + riv.nz * (riv.half + 20));
+    bankN++;
+  }
+  const deckH = (bankN ? bankH / bankN : 0) + BRIDGE_CLEARANCE;
+  const out: BridgeSample[] = [];
+  const n = deckIndices.length;
+  for (let k = 0; k < n; k++) {
+    const idx = deckIndices[k];
+    const p = hwy[idx];
+    const prev = hwy[((idx - 1) % total + total) % total];
+    const next = hwy[(idx + 1) % total];
+    let tx = next.x - prev.x;
+    let tz = next.z - prev.z;
+    const len = Math.hypot(tx, tz) || 1;
+    tx /= len;
+    tz /= len;
+    // Smooth ramp: 0 at toes → 1 across deck.
+    const along = k / Math.max(1, n - 1);
+    const rampT = BRIDGE_RAMP > 0 ? Math.min(1, (rampN * 2) / n) : 0.25;
+    let lift = 1;
+    if (along < rampT) {
+      const u = along / Math.max(0.001, rampT);
+      lift = u * u * (3 - 2 * u);
+    } else if (along > 1 - rampT) {
+      const u = (1 - along) / Math.max(0.001, rampT);
+      lift = u * u * (3 - 2 * u);
+    }
+    const ground = rawHeight(p.x, p.z);
+    // Keep ramps above the carved river so the climb starts on solid bank.
+    const base = Math.max(ground, deckH - BRIDGE_CLEARANCE);
+    const h = base * (1 - lift) + deckH * lift;
+    out.push({ x: p.x, z: p.z, h, lift, tx, tz });
+    void span;
+  }
+  return out;
+})();
+
+/** Ground / terrain height (roads at grade, river carved). No bridge deck. */
+export function terrainHeightAt(x: number, z: number): number {
+  let h = rawHeight(x, z);
+  let wSum = 0;
+  let hSum = 0;
+  let minD = 1e9;
+  let minHalf = 8;
+  let minShoulder = 18;
+  for (const s of ROAD_SAMPLES) {
+    const d = Math.hypot(x - s.x, z - s.z);
+    if (d >= s.shoulder) continue;
+    const fall = 1 - d / s.shoulder;
+    const w = fall * fall;
+    wSum += w;
+    hSum += s.h * w;
+    if (d < minD) {
+      minD = d;
+      minHalf = s.half;
+      minShoulder = s.shoulder;
+    }
+  }
+  if (wSum > 0) {
+    const roadH = hSum / wSum;
+    const edge = minHalf * 0.92;
+    const u = Math.max(0, Math.min(1, (minD - edge) / Math.max(0.15, minShoulder - edge)));
     const flatAmt = 1 - u * u * (3 - 2 * u);
-    h = centerH * flatAmt + h * (1 - flatAmt);
+    h = roadH * flatAmt + h * (1 - flatAmt);
   }
   const sd = Math.hypot(x - SPAWN.x, z - SPAWN.z);
   if (sd < 50) {
@@ -289,6 +527,45 @@ export function heightAt(x: number, z: number): number {
     h = h * (t * t * (3 - 2 * t));
   }
   return h;
+}
+
+/** Bridge deck / ramp height, or null when off the bridge. */
+export function bridgeHeightAt(x: number, z: number): number | null {
+  if (!BRIDGE_SAMPLES.length) return null;
+  let bestD = 1e9;
+  let bestH = 0;
+  let bestLift = 0;
+  for (const s of BRIDGE_SAMPLES) {
+    const d = Math.hypot(x - s.x, z - s.z);
+    if (d < bestD) {
+      bestD = d;
+      bestH = s.h;
+      bestLift = s.lift;
+    }
+  }
+  const half = BRIDGE_HALF + (bestLift > 0.15 ? 2 : 4);
+  if (bestD > half) return null;
+  // Soft lateral falloff only on ramp toes so banks blend; deck stays flat.
+  if (bestD > BRIDGE_HALF && bestLift < 0.85) {
+    const u = (bestD - BRIDGE_HALF) / Math.max(0.1, half - BRIDGE_HALF);
+    const a = 1 - u * u * (3 - 2 * u);
+    return bestH * a + terrainHeightAt(x, z) * (1 - a);
+  }
+  return bestH;
+}
+
+export function onBridge(x: number, z: number) {
+  return bridgeHeightAt(x, z) != null;
+}
+
+/**
+ * Driveable / ribbon surface height (includes the raised highway bridge).
+ * Terrain meshes should use terrainHeightAt so the river stays visible under the span.
+ */
+export function heightAt(x: number, z: number): number {
+  const bridge = bridgeHeightAt(x, z);
+  if (bridge != null) return bridge;
+  return terrainHeightAt(x, z);
 }
 
 /** Average height under the car's four wheels. */

@@ -1,7 +1,7 @@
 import "./style.css";
 import { GARAGE } from "./drive/garage";
 import { DriveGame, type FrameInfo } from "./drive/Game";
-import { LAKE, ROADS, SPAWN } from "./drive/mapData";
+import { BRIDGE_SAMPLES, LAKE, RIVER, ROADS, SPAWN } from "./drive/mapData";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Missing #app");
@@ -148,10 +148,32 @@ function paintMap(info: FrameInfo) {
     mapCtx.lineTo(X(road.x2), Y(road.z2));
     mapCtx.stroke();
   }
+  // River (wide blue band) under the highway bridge.
+  mapCtx.strokeStyle = "#2a8eaf";
+  mapCtx.lineWidth = Math.max(4, RIVER.halfWidth * 2 * scale);
+  mapCtx.lineCap = "round";
+  mapCtx.lineJoin = "round";
+  mapCtx.beginPath();
+  mapCtx.moveTo(X(RIVER.points[0][0]), Y(RIVER.points[0][1]));
+  for (let i = 1; i < RIVER.points.length; i++) {
+    mapCtx.lineTo(X(RIVER.points[i][0]), Y(RIVER.points[i][1]));
+  }
+  mapCtx.stroke();
   mapCtx.fillStyle = "#2a8eaf";
   mapCtx.beginPath();
   mapCtx.arc(X(LAKE.x), Y(LAKE.z), Math.max(2, LAKE.r * scale), 0, Math.PI * 2);
   mapCtx.fill();
+  // Bridge deck over the river (lighter stroke on top of the highway).
+  if (BRIDGE_SAMPLES.length > 1) {
+    mapCtx.strokeStyle = "#f0e6a8";
+    mapCtx.lineWidth = 6;
+    mapCtx.beginPath();
+    mapCtx.moveTo(X(BRIDGE_SAMPLES[0].x), Y(BRIDGE_SAMPLES[0].z));
+    for (let i = 1; i < BRIDGE_SAMPLES.length; i++) {
+      mapCtx.lineTo(X(BRIDGE_SAMPLES[i].x), Y(BRIDGE_SAMPLES[i].z));
+    }
+    mapCtx.stroke();
+  }
   mapCtx.fillStyle = "#ffe08a";
   mapCtx.fillRect(X(SPAWN.x) - 2, Y(SPAWN.z) - 2, 4, 4);
   mapCtx.save();

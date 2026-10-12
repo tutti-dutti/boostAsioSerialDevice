@@ -1,16 +1,22 @@
 import * as THREE from "three";
 import {
   BORDER_IN,
+  BRIDGE_HALF,
+  BRIDGE_SAMPLES,
   HIGHWAY,
   LAKE,
   PATCHES,
   PATHS,
   RAMPS,
+  RIVER,
   ROADS,
   SPAWN,
   SURFACE_LIFT,
   WORLD_HALF,
   heightAt,
+  inRiverWater,
+  riverDistance,
+  terrainHeightAt,
   type PathDef,
 } from "./mapData";
 import type { Collider, RoadSeg } from "./sim";
@@ -219,7 +225,7 @@ function samplePath(path: PathDef, samples: number): { x: number; z: number; tx:
 }
 
 function ribbonGeometry(path: PathDef, yLift: number) {
-  const samples = path.highway ? 96 : path.closed ? 72 : 40;
+  const samples = path.highway ? 160 : path.closed ? 96 : 56;
   const pts = samplePath(path, samples);
   if (pts.length < 2) return null;
   const half = path.width / 2;
@@ -269,7 +275,8 @@ function buildTerrainChunk(cx: number, cz: number, grassMat: THREE.Material) {
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i) + ox;
     const z = pos.getZ(i) + oz;
-    pos.setY(i, heightAt(x, z));
+    // Ground only — bridge deck is a separate raised ribbon so the river stays visible.
+    pos.setY(i, terrainHeightAt(x, z));
   }
   pos.needsUpdate = true;
   geo.computeVertexNormals();
@@ -367,6 +374,8 @@ export function createWorld(): World {
   water.position.set(LAKE.x, heightAt(LAKE.x, LAKE.z) + 0.04, LAKE.z);
   object.add(water);
 
+  addRiverAndBridge(object, baseColliders);
+
   const checker = canvasTex((g, w, h) => {
     const n = 8;
     for (let i = 0; i < n; i++) {
@@ -404,6 +413,8 @@ export function createWorld(): World {
   addSign(object, baseColliders, "LAKE", 150, -110, facing(-210, 180), "#3ec6c6");
   addSign(object, baseColliders, "FOREST", -150, 95, facing(170, -130), "#8dce6a");
   addSign(object, baseColliders, "HIGHWAY", 380, 20, -Math.PI / 2, "#ffcc33");
+  addSign(object, baseColliders, "BRIDGE", 560, 700, facing(-200, 100), "#ffcc33");
+  addSign(object, baseColliders, "RIVER", 400, 780, facing(100, -80), "#3ec6c6");
   addSign(object, baseColliders, "WET", 40, 16, -Math.PI / 2, "#7ec8ff");
   addSign(object, baseColliders, "MUD", -170, 92, 0, "#c47a3a");
   addSign(object, baseColliders, "ICE", 210, -16, -Math.PI / 2, "#d7e7f2");
@@ -443,6 +454,7 @@ export function createWorld(): World {
       const z = oz + rand() * CHUNK;
       if (Math.abs(x) > WORLD_HALF || Math.abs(z) > WORLD_HALF) continue;
       if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 22) continue;
+      if (riverDistance(x, z).d < RIVER.halfWidth + RIVER.bankExtra + 6) continue;
       if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 22) continue;
       if (nearRoad(x, z, 7)) continue;
       let blocked = false;
@@ -608,6 +620,143 @@ export function createWorld(): World {
   };
 
   return { object, colliders, roads, updateChunks, flattenProps };
+}
+
+/** River water + banks, and highway bridge pillars / guardrails over the span. */
+function addRiverAndBridge(object: THREE.Group, colliders: Collider[]) {
+  const bankMat = new THREE.MeshStandardMaterial({ color: 0xc2b08a, roughness: 0.96 });
+  const rockBankMat = new THREE.MeshStandardMaterial({ color: 0x8a8278, roughness: 0.94 });
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x1a7a9c,
+    roughness: 0.14,
+    metalness: 0.45,
+    transparent: true,
+    opacity: 0.92,
+  });
+  const concrete = new THREE.MeshStandardMaterial({ color: 0xb8b4aa, roughness: 0.88, metalness: 0.08 });
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x3a3f48, roughness: 0.55, metalness: 0.35 });
+
+  // Bank + water ribbons along the river centerline.
+  const riverPts = samplePath(
+    { points: RIVER.points, width: RIVER.halfWidth * 2, grip: 1 },
+    64,
+  );
+  if (riverPts.length > 2) {
+    const bankPos: number[] = [];
+    const waterPos: number[] = [];
+    const bankIdx: number[] = [];
+    const waterIdx: number[] = [];
+    const bankHalf = RIVER.halfWidth + RIVER.bankExtra;
+    const waterHalf = RIVER.halfWidth;
+    for (let i = 0; i < riverPts.length; i++) {
+      const p = riverPts[i];
+      const px = -p.tz;
+      const pz = p.tx;
+      const yBank = terrainHeightAt(p.x, p.z) + 0.04;
+      const yWater = -2.2;
+      bankPos.push(
+        p.x + px * bankHalf,
+        yBank,
+        p.z + pz * bankHalf,
+        p.x - px * bankHalf,
+        yBank,
+        p.z - pz * bankHalf,
+      );
+      waterPos.push(
+        p.x + px * waterHalf,
+        yWater,
+        p.z + pz * waterHalf,
+        p.x - px * waterHalf,
+        yWater,
+        p.z - pz * waterHalf,
+      );
+      if (i > 0) {
+        const a = (i - 1) * 2;
+        bankIdx.push(a, i * 2, a + 1, a + 1, i * 2, i * 2 + 1);
+        waterIdx.push(a, i * 2, a + 1, a + 1, i * 2, i * 2 + 1);
+      }
+    }
+    const bankGeo = new THREE.BufferGeometry();
+    bankGeo.setAttribute("position", new THREE.Float32BufferAttribute(bankPos, 3));
+    bankGeo.setIndex(bankIdx);
+    bankGeo.computeVertexNormals();
+    const bankMesh = new THREE.Mesh(bankGeo, bankMat);
+    bankMesh.receiveShadow = true;
+    object.add(bankMesh);
+
+    const waterGeo = new THREE.BufferGeometry();
+    waterGeo.setAttribute("position", new THREE.Float32BufferAttribute(waterPos, 3));
+    waterGeo.setIndex(waterIdx);
+    waterGeo.computeVertexNormals();
+    object.add(new THREE.Mesh(waterGeo, waterMat));
+
+    // Rocky patches along the banks.
+    for (let i = 4; i < riverPts.length; i += 5) {
+      const p = riverPts[i];
+      for (const side of [-1, 1]) {
+        const x = p.x - p.tz * side * (RIVER.halfWidth + 14);
+        const z = p.z + p.tx * side * (RIVER.halfWidth + 14);
+        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(2.2 + (i % 3) * 0.6, 0), rockBankMat);
+        rock.position.set(x, terrainHeightAt(x, z) + 0.6, z);
+        rock.rotation.set(i * 0.2, i * 0.5, 0.1);
+        rock.castShadow = true;
+        object.add(rock);
+      }
+    }
+  }
+
+  // Pillars + guardrails along the raised bridge samples.
+  if (BRIDGE_SAMPLES.length > 2) {
+    let dist = 0;
+    let nextPillar = 0;
+    for (let i = 0; i < BRIDGE_SAMPLES.length; i++) {
+      const s = BRIDGE_SAMPLES[i];
+      if (i > 0) {
+        const p = BRIDGE_SAMPLES[i - 1];
+        dist += Math.hypot(s.x - p.x, s.z - p.z);
+      }
+      const nx = -s.tz;
+      const nz = s.tx;
+
+      // Guardrails on both sides of the deck / ramps.
+      if (s.lift > 0.08 && i % 2 === 0) {
+        for (const side of [-1, 1]) {
+          const rx = s.x + nx * side * (BRIDGE_HALF - 0.35);
+          const rz = s.z + nz * side * (BRIDGE_HALF - 0.35);
+          const post = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.15, 0.18), railMat);
+          post.position.set(rx, s.h + SURFACE_LIFT + 0.55, rz);
+          post.castShadow = true;
+          object.add(post);
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 3.2), railMat);
+          rail.position.set(rx, s.h + SURFACE_LIFT + 1.05, rz);
+          rail.rotation.y = Math.atan2(s.tx, s.tz);
+          object.add(rail);
+          // Keep cars from sliding off the high deck.
+          if (s.lift > 0.55) {
+            colliders.push({ kind: "circle", x: rx, z: rz, r: 0.35, soft: "solid" });
+          }
+        }
+      }
+
+      // Concrete pillars in the river under the high deck (no xz colliders —
+      // 2D physics would block cars on the deck above).
+      if (s.lift > 0.85 && dist >= nextPillar && inRiverWater(s.x, s.z)) {
+        nextPillar = dist + 42;
+        for (const side of [-1, 1]) {
+          const px = s.x + nx * side * 7.5;
+          const pz = s.z + nz * side * 7.5;
+          const bed = -2.6;
+          const top = s.h + SURFACE_LIFT - 0.2;
+          const ph = Math.max(4, top - bed);
+          const pillar = new THREE.Mesh(new THREE.BoxGeometry(2.6, ph, 2.6), concrete);
+          pillar.position.set(px, bed + ph / 2, pz);
+          pillar.castShadow = true;
+          pillar.receiveShadow = true;
+          object.add(pillar);
+        }
+      }
+    }
+  }
 }
 
 function facing(nx: number, nz: number) {

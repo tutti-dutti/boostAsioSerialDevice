@@ -1,4 +1,4 @@
-import { BORDER_IN, LAKE, PATCHES, WORLD_HALF } from "./mapData";
+import { BORDER_IN, LAKE, PATCHES, WORLD_HALF, inRiverWater, onBridge, riverDistance } from "./mapData";
 
 export type Drive = "fwd" | "rwd" | "awd";
 
@@ -150,9 +150,13 @@ function ground(name: string, grip: number, max: number): Surface {
 }
 
 export function surfaceAt(x: number, z: number, roads: RoadSeg[]): Surface {
-  // Water wins over roads so a path that touches the lake cannot be driven across.
+  // Bridge deck is dry pavement above the river.
+  if (onBridge(x, z)) return ground("Dry", 1.55, 98);
+
+  // Water wins over at-grade roads — lake and river are not driveable.
   const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
   if (ld < LAKE.r) return ground("Water", 0.04, 3);
+  if (inRiverWater(x, z)) return ground("Water", 0.04, 3);
 
   let best = Infinity;
   let grip = 1;
@@ -176,6 +180,8 @@ export function surfaceAt(x: number, z: number, roads: RoadSeg[]): Surface {
   const ice = patchAt(x, z, "Ice");
   if (ice) return ice;
   if (ld < LAKE.r + 16) return ground("Sand", 0.5, 28);
+  const river = riverDistance(x, z);
+  if (river.d < river.bank) return ground("Sand", 0.5, 28);
   // Grass is a bit less sticky than pavement, but still fast.
   return ground("Grass", 0.92, 72);
 }
@@ -505,21 +511,38 @@ function dragForce(speed: number, mass: number, roll: number) {
 }
 
 /**
- * The lake is not a road. A car that reaches the water is put back on the
- * bank, and the speed that was carrying it inward is removed.
+ * Lake and river are not roads. A car that reaches the water is put back on
+ * the bank (unless it is on the highway bridge above the river).
  * Returns true when the car was in the water this step.
  */
 export function resolveWater(car: Car): boolean {
-  const dx = car.x - LAKE.x;
-  const dz = car.z - LAKE.z;
-  const dist = Math.hypot(dx, dz);
-  if (dist >= LAKE.r) return false;
+  // Bridge deck is above the river — allow driving there.
+  if (onBridge(car.x, car.z)) return false;
 
-  const nx = dist > 0.4 ? dx / dist : -Math.sin(car.yaw);
-  const nz = dist > 0.4 ? dz / dist : -Math.cos(car.yaw);
-  const shore = LAKE.r + 0.35;
-  car.x = LAKE.x + nx * shore;
-  car.z = LAKE.z + nz * shore;
+  const lakeDx = car.x - LAKE.x;
+  const lakeDz = car.z - LAKE.z;
+  const lakeDist = Math.hypot(lakeDx, lakeDz);
+  const river = riverDistance(car.x, car.z);
+  const inLake = lakeDist < LAKE.r;
+  const inRiver = river.d < river.half;
+  if (!inLake && !inRiver) return false;
+
+  let nx: number;
+  let nz: number;
+  if (inRiver && (!inLake || river.d < lakeDist)) {
+    // Push outward from the river centerline.
+    nx = river.d > 0.4 ? (car.x - river.cx) / river.d : river.nx;
+    nz = river.d > 0.4 ? (car.z - river.cz) / river.d : river.nz;
+    const shore = river.half + 0.45;
+    car.x = river.cx + nx * shore;
+    car.z = river.cz + nz * shore;
+  } else {
+    nx = lakeDist > 0.4 ? lakeDx / lakeDist : -Math.sin(car.yaw);
+    nz = lakeDist > 0.4 ? lakeDz / lakeDist : -Math.cos(car.yaw);
+    const shore = LAKE.r + 0.35;
+    car.x = LAKE.x + nx * shore;
+    car.z = LAKE.z + nz * shore;
+  }
 
   const fx = Math.sin(car.yaw);
   const fz = Math.cos(car.yaw);

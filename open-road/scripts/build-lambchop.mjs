@@ -101,9 +101,9 @@ function buildVariant(style) {
   const chassis = new THREE.Group();
   chassis.name = "chassis";
 
-  // Low & wide: roof barely above tire tops (~0.72), track ~1.45
-  const trackF = 1.35 * style.width;
-  const trackR = 1.5 * style.width;
+  // Wheels tucked inside the body/fenders (flush with sides, not sticking out).
+  const trackF = 0.82 * style.width;
+  const trackR = 0.86 * style.width;
   const frontZ = 2.05 * style.length;
   const rearZ = -2.0 * style.length;
   const roofY = 0.78 + style.roofLift;
