@@ -31,7 +31,7 @@ app.innerHTML = `
     <header class="top">
       <div>
         <div class="brand">Open Road</div>
-        <div class="sub"><span id="car-name">Comet</span> · <span id="surface">Road</span> · <span id="cam-name">Chase</span></div>
+        <div class="sub"><span id="car-name">Lambchop Chupacabra</span> · <span id="surface">Road</span> · <span id="cam-name">Chase</span></div>
       </div>
       <div class="top-buttons">
         <button id="cam-btn" type="button">Camera</button>
@@ -206,14 +206,24 @@ document.querySelector("#horn-btn")?.addEventListener("click", () => game.horn()
 
 function paintGarage() {
   const current = game.currentCarId();
-  garageList.innerHTML = GARAGE.map(
-    (car) => `
-      <button type="button" data-car="${car.id}" class="${car.id === current ? "is-current" : ""}">
-        <b>${car.name}</b>
-        <span>${car.kind} · ${car.tune.drive.toUpperCase()} · ${car.note}</span>
-      </button>
-    `,
-  ).join("");
+  const brands: string[] = [];
+  for (const car of GARAGE) {
+    if (!brands.includes(car.brand)) brands.push(car.brand);
+  }
+  garageList.innerHTML = brands
+    .map((brand) => {
+      const cars = GARAGE.filter((car) => car.brand === brand)
+        .map(
+          (car) => `
+            <button type="button" data-car="${car.id}" class="${car.id === current ? "is-current" : ""}">
+              <b>${car.brand} ${car.name}</b>
+            </button>
+          `,
+        )
+        .join("");
+      return `<h3>${brand}</h3>${cars}`;
+    })
+    .join("");
 }
 
 function openGarage() {

@@ -62,6 +62,7 @@ export class DriveGame {
   private impactCool = 0;
   private toast = "";
   private toastTimer = 0;
+  private padArmed = false;
   private hornHeld = false;
   private camHeld = false;
   private resetHeld = false;
@@ -108,7 +109,7 @@ export class DriveGame {
 
   private async mountCar() {
     try {
-      const next = await loadCarModel(this.ride.model);
+      const next = await loadCarModel(this.ride.model, this.ride.look);
       this.scene.remove(this.visual.root);
       this.visual = next;
       this.scene.add(next.root);
@@ -148,16 +149,16 @@ export class DriveGame {
     const nextRide = carById(id);
     if (nextRide.id === this.ride.id || this.switching) return;
     this.switching = true;
-    this.say(`Getting the ${nextRide.name}...`);
+    this.say(`Getting ${nextRide.label}...`);
     try {
-      const next = await loadCarModel(nextRide.model);
+      const next = await loadCarModel(nextRide.model, nextRide.look);
       this.scene.remove(this.visual.root);
       this.visual = next;
       this.scene.add(next.root);
       this.ride = nextRide;
       this.tune = nextRide.tune;
       this.placeCar();
-      this.say(`${nextRide.name} is ready`);
+      this.say(`${nextRide.label} is ready`);
     } catch (err) {
       console.error("Could not switch cars", err);
       this.say("That car did not load");
@@ -277,17 +278,22 @@ export class DriveGame {
       }
     }
     if (!gp) return null;
+    const pressed = gp.buttons.some((button) => button.pressed && button.value > 0.5);
+    if (pressed) this.padArmed = true;
+    if (!this.padArmed || gp.mapping !== "standard") return null;
     const steerRaw = gp.axes[0] ?? 0;
-    const steer = Math.abs(steerRaw) < 0.12 ? 0 : steerRaw;
+    const steer = Math.abs(steerRaw) < 0.22 ? 0 : steerRaw;
     if (gp.buttons[1]?.pressed && !this.hornHeld) this.audio.horn();
     this.hornHeld = Boolean(gp.buttons[1]?.pressed);
     if (this.running && gp.buttons[3]?.pressed && !this.camHeld) this.cycleCam();
     this.camHeld = Boolean(gp.buttons[3]?.pressed);
     if (this.running && gp.buttons[9]?.pressed && !this.resetHeld) this.reset();
     this.resetHeld = Boolean(gp.buttons[9]?.pressed);
+    const throttle = gp.buttons[7]?.value ?? 0;
+    const brake = gp.buttons[6]?.value ?? 0;
     return {
-      throttle: gp.buttons[7]?.value ?? 0,
-      brake: gp.buttons[6]?.value ?? 0,
+      throttle: throttle < 0.08 ? 0 : throttle,
+      brake: brake < 0.08 ? 0 : brake,
       steer,
       handbrake: Boolean(gp.buttons[0]?.pressed),
       clutch: false,
@@ -368,7 +374,7 @@ export class DriveGame {
   }
 
   private placeCar() {
-    this.visual.root.position.set(this.car.x, 0, this.car.z);
+    this.visual.root.position.set(this.car.x, this.visual.ride, this.car.z);
     this.visual.root.rotation.y = this.car.yaw;
   }
 
@@ -408,7 +414,7 @@ export class DriveGame {
       camera: CAM_LABEL[this.camMode],
       toast: this.toast,
       audioOn: this.audio.on,
-      carName: this.ride.name,
+      carName: this.ride.label,
       assists: `${this.setup.auto ? "Auto" : "Manual"} · TC ${this.setup.tc ? "on" : "off"} · ABS ${this.setup.abs ? "on" : "off"}`,
     };
   }
@@ -444,5 +450,6 @@ function emptyCar(): CarVisual {
     tail: new THREE.MeshStandardMaterial(),
     head: new THREE.MeshStandardMaterial(),
     wheelRadius: 0.55,
+    ride: 0,
   };
 }

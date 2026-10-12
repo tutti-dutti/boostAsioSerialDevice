@@ -387,6 +387,14 @@ h1 {
   margin-top: 14px;
 }
 
+.garage-list h3 {
+  margin: 10px 0 0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffcc33;
+}
+
 .garage-list button {
   display: flex;
   justify-content: space-between;

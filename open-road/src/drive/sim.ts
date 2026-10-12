@@ -238,7 +238,8 @@ export function stepCar(
   const fxDrive = clamp(drive, -(frontCap * driveSplit[0] + rearCap * driveSplit[1]), frontCap * driveSplit[0] + rearCap * driveSplit[1]);
   const fxBrake = Math.min(brakeForce, frontCap * 0.64 + rearCap * 0.36) * Math.sign(car.speed || 1);
   const drag = mass * (0.1 + 0.0015 * car.speed * Math.abs(car.speed));
-  const fx = fxDrive - fxBrake - drag * Math.sign(car.speed || 1);
+  const coast = Math.abs(car.speed) < 0.05 ? 0 : Math.sign(car.speed);
+  const fx = fxDrive - fxBrake - drag * coast;
   const fy = fyF + fyR;
 
   car.ax = fx / mass;
@@ -248,11 +249,20 @@ export function stepCar(
   if (setup.auto && !car.reverse && input.brake > 0 && input.throttle === 0 && car.speed < 0.45 && car.speed > -14) {
     car.speed -= 7 * dtSafe;
   }
-  if (Math.abs(car.speed) < 0.2 && throttle === 0 && brake === 0) car.speed = 0;
+  if (Math.abs(input.steer) < 0.001 && throttle === 0 && brake === 0 && Math.abs(car.speed) < 0.45) {
+    car.speed = 0;
+    car.lat = 0;
+    car.yawRate = 0;
+    car.ay = 0;
+  }
 
   const inertia = mass * 1.85;
   const moment = -fyF * (WHEELBASE * 0.55) + fyR * (WHEELBASE * 0.45);
   car.yawRate += (moment / inertia) * dtSafe;
+  if (Math.abs(input.steer) < 0.001) {
+    car.yawRate *= Math.exp(-2.4 * dtSafe);
+    car.lat *= Math.exp(-1.8 * dtSafe);
+  }
   if (Math.abs(car.speed) < 3.2) {
     const kin = (-car.speed * Math.tan(steer)) / WHEELBASE;
     car.yawRate += (kin - car.yawRate) * (1 - Math.exp(-6 * dtSafe));

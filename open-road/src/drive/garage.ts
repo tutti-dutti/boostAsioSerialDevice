@@ -1,114 +1,69 @@
 import type { Tune } from "./sim";
+import type { CarLook } from "./car";
 
 export type GarageCar = {
   id: string;
+  brand: string;
   name: string;
-  kind: string;
-  note: string;
+  /** Shown in the game: brand plus name. */
+  label: string;
   model: string;
   tune: Tune;
+  look: CarLook;
 };
 
-/** Fictional names. The models are CC0 cars from Kenney's Car Kit. */
+const famous: Tune = { accel: 1.22, top: 86, offroad: 0.58, drive: "rwd", mass: 1450, cg: 0.42 };
+const fastest: Tune = { accel: 1.42, top: 98, offroad: 0.5, drive: "rwd", mass: 1380, cg: 0.4 };
+const truck: Tune = { accel: 0.64, top: 48, offroad: 1.6, drive: "rwd", mass: 2900, cg: 0.84 };
+
+function car(
+  brand: string,
+  name: string,
+  model: string,
+  tune: Tune,
+  look: CarLook,
+): GarageCar {
+  const id = `${brand}-${name}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return { id, brand, name, label: `${brand} ${name}`, model, tune, look };
+}
+
+/**
+ * First 10 vehicles from the official garage list.
+ * Body style is chosen from the shape guide and is never shown.
+ */
 export const GARAGE: GarageCar[] = [
-  {
-    id: "comet",
-    name: "Comet",
-    kind: "Sports",
-    note: "Fast on pavement",
-    model: "/models/sedan-sports.glb",
-    tune: { accel: 1.28, top: 86, offroad: 0.62, drive: "rwd", mass: 1280, cg: 0.44 },
-  },
-  {
-    id: "dart",
-    name: "Dart",
-    kind: "Sports",
-    note: "Quick, slips off the road",
-    model: "/models/hatchback-sports.glb",
-    tune: { accel: 1.2, top: 80, offroad: 0.68, drive: "fwd", mass: 1320, cg: 0.5 },
-  },
-  {
-    id: "arrow",
-    name: "Arrow",
-    kind: "Sports",
-    note: "Highest top speed",
-    model: "/models/race.glb",
-    tune: { accel: 1.35, top: 92, offroad: 0.55, drive: "rwd", mass: 1180, cg: 0.4 },
-  },
-  {
-    id: "pulse",
-    name: "Pulse",
-    kind: "Sports",
-    note: "Light and very fast",
-    model: "/models/race-future.glb",
-    tune: { accel: 1.32, top: 88, offroad: 0.58, drive: "awd", mass: 1240, cg: 0.42 },
-  },
-  {
-    id: "harbor",
-    name: "Harbor",
-    kind: "Car",
-    note: "Easy everyday car",
-    model: "/models/sedan.glb",
-    tune: { accel: 1, top: 72, offroad: 0.95, drive: "fwd", mass: 1480, cg: 0.54 },
-  },
-  {
-    id: "cab",
-    name: "Cab",
-    kind: "Car",
-    note: "Steady city car",
-    model: "/models/taxi.glb",
-    tune: { accel: 0.96, top: 70, offroad: 0.95, drive: "fwd", mass: 1550, cg: 0.55 },
-  },
-  {
-    id: "warden",
-    name: "Warden",
-    kind: "Car",
-    note: "Cruiser with a strong engine",
-    model: "/models/police.glb",
-    tune: { accel: 1.08, top: 78, offroad: 0.9, drive: "rwd", mass: 1650, cg: 0.52 },
-  },
-  {
-    id: "ridge",
-    name: "Ridge",
-    kind: "SUV",
-    note: "Better on dirt and grass",
-    model: "/models/suv.glb",
-    tune: { accel: 0.88, top: 64, offroad: 1.3, drive: "awd", mass: 1980, cg: 0.68 },
-  },
-  {
-    id: "summit",
-    name: "Summit",
-    kind: "SUV",
-    note: "Tall and grippy off-road",
-    model: "/models/suv-luxury.glb",
-    tune: { accel: 0.84, top: 62, offroad: 1.35, drive: "awd", mass: 2100, cg: 0.66 },
-  },
-  {
-    id: "hauler",
-    name: "Hauler",
-    kind: "Truck",
-    note: "Slow, climbs and grips",
-    model: "/models/truck.glb",
-    tune: { accel: 0.68, top: 50, offroad: 1.55, drive: "rwd", mass: 2800, cg: 0.82 },
-  },
-  {
-    id: "wagon",
-    name: "Wagon",
-    kind: "Truck",
-    note: "Heavy, steady off-road",
-    model: "/models/van.glb",
-    tune: { accel: 0.74, top: 54, offroad: 1.4, drive: "rwd", mass: 2400, cg: 0.74 },
-  },
-  {
-    id: "boxer",
-    name: "Boxer",
-    kind: "Truck",
-    note: "Big hauler for rough ground",
-    model: "/models/delivery.glb",
-    tune: { accel: 0.7, top: 52, offroad: 1.48, drive: "awd", mass: 3000, cg: 0.8 },
-  },
+  car("Lambchop", "Chupacabra", "/models/race-future.glb", famous, {
+    scale: 1.72, ride: 0.02, wheel: 1.05, color: 0xf2c14e, spoiler: true, roofLights: false,
+  }),
+  car("Lambchop", "Minotaur", "/models/race-future.glb", fastest, {
+    scale: 1.8, ride: 0, wheel: 1.1, color: 0xf4f4f4, spoiler: true, roofLights: false,
+  }),
+  car("Lambchop", "Bonehorn", "/models/race-future.glb", { ...famous, accel: 1.3, top: 90 }, {
+    scale: 1.66, ride: 0.01, wheel: 1.02, color: 0x3ddc7a, spoiler: true, roofLights: false,
+  }),
+  car("Shovel-A", "Thresher", "/models/sedan-sports.glb", famous, {
+    scale: 1.82, ride: 0.05, wheel: 1, color: 0xe23b2f, spoiler: true, roofLights: false,
+  }),
+  car("Shovel-A", "Megalodon", "/models/sedan-sports.glb", fastest, {
+    scale: 1.74, ride: 0.01, wheel: 1.14, color: 0x2f6fed, spoiler: true, roofLights: false,
+  }),
+  car("Shovel-A", "Mastodon", "/models/truck.glb", truck, {
+    scale: 2.15, ride: 0.2, wheel: 1.28, color: 0x2f6b3a, spoiler: false, roofLights: true,
+  }),
+  car("Baguetti", "Hellhound", "/models/race-future.glb", famous, {
+    scale: 1.9, ride: 0.02, wheel: 1.08, color: 0x1a1c22, spoiler: false, roofLights: false,
+  }),
+  car("Baguetti", "Cerberus", "/models/race-future.glb", fastest, {
+    scale: 1.96, ride: 0, wheel: 1.16, color: 0x8d1218, spoiler: true, roofLights: false,
+  }),
+  car("Ferocity", "Jackal", "/models/sedan-sports.glb", famous, {
+    scale: 1.64, ride: 0.03, wheel: 1, color: 0xd42323, spoiler: true, roofLights: false,
+  }),
+  car("Ferocity", "Manticore", "/models/race-future.glb", fastest, {
+    scale: 1.78, ride: 0, wheel: 1.08, color: 0xff5a1f, spoiler: true, roofLights: false,
+  }),
 ];
 
 export function carById(id: string) {
-  return GARAGE.find((car) => car.id === id) ?? GARAGE[0];
+  return GARAGE.find((item) => item.id === id) ?? GARAGE[0];
 }
