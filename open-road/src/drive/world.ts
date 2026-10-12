@@ -15,6 +15,7 @@ import {
   WORLD_HALF,
   heightAt,
   inRiverWater,
+  nearestRoadClearance,
   riverDistance,
   terrainHeightAt,
   type PathDef,
@@ -225,10 +226,25 @@ function samplePath(path: PathDef, samples: number): { x: number; z: number; tx:
 }
 
 function ribbonGeometry(path: PathDef, yLift: number) {
-  const samples = path.highway ? 160 : path.closed ? 96 : 56;
+  const samples = path.highway ? 220 : path.closed ? 140 : 90;
   const pts = samplePath(path, samples);
   if (pts.length < 2) return null;
   const half = path.width / 2;
+  // Precompute centerline heights, then lightly smooth so seams cannot open.
+  const ys = pts.map((p) => heightAt(p.x, p.z) + yLift);
+  if (path.closed && ys.length > 2) {
+    const avg = (ys[0] + ys[ys.length - 1]) * 0.5;
+    ys[0] = avg;
+    ys[ys.length - 1] = avg;
+  }
+  for (let pass = 0; pass < 2; pass++) {
+    const src = ys.slice();
+    for (let i = 0; i < ys.length; i++) {
+      const i0 = path.closed ? (i - 1 + ys.length) % ys.length : Math.max(0, i - 1);
+      const i1 = path.closed ? (i + 1) % ys.length : Math.min(ys.length - 1, i + 1);
+      ys[i] = src[i0] * 0.25 + src[i] * 0.5 + src[i1] * 0.25;
+    }
+  }
   const pos: number[] = [];
   const uv: number[] = [];
   const idx: number[] = [];
@@ -237,7 +253,7 @@ function ribbonGeometry(path: PathDef, yLift: number) {
     const p = pts[i];
     const px = -p.tz * half;
     const pz = p.tx * half;
-    const y = heightAt(p.x, p.z) + yLift;
+    const y = ys[i];
     pos.push(p.x + px, y, p.z + pz, p.x - px, y, p.z - pz);
     if (i > 0) {
       const prev = pts[i - 1];
@@ -253,6 +269,9 @@ function ribbonGeometry(path: PathDef, yLift: number) {
     }
   }
   if (path.closed && pts.length > 2) {
+    // Weld the seam: match last ring Y to first, then close.
+    pos[pos.length - 5] = pos[1];
+    pos[pos.length - 2] = pos[4];
     const a = (pts.length - 1) * 2;
     idx.push(a, 0, a + 1, a + 1, 0, 1);
   }
@@ -413,8 +432,8 @@ export function createWorld(): World {
   addSign(object, baseColliders, "LAKE", 150, -110, facing(-210, 180), "#3ec6c6");
   addSign(object, baseColliders, "FOREST", -150, 95, facing(170, -130), "#8dce6a");
   addSign(object, baseColliders, "HIGHWAY", 380, 20, -Math.PI / 2, "#ffcc33");
-  addSign(object, baseColliders, "BRIDGE", 560, 700, facing(-200, 100), "#ffcc33");
-  addSign(object, baseColliders, "RIVER", 400, 780, facing(100, -80), "#3ec6c6");
+  addSign(object, baseColliders, "BRIDGE", 620, 640, facing(-200, 100), "#ffcc33");
+  addSign(object, baseColliders, "RIVER", 420, 820, facing(100, -80), "#3ec6c6");
   addSign(object, baseColliders, "WET", 40, 16, -Math.PI / 2, "#7ec8ff");
   addSign(object, baseColliders, "MUD", -170, 92, 0, "#c47a3a");
   addSign(object, baseColliders, "ICE", 210, -16, -Math.PI / 2, "#d7e7f2");
@@ -705,10 +724,48 @@ function addRiverAndBridge(object: THREE.Group, colliders: Collider[]) {
     }
   }
 
-  // Pillars + guardrails along the raised bridge samples.
+  // Thick concrete deck, side barriers, and pillars every 20–30 m.
   if (BRIDGE_SAMPLES.length > 2) {
+    const deckPos: number[] = [];
+    const deckIdx: number[] = [];
+    const half = BRIDGE_HALF;
+    for (let i = 0; i < BRIDGE_SAMPLES.length; i++) {
+      const s = BRIDGE_SAMPLES[i];
+      const nx = -s.tz;
+      const nz = s.tx;
+      const y = s.h + SURFACE_LIFT;
+      deckPos.push(s.x + nx * half, y, s.z + nz * half, s.x - nx * half, y, s.z - nz * half);
+      if (i > 0) {
+        const a = (i - 1) * 2;
+        deckIdx.push(a, i * 2, a + 1, a + 1, i * 2, i * 2 + 1);
+      }
+    }
+    const deckGeo = new THREE.BufferGeometry();
+    deckGeo.setAttribute("position", new THREE.Float32BufferAttribute(deckPos, 3));
+    deckGeo.setIndex(deckIdx);
+    deckGeo.computeVertexNormals();
+    const deckMesh = new THREE.Mesh(
+      deckGeo,
+      new THREE.MeshStandardMaterial({ color: 0x9a968c, roughness: 0.9, metalness: 0.05 }),
+    );
+    deckMesh.receiveShadow = true;
+    object.add(deckMesh);
+
+    // Deck thickness (underside slab) so the span reads as solid concrete.
+    for (let i = 0; i < BRIDGE_SAMPLES.length; i += 2) {
+      const s = BRIDGE_SAMPLES[i];
+      if (s.lift < 0.2) continue;
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 0.6, 1.1, 4.2), concrete);
+      slab.position.set(s.x, s.h + SURFACE_LIFT - 0.55, s.z);
+      slab.rotation.y = Math.atan2(s.tx, s.tz);
+      slab.castShadow = true;
+      slab.receiveShadow = true;
+      object.add(slab);
+    }
+
     let dist = 0;
-    let nextPillar = 0;
+    let nextPillar = 12;
+    let nextRail = 0;
     for (let i = 0; i < BRIDGE_SAMPLES.length; i++) {
       const s = BRIDGE_SAMPLES[i];
       if (i > 0) {
@@ -718,41 +775,52 @@ function addRiverAndBridge(object: THREE.Group, colliders: Collider[]) {
       const nx = -s.tz;
       const nz = s.tx;
 
-      // Guardrails on both sides of the deck / ramps.
-      if (s.lift > 0.08 && i % 2 === 0) {
+      // Continuous-looking side barriers (sparse posts + rails).
+      if (s.lift > 0.12 && dist >= nextRail) {
+        nextRail = dist + 4.5;
         for (const side of [-1, 1]) {
-          const rx = s.x + nx * side * (BRIDGE_HALF - 0.35);
-          const rz = s.z + nz * side * (BRIDGE_HALF - 0.35);
-          const post = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.15, 0.18), railMat);
-          post.position.set(rx, s.h + SURFACE_LIFT + 0.55, rz);
-          post.castShadow = true;
-          object.add(post);
-          const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 3.2), railMat);
-          rail.position.set(rx, s.h + SURFACE_LIFT + 1.05, rz);
-          rail.rotation.y = Math.atan2(s.tx, s.tz);
-          object.add(rail);
-          // Keep cars from sliding off the high deck.
-          if (s.lift > 0.55) {
-            colliders.push({ kind: "circle", x: rx, z: rz, r: 0.35, soft: "solid" });
+          const rx = s.x + nx * side * (half - 0.25);
+          const rz = s.z + nz * side * (half - 0.25);
+          const wall = new THREE.Mesh(new THREE.BoxGeometry(0.32, 1.35, 4.4), concrete);
+          wall.position.set(rx, s.h + SURFACE_LIFT + 0.65, rz);
+          wall.rotation.y = Math.atan2(s.tx, s.tz);
+          wall.castShadow = true;
+          object.add(wall);
+          const cap = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.16, 4.4), railMat);
+          cap.position.set(rx, s.h + SURFACE_LIFT + 1.35, rz);
+          cap.rotation.y = Math.atan2(s.tx, s.tz);
+          object.add(cap);
+          // One collider every so often, outside the lanes — no dense jitter wall.
+          if (s.lift > 0.45 && Math.floor(dist / 9) % 2 === 0) {
+            colliders.push({ kind: "circle", x: rx, z: rz, r: 0.4, soft: "solid" });
           }
         }
       }
 
-      // Concrete pillars in the river under the high deck (no xz colliders —
-      // 2D physics would block cars on the deck above).
-      if (s.lift > 0.85 && dist >= nextPillar && inRiverWater(s.x, s.z)) {
-        nextPillar = dist + 42;
+      // Pillars from ground/water up to the deck, every 20–30 m on the high span.
+      if (s.lift > 0.75 && dist >= nextPillar) {
+        nextPillar = dist + 22 + (i % 3) * 3;
         for (const side of [-1, 1]) {
-          const px = s.x + nx * side * 7.5;
-          const pz = s.z + nz * side * 7.5;
-          const bed = -2.6;
-          const top = s.h + SURFACE_LIFT - 0.2;
-          const ph = Math.max(4, top - bed);
-          const pillar = new THREE.Mesh(new THREE.BoxGeometry(2.6, ph, 2.6), concrete);
+          const px = s.x + nx * side * 8;
+          const pz = s.z + nz * side * 8;
+          const ground = terrainHeightAt(px, pz);
+          const bed = inRiverWater(px, pz) ? -2.6 : ground;
+          const top = s.h + SURFACE_LIFT - 0.15;
+          const ph = Math.max(3.5, top - bed);
+          const pillar = new THREE.Mesh(new THREE.BoxGeometry(2.8, ph, 2.8), concrete);
           pillar.position.set(px, bed + ph / 2, pz);
           pillar.castShadow = true;
           pillar.receiveShadow = true;
           object.add(pillar);
+          // Solid from all sides under the deck; ignored when driving on top.
+          colliders.push({
+            kind: "box",
+            x: px,
+            z: pz,
+            hx: 1.4,
+            hz: 1.4,
+            maxY: top - 2.5,
+          });
         }
       }
     }
@@ -773,12 +841,38 @@ function addSign(
   rotY: number,
   stripe: string,
 ) {
-  const y0 = heightAt(x, z);
+  // Push the whole sign at least 3 m past the nearest road edge onto the grass.
+  let sx = x;
+  let sz = z;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const clear = nearestRoadClearance(sx, sz);
+    const need = clear.half + 3.2;
+    if (clear.d >= need) break;
+    // Step outward from the nearest road sample direction (away from origin of road).
+    const awayX = sx;
+    const awayZ = sz;
+    const len = Math.hypot(awayX, awayZ) || 1;
+    const push = need - clear.d + 0.5;
+    sx += (awayX / len) * push;
+    sz += (awayZ / len) * push;
+  }
+  // Final safety: if still on pavement, nudge sideways relative to facing.
+  {
+    const clear = nearestRoadClearance(sx, sz);
+    if (clear.d < clear.half + 3) {
+      const sideX = Math.cos(rotY);
+      const sideZ = -Math.sin(rotY);
+      sx += sideX * (clear.half + 3.5 - clear.d);
+      sz += sideZ * (clear.half + 3.5 - clear.d);
+    }
+  }
+
+  const y0 = terrainHeightAt(sx, sz);
   const postMat = new THREE.MeshStandardMaterial({ color: 0x4a4038, roughness: 0.8 });
   for (const dx of [-1.7, 1.7]) {
     const along = rotY;
-    const px = x + Math.cos(along) * dx;
-    const pz = z - Math.sin(along) * dx;
+    const px = sx + Math.cos(along) * dx;
+    const pz = sz - Math.sin(along) * dx;
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 3.1, 8), postMat);
     post.position.set(px, y0 + 1.55, pz);
     post.castShadow = true;
@@ -789,7 +883,7 @@ function addSign(
     new THREE.PlaneGeometry(4.6, 2.15),
     new THREE.MeshStandardMaterial({ map: labelTexture(text, stripe), roughness: 0.55, side: THREE.DoubleSide }),
   );
-  board.position.set(x, y0 + 2.55, z);
+  board.position.set(sx, y0 + 2.55, sz);
   board.rotation.y = rotY;
   object.add(board);
 }
@@ -888,47 +982,73 @@ function addPatches(object: THREE.Group) {
   }
 }
 
+function addStreetlight(
+  object: THREE.Group,
+  colliders: Collider[],
+  x: number,
+  z: number,
+  towardX: number,
+  towardZ: number,
+) {
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x8a9098, roughness: 0.45, metalness: 0.55 });
+  const armMat = new THREE.MeshStandardMaterial({ color: 0x7a8088, roughness: 0.4, metalness: 0.6 });
+  const lampMat = new THREE.MeshStandardMaterial({
+    color: 0xfff0c8,
+    emissive: 0xffd88a,
+    emissiveIntensity: 2.4,
+    roughness: 0.25,
+  });
+  const y0 = terrainHeightAt(x, z);
+  const len = Math.hypot(towardX, towardZ) || 1;
+  const tx = towardX / len;
+  const tz = towardZ / len;
+
+  // Gray pole
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 5.4, 10), poleMat);
+  pole.position.set(x, y0 + 2.7, z);
+  pole.castShadow = true;
+  object.add(pole);
+
+  // Curved arm toward the road (approx with a tilted tube + elbow).
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 2.4, 8), armMat);
+  arm.position.set(x + tx * 1.0, y0 + 5.15, z + tz * 1.0);
+  arm.rotation.z = Math.atan2(tz, tx);
+  arm.rotation.x = -Math.PI / 2.6;
+  // Orient the arm in xz toward the road.
+  arm.rotation.set(0, Math.atan2(tx, tz), -0.85);
+  object.add(arm);
+  const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), armMat);
+  elbow.position.set(x, y0 + 5.35, z);
+  object.add(elbow);
+
+  // Glowing lamp head at the end of the arm.
+  const headX = x + tx * 1.85;
+  const headZ = z + tz * 1.85;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.18, 0.35), lampMat);
+  head.position.set(headX, y0 + 4.85, headZ);
+  head.rotation.y = Math.atan2(tx, tz);
+  object.add(head);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), lampMat);
+  bulb.position.set(headX, y0 + 4.7, headZ);
+  object.add(bulb);
+
+  colliders.push({ kind: "circle", x, z, r: 0.3 });
+}
+
 function addLamps(object: THREE.Group, colliders: Collider[]) {
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0x2c3138, roughness: 0.6, metalness: 0.4 });
-  const bulbMat = new THREE.MeshStandardMaterial({
-    color: 0xffe7b0,
-    emissive: 0xffcc77,
-    emissiveIntensity: 1.1,
-    roughness: 0.35,
-  });
-  const poolMat = new THREE.MeshBasicMaterial({
-    color: 0xffe0a0,
-    transparent: true,
-    opacity: 0.06,
-    depthWrite: false,
-  });
+  // Town streetlights along the main cross — poles on the grass, lamps over the road.
   for (let x = -180; x <= 180; x += 40) {
-    for (const z of [-13, 13]) {
-      const y0 = heightAt(x, z);
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 4.2, 6), poleMat);
-      pole.position.set(x, y0 + 2.1, z);
-      pole.castShadow = true;
-      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), bulbMat);
-      bulb.position.set(x, y0 + 4.25, z);
-      const pool = new THREE.Mesh(new THREE.CircleGeometry(3.2, 16), poolMat);
-      pool.rotation.x = -Math.PI / 2;
-      pool.position.set(x, y0 + 0.16, z);
-      object.add(pole, bulb, pool);
-      colliders.push({ kind: "circle", x, z, r: 0.28 });
+    for (const z of [-16, 16]) {
+      addStreetlight(object, colliders, x, z, 0, -Math.sign(z));
     }
   }
-  // Highway lamps every so often.
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
+  // Highway lamps outside the shoulder, arm reaching inward.
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * Math.PI * 2;
     const r = 820 * (1 + 0.08 * Math.sin(a * 2));
-    const x = Math.cos(a) * (r + 16);
-    const z = Math.sin(a) * (r + 16);
-    const y0 = heightAt(x, z);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 5.2, 6), poleMat);
-    pole.position.set(x, y0 + 2.6, z);
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), bulbMat);
-    bulb.position.set(x, y0 + 5.3, z);
-    object.add(pole, bulb);
+    const x = Math.cos(a) * (r + 18);
+    const z = Math.sin(a) * (r + 18);
+    addStreetlight(object, colliders, x, z, -Math.cos(a), -Math.sin(a));
   }
 }
 

@@ -30,11 +30,11 @@ export const RIVER = {
 };
 
 /** How high the bridge deck sits above the local river banks. */
-export const BRIDGE_CLEARANCE = 18;
+export const BRIDGE_CLEARANCE = 16;
 /** Half-width of the driveable bridge deck (matches highway). */
 export const BRIDGE_HALF = 15;
-/** Length of each on/off ramp along the highway. */
-export const BRIDGE_RAMP = 200;
+/** Length of each on/off ramp along the highway (long gentle slopes). */
+export const BRIDGE_RAMP = 280;
 
 export type RoadDef = {
   x1: number;
@@ -373,32 +373,44 @@ type BridgeSample = {
 };
 
 /**
- * Dense, longitudinally smoothed road centerline heights (at grade).
- * Bridge deck height is applied separately in heightAt so terrain stays low under the span.
+ * Dense, heavily longitudinally smoothed road centerline heights (at grade).
+ * Wide averaging kills rapid bumps so roads are long gentle slopes.
+ * Bridge deck height is applied separately so terrain stays low under the span.
  */
 const ROAD_SAMPLES: RoadSample[] = (() => {
   const samples: RoadSample[] = [];
+  const smoothSeries = (raw: number[], win: number, closed: boolean) => {
+    const out = raw.slice();
+    // Two passes of a wide moving average for long, gentle grades.
+    for (let pass = 0; pass < 2; pass++) {
+      const src = out.slice();
+      for (let i = 0; i < src.length; i++) {
+        let sum = 0;
+        let count = 0;
+        for (let k = -win; k <= win; k++) {
+          let j = i + k;
+          if (closed) j = (j + src.length) % src.length;
+          else j = Math.max(0, Math.min(src.length - 1, j));
+          // Hann-ish weight — center matters more, but still very wide.
+          const w = 0.5 + 0.5 * Math.cos((k / Math.max(1, win)) * Math.PI);
+          sum += src[j] * w;
+          count += w;
+        }
+        out[i] = sum / count;
+      }
+    }
+    return out;
+  };
   const addPath = (path: PathDef) => {
-    const n = path.highway ? 160 : path.closed ? 120 : 80;
+    const n = path.highway ? 200 : path.closed ? 140 : 100;
     const pts = samplePathXZ(path, n);
     if (pts.length < 2) return;
     const raw = pts.map((p) => rawHeight(p.x, p.z));
-    const win = path.highway ? 10 : 8;
-    const smooth: number[] = [];
-    for (let i = 0; i < raw.length; i++) {
-      let sum = 0;
-      let count = 0;
-      for (let k = -win; k <= win; k++) {
-        let j = i + k;
-        if (path.closed) j = (j + raw.length) % raw.length;
-        else j = Math.max(0, Math.min(raw.length - 1, j));
-        sum += raw[j];
-        count++;
-      }
-      smooth.push(sum / count);
-    }
+    // ~80–120 m window so hills become one long slope, not waves.
+    const win = path.highway ? 18 : path.closed ? 14 : 12;
+    const smooth = smoothSeries(raw, win, Boolean(path.closed));
     const half = path.width * 0.5;
-    const shoulder = half + (path.highway ? 16 : 12);
+    const shoulder = half + (path.highway ? 18 : 14);
     for (let i = 0; i < pts.length; i++) {
       samples.push({ x: pts[i].x, z: pts[i].z, h: smooth[i], half, shoulder });
     }
@@ -411,84 +423,125 @@ const ROAD_SAMPLES: RoadSample[] = (() => {
 
 /** Raised highway bridge samples (ramps + deck) over the river. */
 export const BRIDGE_SAMPLES: BridgeSample[] = (() => {
-  const hwy = samplePathXZ(HIGHWAY, 220);
+  const hwy = samplePathXZ(HIGHWAY, 280);
   if (hwy.length < 4) return [];
-  const wet = hwy.map((p) => riverDistance(p.x, p.z).d < RIVER.halfWidth + 36);
-  // Largest contiguous wet run on the loop.
-  let bestS = 0;
-  let bestE = 0;
-  let s = -1;
-  for (let i = 0; i < wet.length; i++) {
-    if (wet[i] && s < 0) s = i;
-    if ((!wet[i] || i === wet.length - 1) && s >= 0) {
-      const e = wet[i] && i === wet.length - 1 ? i : i - 1;
-      if (e - s > bestE - bestS) {
-        bestS = s;
-        bestE = e;
-      }
-      s = -1;
-    }
-  }
-  // Also check wrap-around cluster for closed highway.
-  if (wet[0] && wet[wet.length - 1]) {
-    let a = 0;
-    while (a < wet.length && wet[a]) a++;
-    let b = wet.length - 1;
-    while (b >= 0 && wet[b]) b--;
-    const span = a + (wet.length - 1 - b);
-    if (span > bestE - bestS) {
-      bestS = b + 1;
-      bestE = a - 1 + wet.length;
-    }
-  }
-  const rampN = Math.max(8, Math.round((BRIDGE_RAMP / (Math.PI * 2 * 820)) * hwy.length));
-  const deckIndices: number[] = [];
   const total = hwy.length;
-  const span = bestE - bestS;
-  const start = bestS - rampN;
-  const end = bestE + rampN;
-  for (let i = start; i <= end; i++) deckIndices.push(((i % total) + total) % total);
+  const wet = hwy.map((p) => riverDistance(p.x, p.z).d < RIVER.halfWidth + 40);
+  // Largest contiguous wet run (handle wrap on the closed loop).
+  let bestS = 0;
+  let bestLen = 0;
+  for (let start = 0; start < total; start++) {
+    if (!wet[start]) continue;
+    if (wet[(start - 1 + total) % total]) continue; // not a run start
+    let len = 0;
+    while (wet[(start + len) % total] && len < total) len++;
+    if (len > bestLen) {
+      bestLen = len;
+      bestS = start;
+    }
+  }
+  if (bestLen < 2) return [];
+  const bestE = bestS + bestLen - 1;
 
-  // Deck height from bank samples beside the river crossing.
+  // Deck height from banks beside the river crossing (not the carved bed).
   let bankH = 0;
   let bankN = 0;
-  for (let i = bestS; i <= bestE; i++) {
-    const idx = ((i % total) + total) % total;
-    const p = hwy[idx];
+  for (let i = 0; i < bestLen; i++) {
+    const p = hwy[(bestS + i) % total];
     const riv = riverDistance(p.x, p.z);
-    bankH += rawHeight(p.x + riv.nx * (riv.half + 20), p.z + riv.nz * (riv.half + 20));
+    bankH += rawHeight(p.x + riv.nx * (riv.half + 22), p.z + riv.nz * (riv.half + 22));
     bankN++;
   }
-  const deckH = (bankN ? bankH / bankN : 0) + BRIDGE_CLEARANCE;
+  const deckH = (bankN ? bankH / bankN : 2) + BRIDGE_CLEARANCE;
+
+  // Walk backward/forward along the highway by real distance for long ramps.
+  const stepBack = (from: number, dist: number) => {
+    let left = dist;
+    let i = from;
+    while (left > 0) {
+      const prev = (i - 1 + total) % total;
+      const ds = Math.hypot(hwy[i].x - hwy[prev].x, hwy[i].z - hwy[prev].z);
+      left -= ds;
+      i = prev;
+      if (i === from) break;
+    }
+    return i;
+  };
+  const stepFwd = (from: number, dist: number) => {
+    let left = dist;
+    let i = from;
+    while (left > 0) {
+      const next = (i + 1) % total;
+      const ds = Math.hypot(hwy[next].x - hwy[i].x, hwy[next].z - hwy[i].z);
+      left -= ds;
+      i = next;
+      if (i === from) break;
+    }
+    return i;
+  };
+  const toeA = stepBack(bestS, BRIDGE_RAMP);
+  const toeB = stepFwd(bestE % total, BRIDGE_RAMP);
+
+  // Collect indices from toeA → deck → toeB along the short arc.
+  const indices: number[] = [];
+  {
+    let i = toeA;
+    indices.push(i);
+    let guard = 0;
+    while (i !== toeB && guard < total) {
+      i = (i + 1) % total;
+      indices.push(i);
+      guard++;
+    }
+  }
+
+  // Arc-length along the bridge strip for smooth ramp profiles.
+  const dist = [0];
+  for (let k = 1; k < indices.length; k++) {
+    const a = hwy[indices[k - 1]];
+    const b = hwy[indices[k]];
+    dist.push(dist[k - 1] + Math.hypot(b.x - a.x, b.z - a.z));
+  }
+  const totalDist = dist[dist.length - 1] || 1;
+  const ramp = Math.min(BRIDGE_RAMP, totalDist * 0.35);
+
   const out: BridgeSample[] = [];
-  const n = deckIndices.length;
-  for (let k = 0; k < n; k++) {
-    const idx = deckIndices[k];
+  for (let k = 0; k < indices.length; k++) {
+    const idx = indices[k];
     const p = hwy[idx];
-    const prev = hwy[((idx - 1) % total + total) % total];
+    const prev = hwy[(idx - 1 + total) % total];
     const next = hwy[(idx + 1) % total];
     let tx = next.x - prev.x;
     let tz = next.z - prev.z;
     const len = Math.hypot(tx, tz) || 1;
     tx /= len;
     tz /= len;
-    // Smooth ramp: 0 at toes → 1 across deck.
-    const along = k / Math.max(1, n - 1);
-    const rampT = BRIDGE_RAMP > 0 ? Math.min(1, (rampN * 2) / n) : 0.25;
+    const along = dist[k];
     let lift = 1;
-    if (along < rampT) {
-      const u = along / Math.max(0.001, rampT);
+    if (along < ramp) {
+      const u = along / ramp;
       lift = u * u * (3 - 2 * u);
-    } else if (along > 1 - rampT) {
-      const u = (1 - along) / Math.max(0.001, rampT);
+    } else if (along > totalDist - ramp) {
+      const u = (totalDist - along) / ramp;
       lift = u * u * (3 - 2 * u);
     }
-    const ground = rawHeight(p.x, p.z);
-    // Keep ramps above the carved river so the climb starts on solid bank.
+    // Ramp toes sit on the smoothed at-grade highway, not the river bed.
+    const ground = (() => {
+      // Prefer nearby ROAD_SAMPLES height if present.
+      let best = rawHeight(p.x, p.z);
+      let bestD = 1e9;
+      for (const s of ROAD_SAMPLES) {
+        const d = Math.hypot(p.x - s.x, p.z - s.z);
+        if (d < bestD && d < 40) {
+          bestD = d;
+          best = s.h;
+        }
+      }
+      return best;
+    })();
     const base = Math.max(ground, deckH - BRIDGE_CLEARANCE);
-    const h = base * (1 - lift) + deckH * lift;
+    const h = base + (deckH - base) * lift;
     out.push({ x: p.x, z: p.z, h, lift, tx, tz });
-    void span;
   }
   return out;
 })();
@@ -505,7 +558,7 @@ export function terrainHeightAt(x: number, z: number): number {
     const d = Math.hypot(x - s.x, z - s.z);
     if (d >= s.shoulder) continue;
     const fall = 1 - d / s.shoulder;
-    const w = fall * fall;
+    const w = fall * fall * fall; // sharper center weight → flatter pavement
     wSum += w;
     hSum += s.h * w;
     if (d < minD) {
@@ -516,8 +569,9 @@ export function terrainHeightAt(x: number, z: number): number {
   }
   if (wSum > 0) {
     const roadH = hSum / wSum;
-    const edge = minHalf * 0.92;
-    const u = Math.max(0, Math.min(1, (minD - edge) / Math.max(0.15, minShoulder - edge)));
+    // Fully flatten under the pavement; blend only in the outer shoulder.
+    const edge = minHalf * 1.02;
+    const u = Math.max(0, Math.min(1, (minD - edge) / Math.max(0.2, minShoulder - edge)));
     const flatAmt = 1 - u * u * (3 - 2 * u);
     h = roadH * flatAmt + h * (1 - flatAmt);
   }
@@ -529,28 +583,24 @@ export function terrainHeightAt(x: number, z: number): number {
   return h;
 }
 
-/** Bridge deck / ramp height, or null when off the bridge. */
+/**
+ * Bridge deck / ramp height if (x,z) is on the bridge footprint, else null.
+ * Note: the same xz under the span also matches — callers that place cars must
+ * use car vertical state so vehicles under the deck stay on the ground.
+ */
 export function bridgeHeightAt(x: number, z: number): number | null {
   if (!BRIDGE_SAMPLES.length) return null;
   let bestD = 1e9;
   let bestH = 0;
-  let bestLift = 0;
   for (const s of BRIDGE_SAMPLES) {
     const d = Math.hypot(x - s.x, z - s.z);
     if (d < bestD) {
       bestD = d;
       bestH = s.h;
-      bestLift = s.lift;
     }
   }
-  const half = BRIDGE_HALF + (bestLift > 0.15 ? 2 : 4);
+  const half = BRIDGE_HALF + 1.2;
   if (bestD > half) return null;
-  // Soft lateral falloff only on ramp toes so banks blend; deck stays flat.
-  if (bestD > BRIDGE_HALF && bestLift < 0.85) {
-    const u = (bestD - BRIDGE_HALF) / Math.max(0.1, half - BRIDGE_HALF);
-    const a = 1 - u * u * (3 - 2 * u);
-    return bestH * a + terrainHeightAt(x, z) * (1 - a);
-  }
   return bestH;
 }
 
@@ -566,6 +616,35 @@ export function heightAt(x: number, z: number): number {
   const bridge = bridgeHeightAt(x, z);
   if (bridge != null) return bridge;
   return terrainHeightAt(x, z);
+}
+
+/**
+ * Height for a car that already has a vertical position.
+ * If the car is near the deck, stick to the deck; if it is clearly under the
+ * span, use the ground so trucks never float on invisible bridge height.
+ */
+export function carSurfaceHeight(x: number, z: number, carY: number): number {
+  const ground = terrainHeightAt(x, z);
+  const deck = bridgeHeightAt(x, z);
+  if (deck == null) return ground;
+  // Near or above the deck → drive on the bridge. Well below → under the span.
+  if (carY > deck - 4.5) return deck;
+  return ground;
+}
+
+/** Nearest road half-width + distance at (x,z). Used to place signs off the pavement. */
+export function nearestRoadClearance(x: number, z: number) {
+  let best = { d: 1e9, half: 8 };
+  for (const s of ROAD_SAMPLES) {
+    const d = Math.hypot(x - s.x, z - s.z);
+    if (d < best.d) best = { d, half: s.half };
+  }
+  // Also respect bridge footprint.
+  for (const s of BRIDGE_SAMPLES) {
+    const d = Math.hypot(x - s.x, z - s.z);
+    if (d < best.d) best = { d, half: BRIDGE_HALF };
+  }
+  return best;
 }
 
 /** Average height under the car's four wheels. */

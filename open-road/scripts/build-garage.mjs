@@ -238,31 +238,40 @@ function buildDeathstalker() {
   return finish(root, "porch-deathstalker.glb");
 }
 
-/** Open-top spyder */
+/** Open-top spyder (918-inspired silhouette) */
 function buildHellbender() {
   const root = new THREE.Group();
   root.name = "hellbender";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(1.85, 0.32, 3.9, paint, 0, 0.42, 0));
+  // Long low body + raised side sills
+  c.add(box(1.9, 0.28, 4.1, paint, 0, 0.4, 0));
+  c.add(box(1.7, 0.18, 3.6, paint, 0, 0.55, 0.1));
   for (const s of [-1, 1]) {
-    c.add(cyl(0.38, 0.34, 0.7, paint, s * 0.9, 0.45, 1.4, 0, 0, Math.PI / 2));
-    c.add(cyl(0.36, 0.36, 0.75, paint, s * 0.95, 0.45, -1.35, 0, 0, Math.PI / 2));
-    c.add(box(0.5, 0.08, 0.12, head, s * 0.55, 0.48, 2.0));
+    // Curvy fender volumes over each wheel
+    c.add(cyl(0.42, 0.36, 0.85, paint, s * 0.95, 0.5, 1.45, 0, 0, Math.PI / 2));
+    c.add(cyl(0.44, 0.4, 0.9, paint, s * 1.0, 0.52, -1.4, 0, 0, Math.PI / 2));
+    c.add(box(0.28, 0.22, 2.2, paint, s * 1.05, 0.42, 0.05));
+    c.add(box(0.55, 0.1, 0.14, head, s * 0.55, 0.5, 2.15));
+    c.add(box(0.12, 0.08, 0.18, dark, s * 1.15, 0.72, 0.55)); // mirrors
   }
-  // Open cockpit, no roof
-  c.add(box(1.2, 0.2, 1.1, dark, 0, 0.55, 0.1));
-  c.add(box(1.1, 0.35, 0.08, glass, 0, 0.72, 0.65)); // low windshield
-  c.add(box(0.45, 0.35, 0.35, dark, -0.28, 0.7, -0.15));
-  c.add(box(0.45, 0.35, 0.35, dark, 0.28, 0.7, -0.15));
-  // Twin stacks behind seats
+  // Open cockpit tub + seats, no roof
+  c.add(box(1.25, 0.16, 1.2, dark, 0, 0.58, 0.05));
+  c.add(box(1.15, 0.42, 0.08, glass, 0, 0.82, 0.7));
+  c.add(box(0.08, 0.35, 0.9, dark, -0.62, 0.78, 0.05)); // windshield pillars
+  c.add(box(0.08, 0.35, 0.9, dark, 0.62, 0.78, 0.05));
+  c.add(box(0.48, 0.38, 0.42, dark, -0.28, 0.78, -0.1));
+  c.add(box(0.48, 0.38, 0.42, dark, 0.28, 0.78, -0.1));
+  // Engine cover behind seats + twin stacks pointing up
+  c.add(box(1.3, 0.22, 0.7, paint, 0, 0.62, -0.85));
   for (const s of [-1, 1]) {
-    c.add(cyl(0.06, 0.07, 0.55, chrome, s * 0.22, 0.95, -0.55, 0, 0, 0));
+    c.add(cyl(0.07, 0.08, 0.7, chrome, s * 0.2, 1.05, -0.55, 0, 0, 0));
+    c.add(cyl(0.09, 0.09, 0.06, chrome, s * 0.2, 1.4, -0.55, 0, 0, 0));
   }
-  c.add(box(1.7, 0.08, 0.35, dark, 0, 0.28, -2.0));
-  for (const s of [-1, 1]) c.add(box(0.3, 0.1, 0.06, tail, s * 0.5, 0.5, -2.05));
+  c.add(box(1.8, 0.1, 0.4, dark, 0, 0.28, -2.1));
+  for (const s of [-1, 1]) c.add(box(0.35, 0.1, 0.06, tail, s * 0.55, 0.52, -2.15));
   root.add(c);
-  addWheels(root, 0.95, 1.0, 1.35, -1.4, 0.92, 1.15);
+  addWheels(root, 0.95, 1.0, 1.4, -1.4, 0.92, 1.15);
   return finish(root, "porch-hellbender.glb");
 }
 
@@ -356,22 +365,28 @@ function buildHellhound() {
   root.name = "hellhound";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(1.95, 0.38, 3.9, paint, 0, 0.48, 0));
-  c.add(box(1.95, 0.2, 3.9, paintDark, 0, 0.28, 0)); // two-tone lower
-  const cabin = box(1.4, 0.42, 1.5, paint, 0, 0.8, -0.05);
-  c.add(cabin);
-  const ws = box(1.25, 0.4, 0.06, glass, 0, 0.82, 0.65);
-  ws.name = "glass";
-  ws.rotation.x = -0.45;
-  c.add(ws);
-  c.add(box(1.1, 0.3, 0.05, glass, 0, 0.82, -0.7));
-  // Horseshoe grille
-  c.add(box(0.7, 0.35, 0.08, chrome, 0, 0.42, 2.0));
-  c.add(box(0.55, 0.22, 0.06, dark, 0, 0.42, 2.05));
+  // Rounded pebble silhouette (stacked tapered boxes) + two-tone lower.
+  c.add(box(2.05, 0.32, 4.0, paintDark, 0, 0.28, 0));
+  c.add(box(1.95, 0.36, 3.7, paint, 0, 0.55, 0));
+  c.add(box(1.7, 0.28, 3.2, paint, 0, 0.72, -0.05));
   for (const s of [-1, 1]) {
-    c.add(box(0.35, 0.1, 0.08, head, s * 0.65, 0.5, 2.0));
-    c.add(box(0.25, 0.18, 0.35, dark, s * 0.35, 0.95, -0.2)); // roof scoops
-    c.add(box(0.35, 0.1, 0.06, tail, s * 0.5, 0.55, -2.0));
+    c.add(cyl(0.4, 0.36, 0.8, paint, s * 0.95, 0.5, 1.35, 0, 0, Math.PI / 2));
+    c.add(cyl(0.42, 0.4, 0.85, paint, s * 1.0, 0.52, -1.35, 0, 0, Math.PI / 2));
+  }
+  const cabin = box(1.35, 0.38, 1.4, paint, 0, 0.95, -0.05);
+  c.add(cabin);
+  const ws = box(1.2, 0.38, 0.06, glass, 0, 0.95, 0.6);
+  ws.name = "glass";
+  ws.rotation.x = -0.42;
+  c.add(ws);
+  c.add(box(1.05, 0.28, 0.05, glass, 0, 0.95, -0.65));
+  // Horseshoe grille
+  c.add(box(0.85, 0.4, 0.1, chrome, 0, 0.45, 2.05));
+  c.add(box(0.65, 0.28, 0.08, dark, 0, 0.45, 2.12));
+  for (const s of [-1, 1]) {
+    c.add(box(0.4, 0.12, 0.1, head, s * 0.7, 0.52, 2.05));
+    c.add(box(0.28, 0.2, 0.4, dark, s * 0.32, 1.15, -0.15)); // roof scoops
+    c.add(box(0.4, 0.12, 0.06, tail, s * 0.55, 0.58, -2.05));
   }
   root.add(c);
   addWheels(root, 0.95, 1.05, 1.35, -1.4, 0.95, 1.2);

@@ -20,7 +20,7 @@ import {
   type Setup,
   type Tune,
 } from "./sim";
-import { SURFACE_LIFT, heightAt } from "./mapData";
+import { SURFACE_LIFT, carSurfaceHeight, heightAt } from "./mapData";
 import { createWorld } from "./world";
 
 export type FrameInfo = {
@@ -370,7 +370,7 @@ export class DriveGame {
 
   private step(dt: number) {
     const input = this.readInput();
-    const surface = surfaceAt(this.car.x, this.car.z, this.world.roads);
+    const surface = surfaceAt(this.car.x, this.car.z, this.world.roads, this.car.y);
     const { skid, pitch, roll, wheels, wheel } = stepCar(this.car, input, surface, dt, this.tune, this.setup);
     const wet = resolveWater(this.car);
     if (wet && !this.inWater) this.say("You can't drive on the water");
@@ -379,10 +379,10 @@ export class DriveGame {
     const { impact, overs } = resolveCollisions(this.car, this.world.colliders, this.tune);
     this.world.flattenProps?.(overs);
     this.impactCool = Math.max(0, this.impactCool - dt);
-    if (impact > 8 && this.impactCool <= 0) {
-      this.audio.impact(impact);
+    if (impact > 6 && this.impactCool <= 0) {
+      this.audio.impact(Math.min(impact, 18));
       this.say("Bump!");
-      this.impactCool = 0.45;
+      this.impactCool = 0.55;
     }
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;
@@ -417,7 +417,7 @@ export class DriveGame {
     this.visual.tail.emissiveIntensity = glow;
     for (const mat of this.visual.tailLights) mat.emissiveIntensity = glow;
 
-    this.placeCar();
+    this.placeCar(dt);
     this.world.updateChunks(this.car.x, this.car.z);
     this.placeCamera(dt);
     this.followSun();
@@ -429,7 +429,7 @@ export class DriveGame {
     this.onFrame(this.frameInfo(gear, surface.name));
   }
 
-  private placeCar() {
+  private placeCar(dt = 1 / 60) {
     const isTruck = this.tune.offroad >= 1.2 || this.tune.mass >= 2300;
     const fx = Math.sin(this.car.yaw);
     const fz = Math.cos(this.car.yaw);
@@ -437,19 +437,45 @@ export class DriveGame {
     const rz = -Math.sin(this.car.yaw);
     const axle = 1.35;
     const track = 0.9;
-    const sample = (ox: number, oz: number) =>
-      heightAt(ox, oz) + climbBumpAt(ox, oz, this.world.colliders, isTruck);
+    const sample = (ox: number, oz: number) => {
+      const base = carSurfaceHeight(ox, oz, this.car.y);
+      // Only climb rocks when on the ground, not while under/on the bridge span.
+      const bump = base < this.car.y - 3 ? 0 : climbBumpAt(ox, oz, this.world.colliders, isTruck);
+      return base + bump;
+    };
     const fl = sample(this.car.x + fx * axle - rx * track, this.car.z + fz * axle - rz * track);
     const fr = sample(this.car.x + fx * axle + rx * track, this.car.z + fz * axle + rz * track);
     const rl = sample(this.car.x - fx * axle - rx * track, this.car.z - fz * axle - rz * track);
     const rr = sample(this.car.x - fx * axle + rx * track, this.car.z - fz * axle + rz * track);
-    const y = (fl + fr + rl + rr) * 0.25 + SURFACE_LIFT + this.visual.ride;
-    this.visual.root.position.set(this.car.x, y, this.car.z);
+    const target = (fl + fr + rl + rr) * 0.25 + SURFACE_LIFT + this.visual.ride;
+
+    // Gravity when not touching the surface — never hover or stick to pillars.
+    const gap = this.car.y - target;
+    if (gap > 0.25) {
+      this.car.vy -= 28 * dt;
+      this.car.y += this.car.vy * dt;
+      this.car.airTime += dt;
+      if (this.car.y <= target) {
+        this.car.y = target;
+        this.car.vy = 0;
+        this.car.airTime = 0;
+      } else if (this.car.airTime > 2) {
+        // Stuck floating for too long — drop straight to the ground/deck.
+        this.car.y = target;
+        this.car.vy = 0;
+        this.car.airTime = 0;
+      }
+    } else {
+      this.car.y += (target - this.car.y) * 0.55;
+      this.car.vy = 0;
+      this.car.airTime = 0;
+    }
+
+    this.visual.root.position.set(this.car.x, this.car.y, this.car.z);
     this.visual.root.rotation.order = "YXZ";
     this.visual.root.rotation.y = this.car.yaw;
-    // Follow ground + rock humps under each wheel (trucks tilt climbing rocks).
-    const pitch = THREE.MathUtils.clamp(((rl + rr) - (fl + fr)) * 0.18, -0.22, 0.22);
-    const roll = THREE.MathUtils.clamp(((fr + rr) - (fl + rl)) * 0.2, -0.2, 0.2);
+    const pitch = THREE.MathUtils.clamp(((rl + rr) - (fl + fr)) * 0.12, -0.14, 0.14);
+    const roll = THREE.MathUtils.clamp(((fr + rr) - (fl + rl)) * 0.12, -0.12, 0.12);
     this.visual.root.rotation.x = pitch;
     this.visual.root.rotation.z = roll;
   }

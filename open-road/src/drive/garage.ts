@@ -34,12 +34,10 @@ function car(
 }
 
 /**
- * Official garage list (added in batches).
- * Covered-wheel Kenney bases only (no open-wheel race / race-future).
- * Mastodon uses the custom lifted pickup. Shape refs are never shown.
+ * Official garage list — every car is a unique hand-built GLB (no shared hatchback).
+ * Shape refs are never shown to the player.
  */
 export const GARAGE: GarageCar[] = [
-  // Low, wide wedge supercars (custom GLBs — covered wheels, not F1)
   car("Lambchop", "Chupacabra", "/models/lambchop-chupacabra.glb", famous, {
     scale: 1, ride: 0, wheel: 1, color: 0xff6a00, spoiler: false, roofLights: false, realistic: true,
   }, "lambchop"),
@@ -49,42 +47,41 @@ export const GARAGE: GarageCar[] = [
   car("Lambchop", "Bonehorn", "/models/lambchop-bonehorn.glb", { ...famous, accel: 1.3, top: 90 }, {
     scale: 1, ride: 0, wheel: 1, color: 0x22e05a, spoiler: false, roofLights: false, realistic: true,
   }, "lambchop"),
-  car("Shovel-A", "Thresher", "/models/sedan-sports.glb", famous, {
-    scale: 1.02, ride: 0, wheel: 1, color: 0xe23b2f, spoiler: true, roofLights: false,
+  car("Shovel-A", "Thresher", "/models/shovel-thresher.glb", famous, {
+    scale: 1, ride: 0, wheel: 1, color: 0xe23b2f, spoiler: false, roofLights: false, realistic: true,
   }, "v8"),
-  car("Shovel-A", "Megalodon", "/models/hatchback-sports.glb", fastest, {
-    scale: 1.06, ride: 0, wheel: 1.02, color: 0x2f6fed, spoiler: true, roofLights: false,
+  car("Shovel-A", "Megalodon", "/models/shovel-megalodon.glb", fastest, {
+    scale: 1, ride: 0, wheel: 1, color: 0x2f6fed, spoiler: false, roofLights: false, realistic: true,
   }, "v8"),
-  // Lifted pickup (custom GLB)
   car("Shovel-A", "Mastodon", "/models/shovel-mastodon.glb", truck, {
     scale: 1, ride: 0, wheel: 1, color: 0x2a3328, spoiler: false, roofLights: false, realistic: true,
   }, "diesel"),
-  car("Baguetti", "Hellhound", "/models/hatchback-sports.glb", famous, {
-    scale: 1.1, ride: 0, wheel: 1.04, color: 0x1a1c22, spoiler: true, roofLights: false,
+  car("Baguetti", "Hellhound", "/models/baguetti-hellhound.glb", famous, {
+    scale: 1, ride: 0, wheel: 1, color: 0x6e1018, spoiler: false, roofLights: false, realistic: true,
   }, "turbo"),
-  car("Baguetti", "Cerberus", "/models/sedan-sports.glb", fastest, {
-    scale: 1.12, ride: 0, wheel: 1.05, color: 0x8d1218, spoiler: true, roofLights: false,
+  car("Baguetti", "Cerberus", "/models/baguetti-cerberus.glb", fastest, {
+    scale: 1, ride: 0, wheel: 1, color: 0x1a1c22, spoiler: false, roofLights: false, realistic: true,
   }, "turbo"),
-  car("Ferocity", "Jackal", "/models/hatchback-sports.glb", famous, {
-    scale: 1.02, ride: 0, wheel: 1, color: 0xd42323, spoiler: true, roofLights: false,
+  car("Ferocity", "Jackal", "/models/ferocity-jackal.glb", famous, {
+    scale: 1, ride: 0, wheel: 1, color: 0xd42323, spoiler: false, roofLights: false, realistic: true,
   }, "v8"),
-  car("Ferocity", "Manticore", "/models/sedan-sports.glb", fastest, {
-    scale: 1.1, ride: 0, wheel: 1.04, color: 0xff5a1f, spoiler: true, roofLights: false,
+  car("Ferocity", "Manticore", "/models/ferocity-manticore.glb", fastest, {
+    scale: 1, ride: 0, wheel: 1, color: 0xff2a1f, spoiler: false, roofLights: false, realistic: true,
   }, "v12"),
-  car("Porch", "Deathstalker", "/models/sedan-sports.glb", famous, {
-    scale: 0.98, ride: 0, wheel: 1, color: 0xc8ccd2, spoiler: false, roofLights: false,
+  car("Porch", "Deathstalker", "/models/porch-deathstalker.glb", famous, {
+    scale: 1, ride: 0, wheel: 1, color: 0xc8ccd2, spoiler: false, roofLights: false, realistic: true,
   }, "turbo"),
-  car("Porch", "Hellbender", "/models/hatchback-sports.glb", fastest, {
-    scale: 1.08, ride: 0, wheel: 1.02, color: 0x1e3a5f, spoiler: true, roofLights: false,
+  car("Porch", "Hellbender", "/models/porch-hellbender.glb", fastest, {
+    scale: 1, ride: 0, wheel: 1, color: 0x3d6fa8, spoiler: false, roofLights: false, realistic: true,
   }, "v8"),
-  car("McRoar", "Pterodactyl", "/models/hatchback-sports.glb", famous, {
-    scale: 1.08, ride: 0, wheel: 1.03, color: 0xff8a00, spoiler: true, roofLights: false,
+  car("McRoar", "Pterodactyl", "/models/mcroar-pterodactyl.glb", famous, {
+    scale: 1, ride: 0, wheel: 1, color: 0xff8a00, spoiler: false, roofLights: false, realistic: true,
   }, "v8"),
-  car("McRoar", "Great White", "/models/sedan-sports.glb", fastest, {
-    scale: 1.14, ride: 0, wheel: 1.02, color: 0xf0f4f8, spoiler: true, roofLights: false,
+  car("McRoar", "Great White", "/models/mcroar-great-white.glb", fastest, {
+    scale: 1, ride: 0, wheel: 1, color: 0xf0f4f8, spoiler: false, roofLights: false, realistic: true,
   }, "v12"),
-  car("King Egg", "Leviathan", "/models/hatchback-sports.glb", famous, {
-    scale: 1.1, ride: 0, wheel: 1.05, color: 0xb8ff2a, spoiler: true, roofLights: false,
+  car("King Egg", "Leviathan", "/models/king-egg-leviathan.glb", famous, {
+    scale: 1, ride: 0, wheel: 1, color: 0xb8ff2a, spoiler: false, roofLights: false, realistic: true,
   }, "v8"),
 ];
 

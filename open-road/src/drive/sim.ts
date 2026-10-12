@@ -1,10 +1,24 @@
-import { BORDER_IN, LAKE, PATCHES, WORLD_HALF, inRiverWater, onBridge, riverDistance } from "./mapData";
+import {
+  BORDER_IN,
+  LAKE,
+  PATCHES,
+  WORLD_HALF,
+  bridgeHeightAt,
+  inRiverWater,
+  riverDistance,
+} from "./mapData";
 
 export type Drive = "fwd" | "rwd" | "awd";
 
 export type Car = {
   x: number;
   z: number;
+  /** Visual / vertical world Y (meters). */
+  y: number;
+  /** Vertical velocity for gravity when airborne. */
+  vy: number;
+  /** Seconds spent not touching the ground / deck. */
+  airTime: number;
   yaw: number;
   yawRate: number;
   /** Meters per second. Negative means reverse. */
@@ -88,8 +102,24 @@ export type RoadSeg = {
 export type ColliderSoft = "solid" | "rock" | "shrub";
 
 export type Collider =
-  | { kind: "circle"; x: number; z: number; r: number; soft?: ColliderSoft }
-  | { kind: "box"; x: number; z: number; hx: number; hz: number; soft?: ColliderSoft };
+  | {
+      kind: "circle";
+      x: number;
+      z: number;
+      r: number;
+      soft?: ColliderSoft;
+      /** If set, only collide when car.y is below this (e.g. pillars under a bridge). */
+      maxY?: number;
+    }
+  | {
+      kind: "box";
+      x: number;
+      z: number;
+      hx: number;
+      hz: number;
+      soft?: ColliderSoft;
+      maxY?: number;
+    };
 
 export const REDLINE = 7600;
 
@@ -100,6 +130,9 @@ export function makeCar(): Car {
   return {
     x: -70,
     z: 4,
+    y: 1.2,
+    vy: 0,
+    airTime: 0,
     yaw: Math.PI / 2,
     yawRate: 0,
     speed: 0,
@@ -149,9 +182,10 @@ function ground(name: string, grip: number, max: number): Surface {
   return { name, grip, max, roll: ROLL[name] ?? 0.02 };
 }
 
-export function surfaceAt(x: number, z: number, roads: RoadSeg[]): Surface {
-  // Bridge deck is dry pavement above the river.
-  if (onBridge(x, z)) return ground("Dry", 1.55, 98);
+export function surfaceAt(x: number, z: number, roads: RoadSeg[], carY = 999): Surface {
+  // Bridge deck is dry pavement — only when the car is actually up on the deck.
+  const deck = bridgeHeightAt(x, z);
+  if (deck != null && carY > deck - 4.5) return ground("Dry", 1.55, 98);
 
   // Water wins over at-grade roads — lake and river are not driveable.
   const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
@@ -516,8 +550,9 @@ function dragForce(speed: number, mass: number, roll: number) {
  * Returns true when the car was in the water this step.
  */
 export function resolveWater(car: Car): boolean {
-  // Bridge deck is above the river — allow driving there.
-  if (onBridge(car.x, car.z)) return false;
+  // Only ignore water when the car is up on the bridge deck, not under it.
+  const deck = bridgeHeightAt(car.x, car.z);
+  if (deck != null && car.y > deck - 4.5) return false;
 
   const lakeDx = car.x - LAKE.x;
   const lakeDz = car.z - LAKE.z;
@@ -566,8 +601,10 @@ export function resolveWater(car: Car): boolean {
 }
 
 function separate(car: Car, nx: number, nz: number, pen: number) {
-  car.x += nx * pen;
-  car.z += nz * pen;
+  // One clean push — no overshoot that causes crash jitter.
+  const push = Math.min(pen, 1.8);
+  car.x += nx * push;
+  car.z += nz * push;
   const fx = Math.sin(car.yaw);
   const fz = Math.cos(car.yaw);
   const rx = Math.cos(car.yaw);
@@ -576,10 +613,17 @@ function separate(car: Car, nx: number, nz: number, pen: number) {
   const vz = fz * car.speed + rz * car.lat;
   const vn = vx * nx + vz * nz;
   if (vn >= 0) return 0;
-  const vx2 = vx - nx * vn;
-  const vz2 = vz - nz * vn;
+  // Kill only the inward component and bleed a little speed — no rebound spike.
+  const vx2 = (vx - nx * vn) * 0.85;
+  const vz2 = (vz - nz * vn) * 0.85;
   car.speed = vx2 * fx + vz2 * fz;
   car.lat = vx2 * rx + vz2 * rz;
+  car.yawRate *= 0.55;
+  // Settle suspension so a bump does not kick the body into a spasm.
+  for (let i = 0; i < 4; i++) {
+    car.suspV[i] *= 0.35;
+    car.susp[i] = clamp(car.susp[i], 0.04, 0.18);
+  }
   return -vn;
 }
 
@@ -684,7 +728,7 @@ export function climbBumpAt(x: number, z: number, colliders: Collider[], isTruck
 export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = DEFAULT_TUNE): CollisionHit {
   let impact = 0;
   const overs: CollisionHit["overs"] = [];
-  const radius = 1.5;
+  const radius = 1.35;
   const isTruck = tune.offroad >= 1.2 || tune.mass >= 2300;
   const fx = Math.sin(car.yaw);
   const fz = Math.cos(car.yaw);
@@ -699,7 +743,10 @@ export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = 
     { x: car.x - fx * axle + rx * track, z: car.z - fz * axle + rz * track },
   ];
 
+  // Resolve at most a few solids per step so overlapping rails cannot jitter the car.
+  let solidHits = 0;
   for (const c of colliders) {
+    if (c.maxY != null && car.y > c.maxY) continue;
     const soft = c.soft ?? "solid";
     if (c.kind === "circle") {
       const dist = Math.hypot(car.x - c.x, car.z - c.z);
@@ -708,31 +755,33 @@ export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = 
       if (soft === "shrub" || soft === "rock") {
         if (isTruck) {
           overs.push({ x: c.x, z: c.z, soft, r: c.r });
-          // Compress whichever wheels are on the rock — no hard stop.
           for (let i = 0; i < 4; i++) {
             const wd = Math.hypot(wheelXZ[i].x - c.x, wheelXZ[i].z - c.z);
             if (wd < c.r + 1.1) {
-              const amt = soft === "rock" ? 0.9 : 0.35;
-              car.susp[i] = clamp(car.susp[i] + amt * (1 - wd / (c.r + 1.1)), 0, 0.28);
-              car.suspV[i] -= amt * 0.8;
+              const amt = soft === "rock" ? 0.55 : 0.22;
+              car.susp[i] = clamp(car.susp[i] + amt * (1 - wd / (c.r + 1.1)), 0, 0.22);
+              car.suspV[i] *= 0.7;
             }
           }
           continue;
         }
-        // Sports cars: rocks bump hard and slow them; shrubs are a soft brush.
         if (soft === "rock") {
           impact = Math.max(impact, pushCircle(car, c.x, c.z, touch));
-          car.speed *= 0.82;
+          car.speed *= 0.88;
           overs.push({ x: c.x, z: c.z, soft, r: c.r });
           continue;
         }
-        car.speed *= 0.96;
+        car.speed *= 0.97;
         overs.push({ x: c.x, z: c.z, soft, r: c.r });
         continue;
       }
+      if (solidHits >= 3) continue;
       impact = Math.max(impact, pushCircle(car, c.x, c.z, touch));
+      solidHits += 1;
     } else {
+      if (solidHits >= 3) continue;
       impact = Math.max(impact, pushBox(car, c, radius));
+      solidHits += 1;
     }
   }
   return { impact, overs };
