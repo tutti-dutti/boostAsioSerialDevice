@@ -9,6 +9,7 @@ import {
   gearLabel,
   makeCar,
   resetCar,
+  resolveBorder,
   resolveCollisions,
   resolveWater,
   stepCar,
@@ -348,7 +349,9 @@ export class DriveGame {
     const wet = resolveWater(this.car);
     if (wet && !this.inWater) this.say("You can't drive on the water");
     this.inWater = wet;
-    const impact = resolveCollisions(this.car, this.world.colliders);
+    resolveBorder(this.car);
+    const { impact, overs } = resolveCollisions(this.car, this.world.colliders, this.tune);
+    this.world.flattenProps?.(overs);
     this.impactCool = Math.max(0, this.impactCool - dt);
     if (impact > 8 && this.impactCool <= 0) {
       this.audio.impact(impact);

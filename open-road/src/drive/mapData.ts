@@ -1,6 +1,9 @@
 /** Roads, lake, terrain height, highway, and spawn. The minimap uses this too. */
 
-export const WORLD_HALF = 1100;
+/** Playable half-extent. Must clear the highway loop (~885) with room for a forest rim. */
+export const WORLD_HALF = 1200;
+/** Soft border starts here; mountains/forest fill out to WORLD_HALF. */
+export const BORDER_IN = 1050;
 /** Road/car sit this far above the terrain mesh so wheels never sink. */
 export const SURFACE_LIFT = 0.1;
 export const LAKE = { x: 320, z: -300, r: 48 };

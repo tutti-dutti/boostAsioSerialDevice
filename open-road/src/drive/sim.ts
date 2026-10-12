@@ -1,4 +1,4 @@
-import { LAKE, PATCHES } from "./mapData";
+import { BORDER_IN, LAKE, PATCHES, WORLD_HALF } from "./mapData";
 
 export type Drive = "fwd" | "rwd" | "awd";
 
@@ -84,9 +84,12 @@ export type RoadSeg = {
   grip: number;
 };
 
+/** solid = always blocks. rock/shrub = trucks can roll over; cars get bumped. */
+export type ColliderSoft = "solid" | "rock" | "shrub";
+
 export type Collider =
-  | { kind: "circle"; x: number; z: number; r: number }
-  | { kind: "box"; x: number; z: number; hx: number; hz: number };
+  | { kind: "circle"; x: number; z: number; r: number; soft?: ColliderSoft }
+  | { kind: "box"; x: number; z: number; hx: number; hz: number; soft?: ColliderSoft };
 
 export const REDLINE = 7600;
 
@@ -570,21 +573,87 @@ function pushBox(car: Car, box: { x: number; z: number; hx: number; hz: number }
   return separate(car, dx / d, dz / d, radius - d);
 }
 
-/** Push the car out of trees and buildings. Returns how hard it hit, in m/s. */
-export function resolveCollisions(car: Car, colliders: Collider[]) {
+/**
+ * Soft border: past BORDER_IN, gently turn and push the car back toward the map.
+ * Reset still works anywhere. Returns true when the border is touching the car.
+ */
+export function resolveBorder(car: Car): boolean {
+  const ax = Math.abs(car.x);
+  const az = Math.abs(car.z);
+  const edge = Math.max(ax, az);
+  if (edge < BORDER_IN) return false;
+  // Direction back toward origin.
+  const len = Math.hypot(car.x, car.z) || 1;
+  const nx = -car.x / len;
+  const nz = -car.z / len;
+  const depth = Math.min(1, (edge - BORDER_IN) / Math.max(1, WORLD_HALF - BORDER_IN));
+  // Ease speed down and bias yaw toward the center.
+  car.speed *= 1 - 0.55 * depth;
+  car.lat *= 1 - 0.7 * depth;
+  const face = Math.atan2(Math.sin(car.yaw), Math.cos(car.yaw));
+  const toCenter = Math.atan2(-car.x, -car.z);
+  let dyaw = toCenter - face;
+  while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+  while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+  car.yaw += dyaw * 0.04 * (0.35 + depth);
+  car.yawRate *= 0.5;
+  // Soft push inward so we never leave WORLD_HALF.
+  if (edge > WORLD_HALF - 8) {
+    const pen = edge - (WORLD_HALF - 12);
+    car.x += nx * pen;
+    car.z += nz * pen;
+  } else {
+    car.x += nx * depth * 0.35;
+    car.z += nz * depth * 0.35;
+  }
+  return true;
+}
+
+export type CollisionHit = {
+  impact: number;
+  /** Soft props the vehicle is driving over (for suspension / shrub bend). */
+  overs: { x: number; z: number; soft: ColliderSoft; r: number }[];
+};
+
+/** Push the car out of trees and buildings. Trucks can roll over small rocks/shrubs. */
+export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = DEFAULT_TUNE): CollisionHit {
   let impact = 0;
+  const overs: CollisionHit["overs"] = [];
   const radius = 1.5;
+  const isTruck = tune.offroad >= 1.2 || tune.mass >= 2300;
   for (const c of colliders) {
-    if (c.kind === "circle") impact = Math.max(impact, pushCircle(car, c.x, c.z, c.r + radius));
-    else impact = Math.max(impact, pushBox(car, c, radius));
+    const soft = c.soft ?? "solid";
+    if (c.kind === "circle") {
+      const dist = Math.hypot(car.x - c.x, car.z - c.z);
+      const touch = c.r + radius;
+      if (dist >= touch) continue;
+      if (soft === "shrub" || soft === "rock") {
+        if (isTruck) {
+          overs.push({ x: c.x, z: c.z, soft, r: c.r });
+          // Light suspension jolt instead of a hard stop.
+          const bump = soft === "rock" ? 0.55 : 0.28;
+          car.suspV[0] -= bump;
+          car.suspV[1] -= bump * 0.9;
+          car.suspV[2] -= bump * 0.85;
+          car.suspV[3] -= bump * 0.8;
+          continue;
+        }
+        // Sports cars: rocks bump hard and slow them; shrubs are a soft brush.
+        if (soft === "rock") {
+          impact = Math.max(impact, pushCircle(car, c.x, c.z, touch));
+          car.speed *= 0.82;
+          overs.push({ x: c.x, z: c.z, soft, r: c.r });
+          continue;
+        }
+        // Shrub: small slowdown, no hard wall.
+        car.speed *= 0.96;
+        overs.push({ x: c.x, z: c.z, soft, r: c.r });
+        continue;
+      }
+      impact = Math.max(impact, pushCircle(car, c.x, c.z, touch));
+    } else {
+      impact = Math.max(impact, pushBox(car, c, radius));
+    }
   }
-  const bound = 400;
-  if (Math.abs(car.x) > bound || Math.abs(car.z) > bound) {
-    const before = Math.abs(car.speed);
-    car.x = clamp(car.x, -bound, bound);
-    car.z = clamp(car.z, -bound, bound);
-    car.speed *= 0.35;
-    impact = Math.max(impact, before * 0.4);
-  }
-  return impact;
+  return { impact, overs };
 }

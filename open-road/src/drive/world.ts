@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import {
+  BORDER_IN,
   HIGHWAY,
   LAKE,
   PATCHES,
@@ -20,6 +21,8 @@ export type World = {
   roads: RoadSeg[];
   /** Keep decoration chunks loaded around the car. */
   updateChunks: (x: number, z: number) => void;
+  /** Squash shrubs the car is driving over, then spring them back. */
+  flattenProps?: (overs: { x: number; z: number; soft: string; r: number }[]) => void;
 };
 
 const CHUNK = 160;
@@ -457,6 +460,9 @@ export function createWorld(): World {
     const rocks = spots.filter((s) => s.kind === 3);
     const bushes = spots.filter((s) => s.kind === 4);
 
+    const shrubRecords: { x: number; z: number; s: number; mesh: THREE.InstancedMesh; index: number; base: THREE.Matrix4 }[] =
+      [];
+
     if (trees.length) {
       const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, trees.length);
       const leaves = new THREE.InstancedMesh(leafGeo, leafMat, trees.length);
@@ -475,7 +481,8 @@ export function createWorld(): World {
         dummy.position.set(p.x, y + 3.15 * p.s, p.z);
         dummy.updateMatrix();
         tops.setMatrixAt(i, dummy.matrix);
-        local.push({ kind: "circle", x: p.x, z: p.z, r: 0.45 });
+        // Trees stay solid for every vehicle.
+        local.push({ kind: "circle", x: p.x, z: p.z, r: 0.45, soft: "solid" });
       });
       group.add(trunks, leaves, tops);
     }
@@ -483,12 +490,20 @@ export function createWorld(): World {
       const mesh = new THREE.InstancedMesh(rockGeo, rockMat, rocks.length);
       const dummy = new THREE.Object3D();
       rocks.forEach((p, i) => {
+        const big = p.s > 1.25;
         dummy.scale.set(p.s, p.s * 0.7, p.s);
         dummy.rotation.set(rand() * 1.2, rand() * 6, rand() * 0.4);
         dummy.position.set(p.x, heightAt(p.x, p.z) + 0.25 * p.s, p.z);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
-        local.push({ kind: "circle", x: p.x, z: p.z, r: 0.5 * p.s });
+        // Big rocks stay solid; small ones trucks can crawl over.
+        local.push({
+          kind: "circle",
+          x: p.x,
+          z: p.z,
+          r: 0.5 * p.s,
+          soft: big ? "solid" : "rock",
+        });
       });
       group.add(mesh);
     }
@@ -501,8 +516,11 @@ export function createWorld(): World {
         dummy.position.set(p.x, heightAt(p.x, p.z) + 0.35 * p.s, p.z);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
+        local.push({ kind: "circle", x: p.x, z: p.z, r: 0.55 * p.s, soft: "shrub" });
+        shrubRecords.push({ x: p.x, z: p.z, s: p.s, mesh, index: i, base: dummy.matrix.clone() });
       });
       group.add(mesh);
+      (group as THREE.Group & { userData: { shrubs: typeof shrubRecords } }).userData = { shrubs: shrubRecords };
     }
     return { group, local };
   }
@@ -560,7 +578,35 @@ export function createWorld(): World {
 
   updateChunks(SPAWN.x, SPAWN.z);
 
-  return { object, colliders, roads, updateChunks };
+  const flattenProps = (overs: { x: number; z: number; soft: string; r: number }[]) => {
+    if (!overs.length) return;
+    const dummy = new THREE.Object3D();
+    for (const g of decoChunks.values()) {
+      const shrubs = (g as THREE.Object3D).userData?.shrubs as
+        | { x: number; z: number; s: number; mesh: THREE.InstancedMesh; index: number; base: THREE.Matrix4 }[]
+        | undefined;
+      if (!shrubs) continue;
+      for (const shrub of shrubs) {
+        let hit = false;
+        for (const over of overs) {
+          if (over.soft !== "shrub") continue;
+          if (Math.hypot(shrub.x - over.x, shrub.z - over.z) < 1.2) {
+            hit = true;
+            break;
+          }
+        }
+        dummy.position.set(shrub.x, heightAt(shrub.x, shrub.z) + 0.12 * shrub.s, shrub.z);
+        dummy.rotation.set(0, 0, 0);
+        if (hit) dummy.scale.set(shrub.s * 1.35, shrub.s * 0.15, shrub.s * 1.35);
+        else dummy.scale.set(shrub.s * 1.2, shrub.s * 0.8, shrub.s * 1.2);
+        dummy.updateMatrix();
+        shrub.mesh.setMatrixAt(shrub.index, dummy.matrix);
+        shrub.mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+  };
+
+  return { object, colliders, roads, updateChunks, flattenProps };
 }
 
 function facing(nx: number, nz: number) {
@@ -764,13 +810,32 @@ function addUmbrellas(object: THREE.Group) {
 function addMountains(object: THREE.Group) {
   const rock = new THREE.MeshStandardMaterial({ color: 0x7d6c5e, roughness: 0.95 });
   const snow = new THREE.MeshStandardMaterial({ color: 0xf3eee6, roughness: 0.75 });
-  for (let i = 0; i < 22; i++) {
-    const a = (i / 22) * Math.PI * 2 + 0.15;
-    const r = 980 + (i % 4) * 40;
-    const h = 90 + (i % 5) * 30;
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(48 + (i % 3) * 20, h, 6), i % 3 === 0 ? snow : rock);
+  const leaf = new THREE.MeshStandardMaterial({ color: 0x2a6a30, roughness: 0.9 });
+  const trunk = new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.92 });
+  // Mountain ring just outside the highway / soft border.
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * Math.PI * 2 + 0.12;
+    const r = BORDER_IN + 40 + (i % 4) * 35;
+    const h = 100 + (i % 5) * 34;
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(52 + (i % 3) * 22, h, 6), i % 3 === 0 ? snow : rock);
     cone.position.set(Math.cos(a) * r, h * 0.28, Math.sin(a) * r);
     object.add(cone);
+  }
+  // Thick forest belt so the edge reads as nature, not an invisible wall.
+  for (let i = 0; i < 120; i++) {
+    const a = (i / 120) * Math.PI * 2;
+    const r = BORDER_IN - 20 + (i % 5) * 12;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const s = 1.1 + (i % 4) * 0.25;
+    const y = heightAt(x, z);
+    const bole = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.32, 2.6, 6), trunk);
+    bole.position.set(x, y + 1.3 * s, z);
+    bole.scale.setScalar(s);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3.2, 7), leaf);
+    crown.position.set(x, y + 3.1 * s, z);
+    crown.scale.setScalar(s);
+    object.add(bole, crown);
   }
 }
 
