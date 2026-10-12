@@ -107,6 +107,26 @@ function hexPanel(size, material) {
   return new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
 }
 
+/**
+ * Extrude a side silhouette (points in Z/Y, front = +Z) into a body of given width.
+ * Points are upper outline from nose→tail; underside is auto-closed near yFloor.
+ */
+function sideBody(upperZY, width, material, yFloor = 0.22) {
+  const shape = new THREE.Shape();
+  const first = upperZY[0];
+  shape.moveTo(first[0], first[1]);
+  for (let i = 1; i < upperZY.length; i++) shape.lineTo(upperZY[i][0], upperZY[i][1]);
+  const last = upperZY[upperZY.length - 1];
+  shape.lineTo(last[0], yFloor);
+  shape.lineTo(first[0], yFloor);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: width, bevelEnabled: false, curveSegments: 1 });
+  // Shape XY = car Z/Y; extrude depth = width along +Z → rotate so depth becomes X.
+  geo.rotateY(-Math.PI / 2);
+  geo.translate(width / 2, 0, 0);
+  return new THREE.Mesh(geo, material);
+}
+
 function finish(root, file) {
   return { root, file };
 }
@@ -275,78 +295,89 @@ function buildHellbender() {
   return finish(root, "porch-hellbender.glb");
 }
 
-/** P1: low pointy nose, swoopy haunches, small dark glass cabin, big wing */
+/** P1: swoopy extruded body, small dark teardrop cabin, big wing */
 function buildPterodactyl() {
   const root = new THREE.Group();
   root.name = "pterodactyl";
   const c = new THREE.Group();
   c.name = "chassis";
-  // Side silhouette: tip → rise → haunch → wing (not a flat plank)
-  const tip = box(0.8, 0.12, 0.7, paint, 0, 0.3, 2.3);
-  tip.rotation.x = 0.35;
-  c.add(tip);
-  c.add(box(1.25, 0.2, 1.2, paint, 0, 0.38, 1.5));
-  c.add(box(1.55, 0.28, 1.4, paint, 0, 0.45, 0.2));
-  c.add(box(1.75, 0.38, 1.5, paint, 0, 0.5, -1.0)); // rising rear haunch
+  c.add(
+    sideBody(
+      [
+        [2.55, 0.28],
+        [2.1, 0.38],
+        [1.4, 0.48],
+        [0.6, 0.55],
+        [0.15, 0.72],
+        [-0.35, 0.78],
+        [-0.9, 0.7],
+        [-1.5, 0.55],
+        [-2.05, 0.42],
+        [-2.25, 0.35],
+      ],
+      1.7,
+      paint,
+      0.24,
+    ),
+  );
   for (const s of [-1, 1]) {
-    c.add(box(0.35, 0.45, 1.3, paint, s * 0.9, 0.55, -0.7));
-    c.add(box(0.42, 0.42, 0.9, dark, s * 0.95, 0.52, 0.05)); // side intake
-    c.add(box(0.22, 0.18, 0.75, paint, s * 0.88, 0.58, 1.25));
-    c.add(box(0.24, 0.2, 0.8, paint, s * 0.95, 0.62, -1.45));
-    c.add(box(0.42, 0.05, 0.1, head, s * 0.4, 0.38, 2.55));
-    c.add(box(0.05, 0.4, 0.18, dark, s * 0.75, 0.95, -1.55));
+    c.add(box(0.4, 0.38, 0.85, dark, s * 0.95, 0.5, -0.05));
+    c.add(box(0.4, 0.05, 0.1, head, s * 0.4, 0.38, 2.55));
+    c.add(box(0.05, 0.38, 0.18, dark, s * 0.72, 0.95, -1.55));
   }
-  // Compact dark glass bubble — short, not a black tower
-  c.add(box(0.9, 0.18, 1.0, dark, 0, 0.62, 0.1));
-  const canopy = box(0.75, 0.22, 0.85, glass, 0, 0.78, 0.05);
-  canopy.name = "glass";
-  canopy.rotation.x = -0.15;
-  c.add(canopy);
-  const ws = box(0.78, 0.28, 0.06, glass, 0, 0.72, 0.5);
+  c.add(sideBody([[0.55, 0.72], [0.2, 0.95], [-0.35, 0.98], [-0.7, 0.85], [-0.9, 0.7]], 0.85, dark, 0.68));
+  const ws = box(0.75, 0.28, 0.06, glass, 0, 0.85, 0.45);
   ws.name = "glass";
-  ws.rotation.x = -0.5;
+  ws.rotation.x = -0.45;
   c.add(ws);
-  c.add(box(2.05, 0.05, 0.42, paint, 0, 1.18, -1.55));
-  c.add(box(1.5, 0.08, 0.4, dark, 0, 0.26, -2.1));
-  for (const s of [-1, 1]) c.add(box(0.3, 0.08, 0.05, tail, s * 0.4, 0.5, -2.15));
+  c.add(box(2.05, 0.05, 0.42, paint, 0, 1.2, -1.55));
+  c.add(box(1.5, 0.08, 0.35, dark, 0, 0.26, -2.15));
+  for (const s of [-1, 1]) c.add(box(0.28, 0.08, 0.05, tail, s * 0.4, 0.48, -2.2));
   root.add(c);
   addWheels(root, 0.85, 0.95, 1.25, -1.4, 0.9, 1.18);
   return finish(root, "mcroar-pterodactyl.glb");
 }
 
-/** Speedtail: bullet height-map — rounded nose, mid bubble, long taper (boxes only) */
+/** Speedtail: smooth bullet extrusion, mid bubble, long tapering tail */
 function buildGreatWhite() {
   const root = new THREE.Group();
   root.name = "great-white";
   const c = new THREE.Group();
   c.name = "chassis";
-  // Height steps along Z form a bullet from the side
-  c.add(box(1.1, 0.22, 0.7, paint, 0, 0.38, 2.4)); // rounded nose block
-  c.add(box(1.35, 0.3, 1.1, paint, 0, 0.42, 1.6));
-  c.add(box(1.5, 0.34, 1.2, paint, 0, 0.46, 0.5));
-  c.add(box(1.4, 0.3, 1.1, paint, 0, 0.44, -0.6));
-  c.add(box(1.15, 0.24, 1.0, paint, 0, 0.4, -1.6));
-  c.add(box(0.85, 0.18, 0.9, paint, 0, 0.36, -2.45));
-  c.add(box(0.55, 0.12, 0.7, paint, 0, 0.32, -3.15));
-  c.add(box(0.3, 0.08, 0.45, paint, 0, 0.28, -3.65)); // point
-  // Mid bubble cabin (glass-heavy, not a barrel)
-  c.add(box(1.05, 0.28, 1.1, paint, 0, 0.7, 0.25));
-  const bubble = box(0.9, 0.22, 0.95, glass, 0, 0.92, 0.2);
-  bubble.name = "glass";
-  c.add(bubble);
-  const ws = box(0.95, 0.32, 0.06, glass, 0, 0.82, 0.75);
+  c.add(
+    sideBody(
+      [
+        [2.85, 0.32],
+        [2.4, 0.48],
+        [1.8, 0.55],
+        [1.1, 0.58],
+        [0.5, 0.62],
+        [0.1, 0.85],
+        [-0.35, 0.95],
+        [-0.75, 0.85],
+        [-1.2, 0.58],
+        [-1.9, 0.48],
+        [-2.6, 0.38],
+        [-3.2, 0.3],
+        [-3.7, 0.24],
+        [-3.95, 0.22],
+      ],
+      1.45,
+      paint,
+      0.2,
+    ),
+  );
+  c.add(sideBody([[0.45, 0.7], [0.1, 1.05], [-0.4, 1.08], [-0.75, 0.9], [-0.95, 0.7]], 0.95, glass, 0.68));
+  const ws = box(0.9, 0.3, 0.06, glass, 0, 0.9, 0.5);
   ws.name = "glass";
   ws.rotation.x = -0.35;
   c.add(ws);
-  c.add(box(0.8, 0.22, 0.05, glass, 0, 0.82, -0.3));
   for (const s of [-1, 1]) {
-    c.add(box(0.16, 0.12, 0.55, paint, s * 0.78, 0.55, 1.4));
-    c.add(box(0.16, 0.12, 0.55, paint, s * 0.72, 0.52, -1.4));
-    c.add(box(0.35, 0.05, 0.1, head, s * 0.38, 0.38, 2.7));
-    c.add(box(0.2, 0.05, 0.05, tail, s * 0.22, 0.36, -3.8));
+    c.add(box(0.32, 0.05, 0.1, head, s * 0.35, 0.4, 2.8));
+    c.add(box(0.18, 0.05, 0.05, tail, s * 0.2, 0.32, -3.9));
   }
   root.add(c);
-  addWheels(root, 0.75, 0.78, 1.35, -1.65, 0.85, 1.05);
+  addWheels(root, 0.72, 0.75, 1.4, -1.7, 0.85, 1.05);
   return finish(root, "mcroar-great-white.glb");
 }
 
@@ -356,99 +387,132 @@ function buildLeviathan() {
   root.name = "leviathan";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(2.1, 0.3, 3.2, paint, 0, 0.42, -0.2));
-  // Short nose that dips low (no barrel)
-  const nose = box(1.55, 0.18, 0.95, paint, 0, 0.34, 1.75);
-  nose.rotation.x = 0.32;
-  c.add(nose);
-  c.add(box(1.7, 0.22, 0.7, paint, 0, 0.42, 1.35));
+  c.add(
+    sideBody(
+      [
+        [2.15, 0.26],
+        [1.7, 0.42],
+        [1.1, 0.52],
+        [0.4, 0.58],
+        [-0.1, 0.78],
+        [-0.55, 0.85],
+        [-1.0, 0.7],
+        [-1.5, 0.55],
+        [-1.95, 0.42],
+      ],
+      2.05,
+      paint,
+      0.24,
+    ),
+  );
   for (const s of [-1, 1]) {
-    c.add(box(0.42, 0.4, 1.35, paint, s * 1.08, 0.52, -0.7)); // muscular hip
-    c.add(box(0.22, 0.18, 0.7, paint, s * 1.05, 0.6, 1.15));
-    c.add(box(0.26, 0.22, 0.85, paint, s * 1.1, 0.62, -1.25));
-    c.add(box(0.4, 0.06, 0.1, head, s * 0.6, 0.38, 2.1));
-    // Round taillights facing aft
-    c.add(cyl(0.1, 0.1, 0.06, tail, s * 0.55, 0.52, -1.9, Math.PI / 2, 0, 0));
-    c.add(box(0.05, 0.38, 0.2, dark, s * 0.82, 0.98, -1.35));
+    c.add(box(0.4, 0.38, 1.2, paint, s * 1.1, 0.5, -0.6));
+    c.add(box(0.38, 0.06, 0.1, head, s * 0.6, 0.38, 2.1));
+    c.add(cyl(0.1, 0.1, 0.06, tail, s * 0.55, 0.5, -1.95, Math.PI / 2, 0, 0));
+    c.add(box(0.05, 0.36, 0.18, dark, s * 0.8, 0.98, -1.35));
   }
-  // Bubble cabin with wraparound glass
-  c.add(box(1.25, 0.28, 1.1, paint, 0, 0.72, -0.05));
-  const dome = box(1.1, 0.2, 0.95, glass, 0, 0.95, -0.05);
-  dome.name = "glass";
-  c.add(dome);
-  const ws = box(1.3, 0.38, 0.08, glass, 0, 0.82, 0.48);
+  c.add(sideBody([[0.45, 0.7], [0.1, 1.05], [-0.45, 1.08], [-0.8, 0.9], [-1.0, 0.7]], 1.15, glass, 0.68));
+  const ws = box(1.2, 0.34, 0.07, glass, 0, 0.88, 0.45);
   ws.name = "glass";
   ws.rotation.x = -0.3;
   c.add(ws);
-  for (const s of [-1, 1]) c.add(box(0.08, 0.3, 0.85, glass, s * 0.68, 0.82, -0.05));
-  c.add(box(1.05, 0.26, 0.06, glass, 0, 0.82, -0.55));
+  for (const s of [-1, 1]) c.add(box(0.07, 0.28, 0.75, glass, s * 0.65, 0.88, -0.1));
   c.add(box(2.1, 0.05, 0.38, paint, 0, 1.2, -1.35));
-  c.add(box(1.8, 0.08, 0.38, dark, 0, 0.24, -1.9));
+  c.add(box(1.8, 0.08, 0.35, dark, 0, 0.24, -1.95));
   root.add(c);
   addWheels(root, 0.95, 1.05, 1.15, -1.25, 0.95, 1.22);
   return finish(root, "king-egg-leviathan.glb");
 }
 
-/** Veyron pebble: arched fenders over black tires, two-tone, horseshoe, roof scoops */
+/** Veyron pebble: extruded egg body, arched fenders, two-tone, horseshoe, scoops */
 function buildHellhound() {
   const root = new THREE.Group();
   root.name = "hellhound";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(1.95, 0.26, 3.9, paintDark, 0, 0.26, 0)); // black lower
-  c.add(box(1.7, 0.32, 3.3, paint, 0, 0.55, 0)); // red upper
-  c.add(box(1.4, 0.22, 2.4, paint, 0, 0.75, -0.05));
+  c.add(box(1.95, 0.22, 3.9, paintDark, 0, 0.24, 0));
+  c.add(
+    sideBody(
+      [
+        [2.1, 0.35],
+        [1.6, 0.55],
+        [1.0, 0.7],
+        [0.4, 0.82],
+        [-0.1, 0.95],
+        [-0.55, 1.0],
+        [-1.0, 0.9],
+        [-1.5, 0.7],
+        [-2.0, 0.5],
+        [-2.15, 0.4],
+      ],
+      1.75,
+      paint,
+      0.35,
+    ),
+  );
   for (const s of [-1, 1]) {
-    // Arch lips ABOVE the tire — thin so black sidewalls stay visible
-    c.add(box(0.2, 0.16, 0.75, paint, s * 0.95, 0.72, 1.25));
-    c.add(box(0.22, 0.16, 0.8, paint, s * 1.0, 0.74, -1.25));
-    c.add(box(0.18, 0.2, 1.5, paintDark, s * 0.98, 0.38, 0));
-    c.add(box(0.36, 0.1, 0.1, head, s * 0.65, 0.48, 2.05));
-    c.add(box(0.22, 0.14, 0.32, dark, s * 0.28, 1.12, -0.05));
-    c.add(box(0.34, 0.1, 0.06, tail, s * 0.48, 0.52, -2.05));
+    c.add(box(0.22, 0.18, 0.8, paint, s * 0.95, 0.7, 1.25));
+    c.add(box(0.24, 0.18, 0.85, paint, s * 1.0, 0.72, -1.25));
+    c.add(box(0.18, 0.2, 1.5, paintDark, s * 0.98, 0.36, 0));
+    c.add(box(0.36, 0.1, 0.1, head, s * 0.65, 0.48, 2.1));
+    c.add(box(0.22, 0.14, 0.32, dark, s * 0.28, 1.15, -0.05));
+    c.add(box(0.34, 0.1, 0.06, tail, s * 0.48, 0.52, -2.1));
   }
-  c.add(box(1.2, 0.3, 1.25, paint, 0, 0.95, -0.05));
-  const ws = box(1.05, 0.32, 0.06, glass, 0, 0.95, 0.5);
+  const ws = box(1.05, 0.32, 0.06, glass, 0, 0.95, 0.45);
   ws.name = "glass";
   ws.rotation.x = -0.4;
   c.add(ws);
-  c.add(box(0.9, 0.22, 0.05, glass, 0, 0.95, -0.6));
-  c.add(box(0.78, 0.34, 0.1, chrome, 0, 0.42, 2.05));
-  c.add(box(0.55, 0.22, 0.08, dark, 0, 0.42, 2.12));
+  c.add(box(0.9, 0.22, 0.05, glass, 0, 0.95, -0.55));
+  c.add(box(0.78, 0.34, 0.1, chrome, 0, 0.42, 2.1));
+  c.add(box(0.55, 0.22, 0.08, dark, 0, 0.42, 2.18));
   root.add(c);
   addWheels(root, 0.88, 0.95, 1.25, -1.25, 0.95, 1.12);
   return finish(root, "baguetti-hellhound.glb");
 }
 
-/** Chiron: muscular height steps, arched roof, bold C-band, two-tone, horseshoe */
+/** Chiron: muscular extruded body, rounded roof, bold C-band, two-tone, horseshoe */
 function buildCerberus() {
   const root = new THREE.Group();
   root.name = "cerberus";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(2.0, 0.24, 4.0, paintDark, 0, 0.26, 0));
-  c.add(box(1.7, 0.28, 1.5, paint, 0, 0.5, 1.1));
-  c.add(box(1.85, 0.38, 1.6, paint, 0, 0.58, -0.2));
-  c.add(box(1.9, 0.42, 1.4, paint, 0, 0.6, -1.3));
-  c.add(box(1.3, 0.28, 1.3, paint, 0, 0.95, -0.15));
-  c.add(box(1.1, 0.16, 1.0, paint, 0, 1.12, -0.2));
-  const ws = box(1.15, 0.38, 0.06, glass, 0, 0.95, 0.5);
+  c.add(box(2.0, 0.22, 4.0, paintDark, 0, 0.24, 0));
+  c.add(
+    sideBody(
+      [
+        [2.2, 0.38],
+        [1.7, 0.55],
+        [1.1, 0.65],
+        [0.5, 0.78],
+        [0.05, 1.05],
+        [-0.45, 1.15],
+        [-0.9, 1.05],
+        [-1.4, 0.75],
+        [-1.9, 0.55],
+        [-2.2, 0.42],
+      ],
+      1.85,
+      paint,
+      0.34,
+    ),
+  );
+  const ws = box(1.15, 0.36, 0.06, glass, 0, 1.0, 0.4);
   ws.name = "glass";
-  ws.rotation.x = -0.42;
+  ws.rotation.x = -0.4;
   c.add(ws);
-  c.add(box(1.0, 0.28, 0.05, glass, 0, 0.95, -0.7));
-  c.add(box(0.82, 0.4, 0.1, chrome, 0, 0.46, 2.1));
-  c.add(box(0.58, 0.26, 0.08, dark, 0, 0.46, 2.18));
+  c.add(box(1.0, 0.26, 0.05, glass, 0, 1.0, -0.75));
+  c.add(box(0.82, 0.4, 0.1, chrome, 0, 0.46, 2.15));
+  c.add(box(0.58, 0.26, 0.08, dark, 0, 0.46, 2.22));
   for (const s of [-1, 1]) {
     c.add(box(0.3, 0.5, 1.5, paintDark, s * 1.02, 0.6, 0));
-    c.add(box(0.38, 0.12, 0.55, paintDark, s * 0.92, 0.9, 0.7));
-    c.add(box(0.38, 0.12, 0.5, paintDark, s * 0.92, 0.9, -0.9));
+    c.add(box(0.38, 0.12, 0.55, paintDark, s * 0.92, 0.95, 0.7));
+    c.add(box(0.38, 0.12, 0.5, paintDark, s * 0.92, 0.95, -0.9));
     c.add(box(0.28, 0.24, 0.85, paint, s * 0.98, 0.68, 1.35));
     c.add(box(0.32, 0.3, 0.95, paint, s * 1.05, 0.7, -1.4));
-    c.add(box(0.4, 0.1, 0.1, head, s * 0.68, 0.48, 2.15));
+    c.add(box(0.4, 0.1, 0.1, head, s * 0.68, 0.48, 2.2));
   }
-  c.add(box(1.75, 0.06, 0.05, tail, 0, 0.62, -2.1));
-  c.add(box(1.65, 0.08, 0.38, dark, 0, 0.26, -2.15));
+  c.add(box(1.75, 0.06, 0.05, tail, 0, 0.62, -2.15));
+  c.add(box(1.65, 0.08, 0.38, dark, 0, 0.26, -2.2));
   root.add(c);
   addWheels(root, 0.9, 1.0, 1.3, -1.4, 0.95, 1.18);
   return finish(root, "baguetti-cerberus.glb");
@@ -485,38 +549,45 @@ function buildJackal() {
   return finish(root, "ferocity-jackal.glb");
 }
 
-/** LaFerrari: pointy nose, rising fenders, small blended teardrop cabin */
+/** LaFerrari: extruded teardrop body, rising fenders, pointed nose */
 function buildManticore() {
   const root = new THREE.Group();
   root.name = "manticore";
   const c = new THREE.Group();
   c.name = "chassis";
-  const tip = box(0.65, 0.1, 0.55, paint, 0, 0.28, 2.4);
-  tip.rotation.x = 0.45;
-  c.add(tip);
-  c.add(box(1.15, 0.18, 1.0, paint, 0, 0.36, 1.7));
-  c.add(box(1.55, 0.24, 1.3, paint, 0, 0.42, 0.55));
-  c.add(box(1.7, 0.28, 1.2, paint, 0, 0.45, -0.6));
-  c.add(box(1.5, 0.22, 1.0, paint, 0, 0.4, -1.6));
+  c.add(
+    sideBody(
+      [
+        [2.55, 0.24],
+        [2.1, 0.36],
+        [1.5, 0.45],
+        [0.8, 0.52],
+        [0.25, 0.7],
+        [-0.2, 0.82],
+        [-0.65, 0.75],
+        [-1.2, 0.55],
+        [-1.75, 0.42],
+        [-2.15, 0.35],
+      ],
+      1.65,
+      paint,
+      0.22,
+    ),
+  );
   for (const s of [-1, 1]) {
-    c.add(box(0.3, 0.32, 0.9, paint, s * 0.9, 0.52, 1.25));
-    c.add(box(0.32, 0.36, 1.0, paint, s * 0.95, 0.55, -1.2));
-    c.add(box(0.2, 0.16, 1.2, paint, s * 0.88, 0.38, 0.05));
-    c.add(box(0.36, 0.05, 0.1, head, s * 0.45, 0.36, 2.55));
-    c.add(box(0.05, 0.18, 0.04, tail, s * 0.4, 0.48, -2.05));
-    c.add(box(0.26, 0.18, 0.65, dark, s * 0.9, 0.42, -0.2));
+    c.add(box(0.28, 0.3, 0.85, paint, s * 0.9, 0.52, 1.25));
+    c.add(box(0.3, 0.34, 0.95, paint, s * 0.95, 0.55, -1.2));
+    c.add(box(0.34, 0.05, 0.1, head, s * 0.42, 0.36, 2.55));
+    c.add(box(0.05, 0.16, 0.04, tail, s * 0.38, 0.46, -2.1));
+    c.add(box(0.24, 0.16, 0.6, dark, s * 0.88, 0.42, -0.15));
   }
-  c.add(box(1.0, 0.2, 1.15, paint, 0, 0.62, 0.05));
-  const peak = box(0.8, 0.14, 0.9, paint, 0, 0.78, -0.05);
-  peak.rotation.x = -0.22;
-  c.add(peak);
-  const ws = box(0.88, 0.3, 0.06, glass, 0, 0.7, 0.52);
+  const ws = box(0.85, 0.28, 0.06, glass, 0, 0.72, 0.4);
   ws.name = "glass";
-  ws.rotation.x = -0.55;
+  ws.rotation.x = -0.5;
   c.add(ws);
-  c.add(box(0.7, 0.18, 0.05, glass, 0, 0.7, -0.48));
-  for (const s of [-1, 1]) c.add(box(0.05, 0.16, 0.65, glass, s * 0.52, 0.68, 0));
-  c.add(box(1.4, 0.04, 0.18, paint, 0, 0.7, -1.65));
+  c.add(box(0.7, 0.18, 0.05, glass, 0, 0.72, -0.55));
+  for (const s of [-1, 1]) c.add(box(0.05, 0.16, 0.6, glass, s * 0.5, 0.7, -0.05));
+  c.add(box(1.35, 0.04, 0.18, paint, 0, 0.68, -1.7));
   root.add(c);
   addWheels(root, 0.85, 0.92, 1.25, -1.3, 0.88, 1.12);
   return finish(root, "ferocity-manticore.glb");
