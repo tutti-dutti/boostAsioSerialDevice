@@ -210,10 +210,16 @@ export function stepCar(
   const inWater = surface.name === "Water";
   const loose = !inWater && surface.name !== "Dry" && surface.name !== "Wet";
   const mu = clamp(surface.grip * (loose ? tune.offroad : 1), 0.04, 1.45);
-  // Wheel angle. Positive is a right turn. Lock is high at walking speed so the
-  // wheels can overcome an old yaw rate, and it falls off as speed rises.
-  const lock = 0.56 / (1 + Math.abs(car.speed) * 0.034);
-  const delta = input.steer * lock;
+  // Turning radius in meters. Full lock is a tight circle at low and medium
+  // speed, then opens with speed so a fast car stays stable.
+  const speedAbs = Math.abs(car.speed);
+  const gripAy = (input.handbrake ? 0.4 : 1.25) * mu * 9.81;
+  const gripR = (speedAbs * speedAbs) / Math.max(5, gripAy);
+  const tightR = input.handbrake ? 7.5 : 4.6;
+  const blend = clamp((speedAbs - 4) / 22, 0, 1);
+  const turnR = tightR * (1 - blend) + Math.max(tightR, gripR) * blend;
+  const steerSign = Math.sign(input.steer) || 0;
+  const delta = steerSign * Math.atan2(WHEELBASE, Math.max(turnR, 1.5));
 
   const longShift = clamp((mass * car.ax * cg) / WHEELBASE, -0.38 * weight, 0.38 * weight);
   const latShift = clamp((mass * car.ay * cg) / TRACK, -0.34 * weight, 0.34 * weight);
@@ -295,25 +301,20 @@ export function stepCar(
     car.ay = 0;
   }
 
-  // The car goes where the front wheels point. Tire grip caps the turn so it
-  // cannot yaw harder than the road can hold, and a stopped car cannot pivot.
-  const ayMax = (input.handbrake ? 0.32 : 0.92) * mu * 9.81;
-  const speedAbs = Math.abs(car.speed);
-  // Low grip slides instead of locking the nose straight. The wheels can always
-  // rotate the car once it is rolling.
-  const yawLim = speedAbs > 2.5 ? Math.min(1.25, Math.max(0.55, ayMax / speedAbs)) : 1.15;
+  // Heading follows the front wheels. A stopped car cannot pivot.
+  const yawMag = rolling && !inWater ? Math.min(1.8, speedAbs / Math.max(turnR, 1.5)) : 0;
+  const yawTarget = -Math.sign(car.speed || 1) * steerSign * yawMag;
   if (!rolling || inWater) {
     car.yawRate = 0;
     car.lat = 0;
     car.ay = 0;
-  } else if (Math.abs(delta) < 0.001) {
+  } else if (steerSign === 0) {
     car.yawRate *= Math.exp(-4 * dtSafe);
   } else {
-    const yawTarget = clamp((-Math.tan(delta) * car.speed) / WHEELBASE, -yawLim, yawLim);
-    const follow = 1 - Math.exp(-(input.handbrake ? 2.5 : 8) * dtSafe);
+    const follow = 1 - Math.exp(-(input.handbrake ? 2.5 : 10) * dtSafe);
     car.yawRate += (yawTarget - car.yawRate) * follow;
   }
-  car.yawRate = clamp(car.yawRate, -yawLim, yawLim);
+  car.yawRate = clamp(car.yawRate, -1.8, 1.8);
   car.yaw += car.yawRate * dtSafe;
   if (rolling && !inWater && !input.handbrake) {
     const stick = clamp(mu, 0.25, 1.2);
