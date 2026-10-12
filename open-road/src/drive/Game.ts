@@ -1,6 +1,7 @@
 import * as THREE from "three";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { EngineAudio } from "./audio";
-import { loadCarModel, type CarVisual } from "./car";
+import { loadCarModel, setCarEnvironment, type CarVisual } from "./car";
 import { GARAGE, carById, type GarageCar } from "./garage";
 import {
   REDLINE,
@@ -87,6 +88,9 @@ export class DriveGame {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    setCarEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
+    pmrem.dispose();
 
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.15, 2500);
     this.resize();
@@ -366,7 +370,9 @@ export class DriveGame {
 
     this.visual.chassis.rotation.z += (clampLean(roll) - this.visual.chassis.rotation.z) * 0.35;
     this.visual.chassis.rotation.x += (clampLean(pitch) - this.visual.chassis.rotation.x) * 0.35;
-    this.visual.tail.emissiveIntensity = input.brake > 0 && this.car.speed > 0.4 ? 2.4 : 0.45;
+    const glow = input.brake > 0 && this.car.speed > 0.4 ? 2.8 : 1.15;
+    this.visual.tail.emissiveIntensity = glow;
+    for (const mat of this.visual.tailLights) mat.emissiveIntensity = glow;
 
     this.placeCar();
     this.placeCamera(dt);
@@ -455,6 +461,7 @@ function emptyCar(): CarVisual {
     wheels: [],
     tail: new THREE.MeshStandardMaterial(),
     head: new THREE.MeshStandardMaterial(),
+    tailLights: [],
     wheelRadius: 0.55,
     ride: 0,
   };

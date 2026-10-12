@@ -80,6 +80,14 @@ h1 {
   font-size: 18px;
 }
 
+.credits {
+  margin: 4px 0 0;
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: rgba(28, 36, 48, 0.78);
+}
+
 .play {
   margin-top: 8px;
   min-width: 220px;

@@ -26,6 +26,7 @@ app.innerHTML = `
       <button id="abs-mode" type="button">ABS: On</button>
     </div>
     <p class="note">Turn your sound on. Manual uses Q and E to shift, and Shift is the clutch. A song plays while you drive.</p>
+    <p class="credits">Models: the Lambchop cars are original bodies made for this game. The other cars are Kenney's Car Kit (CC0).</p>
   </section>
   <div id="hud" class="hud is-hidden">
     <header class="top">

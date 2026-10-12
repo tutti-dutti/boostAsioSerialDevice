@@ -32,14 +32,14 @@ function car(
  * Body style is chosen from the shape guide and is never shown.
  */
 export const GARAGE: GarageCar[] = [
-  car("Lambchop", "Chupacabra", "/models/race-future.glb", famous, {
-    scale: 1.72, ride: 0.02, wheel: 1.05, color: 0xf2c14e, spoiler: true, roofLights: false,
+  car("Lambchop", "Chupacabra", "/models/lambchop-chupacabra.glb", famous, {
+    scale: 1, ride: 0.07, wheel: 1, color: 0xf2c14e, spoiler: false, roofLights: false, realistic: true,
   }),
-  car("Lambchop", "Minotaur", "/models/race-future.glb", fastest, {
-    scale: 1.8, ride: 0, wheel: 1.1, color: 0xf4f4f4, spoiler: true, roofLights: false,
+  car("Lambchop", "Minotaur", "/models/lambchop-minotaur.glb", fastest, {
+    scale: 1, ride: 0.07, wheel: 1, color: 0xf4f4f4, spoiler: false, roofLights: false, realistic: true,
   }),
-  car("Lambchop", "Bonehorn", "/models/race-future.glb", { ...famous, accel: 1.3, top: 90 }, {
-    scale: 1.66, ride: 0.01, wheel: 1.02, color: 0x3ddc7a, spoiler: true, roofLights: false,
+  car("Lambchop", "Bonehorn", "/models/lambchop-bonehorn.glb", { ...famous, accel: 1.3, top: 90 }, {
+    scale: 1, ride: 0.07, wheel: 1, color: 0x3ddc7a, spoiler: false, roofLights: false, realistic: true,
   }),
   car("Shovel-A", "Thresher", "/models/sedan-sports.glb", famous, {
     scale: 1.82, ride: 0.05, wheel: 1, color: 0xe23b2f, spoiler: true, roofLights: false,
