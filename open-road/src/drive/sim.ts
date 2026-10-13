@@ -474,8 +474,12 @@ export function stepCar(
     car.yawRate = 0;
     car.lat = 0;
     car.ay = 0;
-  } else if (steerSign === 0) {
-    car.yawRate *= Math.exp(-(arcade ? 7 : 3.5) * dtSafe);
+  } else if (steerAmt < 0.02) {
+    // Hands-off: kill yaw/lat hard so the car tracks dead straight (no drift/wobble).
+    car.yawRate *= Math.exp(-(arcade ? 14 : 9) * dtSafe);
+    if (Math.abs(car.yawRate) < 0.02) car.yawRate = 0;
+    car.lat *= Math.exp(-(arcade ? 18 : 10) * dtSafe);
+    if (Math.abs(car.lat) < 0.02) car.lat = 0;
   } else {
     const follow = 1 - Math.exp(-(input.handbrake ? 2.4 : arcade ? 11 : 6) * dtSafe);
     car.yawRate += (yawTarget - car.yawRate) * follow;

@@ -482,13 +482,32 @@ export class DriveGame {
 
   private step(dt: number) {
     const raw = this.readInput();
-    // Arcade: snap to full lock quickly. Sim: ease in so turns aren't binary.
-    const arcadeSteer = this.setup.handling !== "sim";
-    const steerIn = arcadeSteer ? 22 : 9;
-    const steerOut = arcadeSteer ? 16 : 12;
-    const steerK = Math.abs(raw.steer) > Math.abs(this.steerSmooth) ? steerIn : steerOut;
-    this.steerSmooth += (raw.steer - this.steerSmooth) * (1 - Math.exp(-steerK * dt));
-    if (Math.abs(this.steerSmooth) < 0.01 && raw.steer === 0) this.steerSmooth = 0;
+    // Progressive wheel: ~1 s hold → full lock; taps stay small; release centers fast.
+    // Digital (±1) ramps linearly with hold time. Analog eases toward stick amount.
+    const target = Math.max(-1, Math.min(1, raw.steer));
+    const digital = Math.abs(target) >= 0.95;
+    if (Math.abs(target) < 0.02) {
+      // Snap-back to straight — no lingering pull when keys/stick released.
+      const outRate = 4.2; // ~0.25 s from full lock to center
+      const step = outRate * dt;
+      if (Math.abs(this.steerSmooth) <= step) this.steerSmooth = 0;
+      else this.steerSmooth -= Math.sign(this.steerSmooth) * step;
+    } else if (digital) {
+      const inRate = 1.05; // ~0.95 s to full lock; half-second ≈ half lock
+      const step = inRate * dt;
+      const want = Math.sign(target);
+      if (Math.sign(this.steerSmooth) === want || Math.abs(this.steerSmooth) < 0.001) {
+        this.steerSmooth = Math.max(-1, Math.min(1, this.steerSmooth + want * step));
+      } else {
+        // Crossing through center when reversing direction — unwind first.
+        this.steerSmooth -= Math.sign(this.steerSmooth) * Math.min(step * 2.2, Math.abs(this.steerSmooth));
+      }
+    } else {
+      // Partial stick: follow stick smoothly without overshooting full lock instantly.
+      const k = 5.5;
+      this.steerSmooth += (target - this.steerSmooth) * (1 - Math.exp(-k * dt));
+    }
+    if (Math.abs(this.steerSmooth) < 0.008 && Math.abs(target) < 0.02) this.steerSmooth = 0;
     const input = { ...raw, steer: this.steerSmooth };
     const surface = surfaceAt(this.car.x, this.car.z, this.world.roads, this.car.y);
     const { skid, pitch, roll, wheels, wheel } = stepCar(this.car, input, surface, dt, this.tune, this.setup);
