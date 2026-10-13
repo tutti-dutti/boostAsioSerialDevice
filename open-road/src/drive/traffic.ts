@@ -496,7 +496,7 @@ export class TrafficSystem {
         continue;
       }
 
-      const cruise = (c.route.cruiseMph * (0.82 + this.rand() * 0.08)) / 2.23694;
+      const cruise = (c.route.cruiseMph * 0.88) / 2.23694;
       let target = cruise;
       const gap = this.leaderGap(c);
       if (gap < GAP) target = Math.min(target, Math.max(0, (gap - 4) * 1.1));
