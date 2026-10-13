@@ -140,7 +140,8 @@ export class DriveGame {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("resize", this.resize);
-    this.draw(0);
+    // Defer first HUD paint so the caller's `game` binding is assigned.
+    queueMicrotask(() => this.draw(0));
   }
 
   setCops(on: boolean) {
@@ -290,6 +291,17 @@ export class DriveGame {
       this.setInputBlocked(true);
       this.say("Freecam · WASD move · Q/E up/down · F exit");
     }
+  }
+
+  /** Rear three-quarter for garage screenshots. */
+  setRearFreecam(dist = 10, height = 2.2) {
+    this.camBeforeFree = this.camMode === "free" ? this.camBeforeFree : this.camMode;
+    this.camMode = "free";
+    this.freeYaw = this.car.yaw;
+    this.freeDist = dist;
+    this.freeHeight = height;
+    this.snap = true;
+    this.setInputBlocked(true);
   }
 
   /** Side silhouette for garage screenshots (freecam orbit). */

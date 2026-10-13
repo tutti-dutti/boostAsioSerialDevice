@@ -343,188 +343,187 @@ function buildGrizzly() {
   return finish(root, "grr-grizzly.glb");
 }
 
-/** Tacoma TRD Pro: smaller / shorter mid-size truck */
+/** Tacoma TRD Pro: clearly smaller mid-size — short cab/bed, lower roof, narrow, honeycomb grille. */
 function buildTasmanianDevil() {
   const root = new THREE.Group();
   root.name = "tasmanian-devil";
   const c = new THREE.Group();
   c.name = "chassis";
-  // Noticeably shorter overall length and height
-  c.add(box(1.85, 0.18, 4.35, dark, 0, 0.55, 0));
-  c.add(box(1.8, 0.85, 1.9, paint, 0, 1.15, 0.45));
-  c.add(box(1.75, 0.12, 1.8, paint, 0, 1.62, 0.45));
-  const ws = box(1.65, 0.42, 0.07, glass, 0, 1.32, 1.35);
+  c.add(box(1.7, 0.16, 4.05, dark, 0, 0.5, 0));
+  // Short lower narrower cab
+  c.add(box(1.65, 0.72, 1.65, paint, 0, 1.05, 0.5));
+  c.add(box(1.6, 0.1, 1.55, paint, 0, 1.45, 0.5));
+  const ws = box(1.5, 0.36, 0.06, glass, 0, 1.2, 1.25);
   ws.name = "glass";
-  ws.rotation.x = -0.3;
+  ws.rotation.x = -0.28;
   c.add(ws);
-  c.add(box(1.6, 0.38, 0.06, glass, 0, 1.32, -0.45));
+  c.add(box(1.45, 0.32, 0.05, glass, 0, 1.2, -0.25));
   for (const s of [-1, 1]) {
-    c.add(box(0.05, 0.36, 0.6, glass, s * 0.92, 1.28, 0.7));
-    c.add(box(0.05, 0.36, 0.5, glass, s * 0.92, 1.28, 0.05));
+    c.add(box(0.05, 0.3, 0.55, glass, s * 0.84, 1.18, 0.7));
+    c.add(box(0.05, 0.3, 0.4, glass, s * 0.84, 1.18, 0.1));
   }
-  c.add(box(1.7, 0.22, 1.15, paint, 0, 0.92, 1.95));
-  c.add(box(1.55, 0.48, 0.12, dark, 0, 0.82, 2.55));
-  for (let i = -2; i <= 2; i++) c.add(box(1.3, 0.035, 0.05, chrome, 0, 0.82 + i * 0.07, 2.62));
+  c.add(box(1.55, 0.2, 1.0, paint, 0, 0.85, 1.8));
+  // Black honeycomb grille
+  c.add(box(1.4, 0.42, 0.1, dark, 0, 0.78, 2.35));
+  for (let row = -2; row <= 2; row++) {
+    for (let col = -3; col <= 3; col++) {
+      c.add(box(0.1, 0.05, 0.04, chrome, col * 0.16, 0.78 + row * 0.07, 2.4));
+    }
+  }
   for (const s of [-1, 1]) {
-    c.add(box(0.32, 0.18, 0.1, head, s * 0.7, 0.92, 2.58));
-    c.add(box(0.28, 0.26, 0.7, dark, s * 1.02, 0.82, 1.55));
-    c.add(box(0.28, 0.26, 0.7, dark, s * 1.02, 0.82, -1.2));
+    c.add(box(0.28, 0.16, 0.08, head, s * 0.65, 0.88, 2.38));
+    c.add(box(0.24, 0.22, 0.6, dark, s * 0.92, 0.75, 1.4));
+    c.add(box(0.24, 0.22, 0.6, dark, s * 0.92, 0.75, -1.05));
   }
-  // Short mid-size bed
-  c.add(box(1.75, 0.1, 1.55, paint, 0, 0.78, -1.5));
-  for (const s of [-1, 1]) c.add(box(0.1, 0.42, 1.55, paint, s * 0.85, 1.0, -1.5));
-  c.add(box(1.75, 0.42, 0.1, paint, 0, 1.0, -2.3));
-  for (const s of [-1, 1]) c.add(box(0.22, 0.16, 0.08, tail, s * 0.6, 0.95, -2.38));
-  c.add(box(1.3, 0.1, 0.14, dark, 0, 1.78, 1.1));
-  for (let i = -2; i <= 2; i++) c.add(box(0.12, 0.1, 0.1, head, i * 0.24, 1.82, 1.1));
-  c.add(box(1.85, 0.14, 0.3, dark, 0, 0.5, 2.8));
+  // Short bed
+  c.add(box(1.6, 0.08, 1.35, paint, 0, 0.72, -1.35));
+  for (const s of [-1, 1]) c.add(box(0.08, 0.36, 1.35, paint, s * 0.78, 0.92, -1.35));
+  c.add(box(1.6, 0.36, 0.08, paint, 0, 0.92, -2.05));
+  for (const s of [-1, 1]) c.add(box(0.2, 0.14, 0.07, tail, s * 0.55, 0.88, -2.12));
+  // Roof light bar
+  c.add(box(1.15, 0.08, 0.12, dark, 0, 1.58, 1.0));
+  for (let i = -2; i <= 2; i++) c.add(box(0.1, 0.08, 0.08, head, i * 0.2, 1.62, 1.0));
+  c.add(box(1.7, 0.12, 0.28, dark, 0, 0.48, 2.55));
   root.add(c);
-  addWheels(root, 1.05, 1.55, -1.2, 0.52, 0.34);
+  addWheels(root, 0.95, 1.4, -1.1, 0.48, 0.32);
   return finish(root, "coyota-tasmanian-devil.glb");
 }
 
-/** Cybertruck: one big flat-sided steel triangle — single roof peak line, no curves */
+/** Cybertruck: ONE solid closed doorstop — peak over doors, flat slopes front/back, no open top. */
 function buildAnkylosaur() {
   const root = new THREE.Group();
   root.name = "ankylosaur";
   const c = new THREE.Group();
   c.name = "chassis";
-  // Single continuous wedge: peak above doors, straight to bumper and tailgate
-  const peakY = 1.85;
-  const peakZ = 0.15;
-  // Flat side panels as large slanted slabs (triangle silhouette)
+  const peakY = 1.9;
+  const peakZ = 0.1;
+  // Solid filled body volume (not separate upright side walls)
+  c.add(box(2.1, 0.85, 5.2, steel, 0, 0.85, 0));
+  // Flat steel sides flush with the wedge
   for (const s of [-1, 1]) {
-    const side = box(0.08, 1.55, 5.4, steel, s * 1.05, 0.95, 0);
-    side.rotation.z = s * 0.08;
-    c.add(side);
+    c.add(box(0.12, 1.4, 5.15, steel, s * 1.05, 0.95, 0));
   }
-  // Underside / floor
-  c.add(box(2.05, 0.2, 5.3, steel, 0, 0.45, 0));
-  // Front slope (hood is not separate — continuous face)
-  const frontFace = box(2.0, 0.12, 2.6, steel, 0, 1.05, 1.55);
-  frontFace.rotation.x = 0.42;
+  // Front slope: peak → bumper (one straight face)
+  const frontFace = box(2.05, 0.14, 2.85, steel, 0, (peakY + 0.4) * 0.5, 1.4);
+  frontFace.rotation.x = 0.48;
   c.add(frontFace);
-  // Rear slope
-  const rearFace = box(2.0, 0.12, 2.5, steel, 0, 1.05, -1.45);
-  rearFace.rotation.x = -0.38;
+  // Rear slope: peak → tail
+  const rearFace = box(2.05, 0.14, 2.7, steel, 0, (peakY + 0.4) * 0.5, -1.35);
+  rearFace.rotation.x = -0.42;
   c.add(rearFace);
-  // Peak ridge / roof plane meeting at doors
-  c.add(box(1.95, 0.1, 0.9, steel, 0, peakY, peakZ));
-  // Glass as flat inset faces on the slopes
-  const ws = box(1.7, 0.08, 1.4, glass, 0, 1.35, 1.15);
+  // Sharp roof peak ridge above the doors
+  c.add(box(2.0, 0.12, 0.55, steel, 0, peakY, peakZ));
+  // Fill the triangle so there is no open top / bathtub
+  c.add(box(1.95, 0.55, 1.6, steel, 0, 1.35, 0.9));
+  c.add(box(1.95, 0.55, 1.5, steel, 0, 1.35, -0.85));
+  // Dark windshield on the front slope
+  const ws = box(1.65, 0.1, 1.35, glass, 0, 1.4, 1.05);
   ws.name = "glass";
-  ws.rotation.x = 0.42;
+  ws.rotation.x = 0.48;
   c.add(ws);
-  const rs = box(1.55, 0.08, 1.1, glass, 0, 1.35, -1.0);
+  const rs = box(1.45, 0.08, 1.0, glass, 0, 1.35, -0.95);
   rs.name = "glass";
-  rs.rotation.x = -0.38;
+  rs.rotation.x = -0.42;
   c.add(rs);
   for (const s of [-1, 1]) {
-    const sideG = box(0.06, 0.55, 1.1, glass, s * 1.02, 1.35, 0.15);
+    const sideG = box(0.06, 0.45, 0.95, glass, s * 1.05, 1.4, 0.15);
     sideG.name = "glass";
     c.add(sideG);
   }
-  // Thin light bars straight across front and back
-  c.add(box(1.95, 0.06, 0.08, head, 0, 0.72, 2.65));
-  c.add(box(1.95, 0.06, 0.08, tail, 0, 0.78, -2.65));
-  c.add(box(2.1, 0.14, 0.28, dark, 0, 0.38, 2.7));
-  c.add(box(2.1, 0.14, 0.28, dark, 0, 0.38, -2.7));
-  // Minimal wheel arches cut as dark insets
+  // Full-width thin light bars
+  c.add(box(2.05, 0.055, 0.07, head, 0, 0.7, 2.7));
+  c.add(box(2.05, 0.055, 0.07, tail, 0, 0.75, -2.7));
+  c.add(box(2.15, 0.14, 0.3, dark, 0, 0.38, 2.75));
+  c.add(box(2.15, 0.14, 0.3, dark, 0, 0.38, -2.75));
+  // Angular wheel arches — wheels sit inside
   for (const s of [-1, 1]) {
-    c.add(box(0.2, 0.35, 0.85, dark, s * 1.12, 0.7, 1.55));
-    c.add(box(0.2, 0.35, 0.85, dark, s * 1.12, 0.7, -1.55));
+    c.add(box(0.22, 0.4, 0.9, dark, s * 1.12, 0.65, 1.55));
+    c.add(box(0.22, 0.4, 0.9, dark, s * 1.12, 0.65, -1.55));
   }
   root.add(c);
-  addWheels(root, 1.12, 1.65, -1.65, 0.5, 0.34);
+  addWheels(root, 1.08, 1.6, -1.6, 0.48, 0.32);
   return finish(root, "voltra-ankylosaur.glb");
 }
 
-/** Hummer H1: NO truck bed. Extra wide, low, flat roof, split windshield, boxy back */
+/** Hummer H1: widest vehicle in the game, low flat roof, closed box cabin. */
 function buildWarHippo() {
   const root = new THREE.Group();
   root.name = "war-hippo";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(2.7, 0.32, 4.6, dark, 0, 0.62, 0.05));
-  // One continuous box cabin — no open bed
-  c.add(box(2.65, 1.05, 3.9, paint, 0, 1.25, 0.05));
-  c.add(box(2.6, 0.1, 3.85, paint, 0, 1.82, 0.05)); // flat low roof
-  // Short flat hood
-  c.add(box(2.4, 0.35, 0.95, paint, 0, 1.0, 2.35));
-  // Flat split windshield
-  const wsL = box(1.15, 0.55, 0.08, glass, -0.6, 1.45, 1.95);
+  // Widest stance in the garage
+  c.add(box(3.05, 0.32, 4.6, dark, 0, 0.62, 0.05));
+  c.add(box(3.0, 0.95, 3.9, paint, 0, 1.2, 0.05));
+  c.add(box(2.95, 0.1, 3.85, paint, 0, 1.72, 0.05)); // low flat roof
+  c.add(box(2.7, 0.32, 0.95, paint, 0, 0.95, 2.35));
+  const wsL = box(1.3, 0.5, 0.08, glass, -0.7, 1.38, 1.95);
   wsL.name = "glass";
   wsL.rotation.x = -0.08;
   c.add(wsL);
-  const wsR = box(1.15, 0.55, 0.08, glass, 0.6, 1.45, 1.95);
+  const wsR = box(1.3, 0.5, 0.08, glass, 0.7, 1.38, 1.95);
   wsR.name = "glass";
   wsR.rotation.x = -0.08;
   c.add(wsR);
-  c.add(box(0.1, 0.55, 0.08, dark, 0, 1.45, 1.95));
-  // Boxy closed rear (cargo inside, not a pickup bed)
-  c.add(box(2.5, 0.95, 0.12, paint, 0, 1.25, -1.95));
-  c.add(box(2.2, 0.5, 0.06, glass, 0, 1.45, -1.98));
+  c.add(box(0.1, 0.5, 0.08, dark, 0, 1.38, 1.95));
+  c.add(box(2.85, 0.9, 0.12, paint, 0, 1.2, -1.95));
+  c.add(box(2.5, 0.45, 0.06, glass, 0, 1.38, -1.98));
   for (const s of [-1, 1]) {
-    c.add(box(0.06, 0.5, 1.6, glass, s * 1.35, 1.4, 0.3));
-    c.add(box(0.06, 0.45, 1.0, glass, s * 1.35, 1.4, -1.1));
-    c.add(box(0.38, 0.28, 0.12, head, s * 1.0, 0.95, 2.8));
-    c.add(box(0.22, 0.16, 0.28, dark, s * 1.48, 1.55, 0.9));
-    c.add(box(0.28, 0.22, 0.1, tail, s * 1.0, 1.1, -2.0));
+    c.add(box(0.06, 0.45, 1.6, glass, s * 1.52, 1.35, 0.3));
+    c.add(box(0.06, 0.4, 1.0, glass, s * 1.52, 1.35, -1.1));
+    c.add(box(0.4, 0.28, 0.12, head, s * 1.15, 0.95, 2.8));
+    c.add(box(0.24, 0.16, 0.28, dark, s * 1.68, 1.5, 0.9));
+    c.add(box(0.3, 0.22, 0.1, tail, s * 1.15, 1.05, -2.0));
+    c.add(box(0.4, 0.08, 2.9, dark, s * 1.7, 0.55, 0));
   }
-  c.add(box(1.9, 0.5, 0.12, dark, 0, 0.9, 2.85));
-  c.add(box(2.65, 0.25, 0.4, dark, 0, 0.52, 2.95));
-  c.add(box(2.65, 0.25, 0.35, dark, 0, 0.52, -2.15));
-  // Side steps / wide stance
-  for (const s of [-1, 1]) c.add(box(0.35, 0.08, 2.8, dark, s * 1.5, 0.55, 0));
+  c.add(box(2.1, 0.5, 0.12, dark, 0, 0.9, 2.85));
+  c.add(box(3.0, 0.25, 0.4, dark, 0, 0.52, 2.95));
+  c.add(box(3.0, 0.25, 0.35, dark, 0, 0.52, -2.15));
   root.add(c);
-  addWheels(root, 1.45, 1.55, -1.4, 0.58, 0.48);
+  addWheels(root, 1.62, 1.55, -1.4, 0.58, 0.5);
   return finish(root, "bummer-war-hippo.glb");
 }
 
-/** Rivian R1T: smoother/rounder body, vertical oval stadium headlights + light bar */
+/** Rivian R1T: modern EV pickup — blended fenders, stadium lamps + bar, no grille, short bed. */
 function buildSwampBeast() {
   const root = new THREE.Group();
   root.name = "swamp-beast";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(2.05, 0.2, 5.05, dark, 0, 0.48, 0));
-  // Soft stepped volumes for a rounder side read
-  c.add(box(2.0, 0.85, 2.2, paint, 0, 1.15, 0.35));
-  c.add(box(1.85, 0.55, 1.8, paint, 0, 1.55, 0.25)); // inset upper cabin
-  c.add(box(1.9, 0.12, 1.9, paint, 0, 1.88, 0.2));
-  // Rounded hood steps
-  c.add(box(1.9, 0.22, 1.4, paint, 0, 0.88, 2.05));
-  c.add(box(1.65, 0.14, 1.0, paint, 0, 1.05, 2.15));
-  c.add(cyl(0.55, 0.55, 1.85, paint, 0, 0.95, 2.0, 0, 0, Math.PI / 2)); // soft nose volume
-  const ws = box(1.75, 0.48, 0.07, glass, 0, 1.45, 1.35);
+  c.add(box(2.1, 0.18, 5.0, dark, 0, 0.48, 0));
+  // Smooth rounded-box body — fenders blend into sides (no tube arches)
+  c.add(box(2.05, 0.9, 2.35, paint, 0, 1.12, 0.3));
+  c.add(box(1.95, 0.5, 2.0, paint, 0, 1.6, 0.2));
+  c.add(box(1.95, 0.1, 1.95, paint, 0, 1.88, 0.15));
+  // Flat EV nose (no grille)
+  c.add(box(1.95, 0.28, 1.35, paint, 0, 0.9, 2.05));
+  c.add(box(1.7, 0.16, 0.9, paint, 0, 1.05, 2.2));
+  const ws = box(1.8, 0.48, 0.07, glass, 0, 1.48, 1.35);
   ws.name = "glass";
-  ws.rotation.x = -0.38;
+  ws.rotation.x = -0.4;
   c.add(ws);
-  c.add(box(1.55, 0.4, 0.06, glass, 0, 1.5, -0.7));
+  c.add(box(1.6, 0.4, 0.06, glass, 0, 1.52, -0.75));
   for (const s of [-1, 1]) {
-    c.add(box(0.05, 0.4, 0.85, glass, s * 1.0, 1.45, 0.35));
-    // Soft fender arches (cylinders)
-    c.add(cyl(0.55, 0.55, 0.35, paint, s * 1.1, 0.85, 1.65, 0, 0, Math.PI / 2));
-    c.add(cyl(0.55, 0.55, 0.35, paint, s * 1.1, 0.85, -1.5, 0, 0, Math.PI / 2));
+    c.add(box(0.05, 0.4, 0.9, glass, s * 1.02, 1.48, 0.3));
+    // Blended fender volumes (boxes, not separate tubes)
+    c.add(box(0.35, 0.45, 1.05, paint, s * 1.1, 0.85, 1.6));
+    c.add(box(0.35, 0.45, 1.05, paint, s * 1.1, 0.85, -1.45));
   }
-  // Vertical oval stadium headlights + thin bar between them
+  // Tall vertical oval stadium headlights + thin bar
   for (const s of [-1, 1]) {
-    c.add(cyl(0.2, 0.2, 0.12, head, s * 0.72, 0.82, 2.75, Math.PI / 2, 0, 0));
-    c.add(box(0.18, 0.42, 0.1, head, s * 0.72, 0.82, 2.74)); // vertical oval stretch
+    c.add(box(0.2, 0.48, 0.1, head, s * 0.78, 0.85, 2.72));
+    c.add(cyl(0.12, 0.12, 0.08, head, s * 0.78, 0.7, 2.74, Math.PI / 2, 0, 0));
+    c.add(cyl(0.12, 0.12, 0.08, head, s * 0.78, 1.0, 2.74, Math.PI / 2, 0, 0));
   }
-  c.add(box(1.15, 0.05, 0.06, head, 0, 0.82, 2.76)); // thin bar between lamps
-  c.add(box(1.55, 0.32, 0.1, dark, 0, 0.7, 2.7));
-  // Smooth bed with rounded top rails
-  c.add(box(1.95, 0.12, 2.0, paint, 0, 0.78, -1.85));
-  for (const s of [-1, 1]) {
-    c.add(box(0.1, 0.45, 2.0, paint, s * 0.95, 1.02, -1.85));
-    c.add(cyl(0.08, 0.08, 1.9, paint, s * 0.95, 1.28, -1.85, Math.PI / 2, 0, 0));
-  }
-  c.add(box(1.95, 0.45, 0.1, paint, 0, 1.02, -2.85));
-  c.add(box(1.7, 0.08, 0.06, tail, 0, 1.0, -2.92));
-  c.add(box(2.0, 0.14, 0.28, dark, 0, 0.45, 2.95));
+  c.add(box(1.25, 0.045, 0.06, head, 0, 0.85, 2.75));
+  c.add(box(1.6, 0.28, 0.08, dark, 0, 0.65, 2.68));
+  // Short sleek bed + rear light bar
+  c.add(box(2.0, 0.1, 1.75, paint, 0, 0.78, -1.75));
+  for (const s of [-1, 1]) c.add(box(0.1, 0.42, 1.75, paint, s * 0.98, 1.0, -1.75));
+  c.add(box(2.0, 0.42, 0.1, paint, 0, 1.0, -2.65));
+  c.add(box(1.85, 0.06, 0.06, tail, 0, 1.0, -2.72));
+  c.add(box(2.05, 0.12, 0.28, dark, 0, 0.45, 2.9));
   root.add(c);
-  addWheels(root, 1.12, 1.7, -1.5, 0.52, 0.36);
+  addWheels(root, 1.15, 1.65, -1.45, 0.55, 0.38);
   return finish(root, "river-run-swamp-beast.glb");
 }
 
