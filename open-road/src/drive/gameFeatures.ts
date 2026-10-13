@@ -525,6 +525,7 @@ export class GameFeatures {
         this.stopSiren();
         car.x = SPAWN.x;
         car.z = SPAWN.z;
+        car.yaw = SPAWN.yaw;
         car.speed = 0;
         say("BUSTED");
       }

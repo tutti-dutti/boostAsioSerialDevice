@@ -3,6 +3,8 @@
  * restaurants, car wash. Heavy use of InstancedMesh for performance.
  */
 import * as THREE from "three";
+import { loadCarModel } from "./car";
+import { carById } from "./garage";
 import {
   INNER_RIM,
   SURFACE_LIFT,
@@ -710,7 +712,6 @@ export function addDealership(object: THREE.Group, colliders: Collider[]) {
     opacity: 0.55,
   });
   const frame = new THREE.MeshStandardMaterial({ color: 0xd8dce0, roughness: 0.45, metalness: 0.55 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1a1e24, roughness: 0.7 });
   const asphalt = new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.92 });
 
   // Floor pad inside showroom
@@ -740,7 +741,7 @@ export function addDealership(object: THREE.Group, colliders: Collider[]) {
   colliders.push({ kind: "box", x: dx - 10.8, z: dz, hx: 0.4, hz: 7.5 });
   colliders.push({ kind: "box", x: dx + 10.8, z: dz, hx: 0.4, hz: 7.5 });
 
-  // Roof + GARAGE sign
+  // Roof + GARAGE sign (two planes so it reads correctly from road and from behind)
   const roof = new THREE.Mesh(new THREE.BoxGeometry(24, 0.45, 18), frame);
   roof.position.set(dx, y0 + wallH + 0.2, dz);
   object.add(roof);
@@ -756,35 +757,28 @@ export function addDealership(object: THREE.Group, colliders: Collider[]) {
   sg.textBaseline = "middle";
   sg.fillText("GARAGE", 256, 68);
   const signTex = new THREE.CanvasTexture(signCanvas);
-  const sign = new THREE.Mesh(
-    new THREE.PlaneGeometry(12, 2.2),
+  const signMat = () =>
     new THREE.MeshStandardMaterial({
       map: signTex,
       emissive: 0xaa7700,
       emissiveIntensity: 0.35,
       roughness: 0.45,
-      side: THREE.DoubleSide,
-    }),
-  );
-  sign.position.set(dx, y0 + wallH + 1.4, dz - 2.2);
-  object.add(sign);
+      side: THREE.FrontSide,
+    });
+  const signY = y0 + wallH + 1.4;
+  const signZ = dz - 2.2;
+  // Front faces the road (south / −Z). PlaneGeometry faces +Z by default → yaw π.
+  const signFront = new THREE.Mesh(new THREE.PlaneGeometry(12, 2.2), signMat());
+  signFront.position.set(dx, signY, signZ - 0.02);
+  signFront.rotation.y = Math.PI;
+  // Back faces the showroom / north so it isn't mirrored from either side.
+  const signBack = new THREE.Mesh(new THREE.PlaneGeometry(12, 2.2), signMat());
+  signBack.position.set(dx, signY, signZ + 0.02);
+  signBack.rotation.y = 0;
+  object.add(signFront, signBack);
 
-  // Display cars (simple colored bodies behind glass)
-  const display = [
-    { x: -6, z: 2, c: 0xff3355 },
-    { x: 0, z: 3, c: 0x4488cc },
-    { x: 6, z: 2, c: 0xf2c14e },
-  ];
-  for (const d of display) {
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(1.7, 0.55, 3.4),
-      new THREE.MeshStandardMaterial({ color: d.c, roughness: 0.4, metalness: 0.35 }),
-    );
-    body.position.set(dx + d.x, y0 + 0.55, dz + d.z);
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.45, 1.5), dark);
-    cabin.position.set(dx + d.x, y0 + 1.0, dz + d.z - 0.1);
-    object.add(body, cabin);
-  }
+  // Real garage models on the display floor (async — pop in when GLBs load).
+  void loadDealershipDisplayCars(object, dx, dz, y0 + 0.12);
 
   // Flags out front
   for (const side of [-1, 1]) {
@@ -809,6 +803,32 @@ export function addDealership(object: THREE.Group, colliders: Collider[]) {
   const drive = new THREE.Mesh(new THREE.BoxGeometry(10, 0.18, driveLen), asphalt);
   drive.position.set(dx, y0 + SURFACE_LIFT + 0.04, (DEALERSHIP.drivewayZ0 + DEALERSHIP.drivewayZ1) / 2);
   object.add(drive);
+}
+
+/** Park real garage GLBs inside the showroom at display angles. */
+async function loadDealershipDisplayCars(
+  object: THREE.Group,
+  dx: number,
+  dz: number,
+  floorY: number,
+) {
+  const spots = [
+    { id: "lambchop-minotaur", x: -6.2, z: 1.2, yaw: 0.55 },
+    { id: "baguetti-cerberus", x: 0.2, z: 2.8, yaw: -0.35 },
+    { id: "king-egg-kraken", x: 6.0, z: 1.0, yaw: 0.85 },
+  ];
+  for (const spot of spots) {
+    const entry = carById(spot.id);
+    try {
+      const visual = await loadCarModel(entry.model, entry.look);
+      visual.root.position.set(dx + spot.x, floorY + visual.ride, dz + spot.z);
+      visual.root.rotation.y = spot.yaw;
+      visual.root.name = `dealership-display-${spot.id}`;
+      object.add(visual.root);
+    } catch (err) {
+      console.error(`Dealership display failed for ${spot.id}`, err);
+    }
+  }
 }
 
 /** JOB 8 — car wash building. */
