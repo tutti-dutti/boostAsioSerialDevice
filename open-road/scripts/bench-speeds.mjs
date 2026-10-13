@@ -74,10 +74,14 @@ for (const id of ids) {
   );
 }
 
-console.log("\n=== Swamp Beast 0–60 ===");
+console.log("\n=== 0–60 launch comparison ===");
 const swamp = GARAGE.find((c) => c.id === "river-run-swamp-beast");
 const z60 = zeroToSixty(swamp.tune);
-console.log(`0–60: ${z60.t == null ? "FAIL" : z60.t.toFixed(2) + "s"}  (at ${z60.mph.toFixed(1)} mph)`);
+const krakenZ = zeroToSixty(GARAGE.find((c) => c.id === "king-egg-kraken").tune);
+const leviZ = zeroToSixty(GARAGE.find((c) => c.id === "king-egg-leviathan").tune);
+console.log(`Swamp Beast 0–60: ${z60.t == null ? "FAIL" : z60.t.toFixed(2) + "s"}  (at ${z60.mph.toFixed(1)} mph)`);
+console.log(`Kraken 0–60:      ${krakenZ.t == null ? "FAIL" : krakenZ.t.toFixed(2) + "s"}`);
+console.log(`Leviathan 0–60:   ${leviZ.t == null ? "FAIL" : leviZ.t.toFixed(2) + "s"}`);
 
 console.log("\n=== Ranking check ===");
 const order = ["king-egg-kraken", "king-egg-leviathan", "baguetti-cerberus", "ferocity-manticore"];
@@ -99,7 +103,9 @@ const checks = [
   ["Kraken > Leviathan", kraken && levi && kraken.peakMph > levi.peakMph],
   ["Leviathan > Cerberus", levi && cerb && levi.peakMph > cerb.peakMph],
   ["Swamp top ~125", swampTop && swampTop.peakMph >= 118 && swampTop.peakMph <= 128],
-  ["Swamp 0–60 ~2.5s", z60.t != null && z60.t >= 1.8 && z60.t <= 3.2],
+  ["Swamp 0–60 ~1.5s", z60.t != null && z60.t >= 1.2 && z60.t <= 1.75],
+  ["Swamp quicker launch than Kraken", z60.t != null && krakenZ.t != null && z60.t < krakenZ.t],
+  ["Swamp quicker launch than Leviathan", z60.t != null && leviZ.t != null && z60.t < leviZ.t],
   ["Kraken stable (yaw)", kraken && kraken.peakYaw < 0.35],
   ["Leviathan stable (yaw)", levi && levi.peakYaw < 0.35],
 ];

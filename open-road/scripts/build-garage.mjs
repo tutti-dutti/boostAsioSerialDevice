@@ -386,7 +386,7 @@ function buildGreatWhite() {
 /** Jesko Absolut: very low/wide, huge wing on tall posts, big splitter, teardrop cabin */
 function buildKraken() {
   // Jesko Absolut: very low/wide, huge rear wing on tall posts, big splitter,
-  // teardrop cabin, white/silver paint.
+  // teardrop cabin, white/silver paint. Boxes only (reliable GLB load).
   const silver = new THREE.MeshStandardMaterial({
     name: "paint",
     color: 0xe8ecf0,
@@ -397,48 +397,42 @@ function buildKraken() {
   root.name = "kraken";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(
-    sideBody(
-      [
-        [2.45, 0.22],
-        [1.9, 0.34],
-        [1.2, 0.42],
-        [0.5, 0.48],
-        [0.05, 0.68],
-        [-0.4, 0.78],
-        [-0.9, 0.65],
-        [-1.5, 0.48],
-        [-2.05, 0.36],
-      ],
-      2.25,
-      silver,
-      0.2,
-    ),
-  );
+  // Low wide main body + stepped teardrop roof line
+  c.add(box(2.3, 0.28, 4.5, silver, 0, 0.38, 0.05));
+  c.add(box(2.15, 0.16, 1.7, silver, 0, 0.52, 1.55)); // hood
+  const nose = box(1.7, 0.14, 0.7, silver, 0, 0.36, 2.35);
+  nose.rotation.x = 0.22;
+  c.add(nose);
   // Big front splitter
-  c.add(box(2.2, 0.05, 0.55, silver, 0, 0.22, 2.35));
-  c.add(box(2.05, 0.04, 0.2, dark, 0, 0.2, 2.55));
-  for (const s of [-1, 1]) {
-    c.add(box(0.45, 0.32, 1.3, silver, s * 1.15, 0.42, -0.55));
-    c.add(box(0.22, 0.16, 0.7, silver, s * 1.12, 0.55, 1.25));
-    c.add(box(0.26, 0.2, 0.85, silver, s * 1.18, 0.55, -1.35));
-    c.add(box(0.4, 0.05, 0.1, head, s * 0.65, 0.34, 2.4));
-    c.add(box(0.08, 0.2, 0.04, tail, s * 0.5, 0.48, -2.1));
-    // Tall wing posts
-    c.add(box(0.06, 0.55, 0.18, dark, s * 0.85, 0.95, -1.55));
-  }
-  // Teardrop cabin
-  c.add(sideBody([[0.5, 0.55], [0.15, 0.9], [-0.35, 0.95], [-0.75, 0.8], [-1.0, 0.55]], 1.1, glass, 0.52));
-  const ws = box(1.15, 0.34, 0.07, glass, 0, 0.78, 0.45);
+  c.add(box(2.25, 0.05, 0.6, silver, 0, 0.2, 2.45));
+  c.add(box(2.1, 0.04, 0.22, dark, 0, 0.18, 2.7));
+  // Teardrop cabin (low bubble)
+  c.add(box(1.25, 0.34, 1.55, silver, 0, 0.72, -0.15));
+  const canopy = box(1.05, 0.22, 1.2, glass, 0, 0.95, -0.25);
+  canopy.name = "glass";
+  canopy.rotation.x = -0.18;
+  c.add(canopy);
+  const ws = box(1.15, 0.36, 0.07, glass, 0, 0.78, 0.55);
   ws.name = "glass";
-  ws.rotation.x = -0.4;
+  ws.rotation.x = -0.48;
   c.add(ws);
+  for (const s of [-1, 1]) {
+    c.add(box(0.05, 0.28, 0.95, glass, s * 0.62, 0.82, -0.15));
+    c.add(box(0.48, 0.34, 1.35, silver, s * 1.2, 0.45, -0.55)); // wide hips
+    c.add(box(0.24, 0.18, 0.75, silver, s * 1.15, 0.52, 1.3));
+    c.add(box(0.28, 0.22, 0.9, silver, s * 1.22, 0.52, -1.4));
+    c.add(box(0.42, 0.05, 0.1, head, s * 0.7, 0.34, 2.55));
+    c.add(box(0.08, 0.22, 0.04, tail, s * 0.55, 0.5, -2.2));
+    // Tall wing posts
+    c.add(box(0.07, 0.62, 0.2, dark, s * 0.9, 1.0, -1.65));
+  }
   // Huge rear wing
-  c.add(box(2.3, 0.06, 0.45, silver, 0, 1.28, -1.55));
-  c.add(box(2.15, 0.04, 0.12, dark, 0, 1.32, -1.7));
-  c.add(box(1.9, 0.08, 0.4, dark, 0, 0.22, -2.15));
+  c.add(box(2.4, 0.07, 0.5, silver, 0, 1.35, -1.65));
+  c.add(box(2.2, 0.04, 0.14, dark, 0, 1.4, -1.82));
+  c.add(box(1.95, 0.1, 0.45, dark, 0, 0.22, -2.25));
+  c.add(box(1.6, 0.28, 0.08, dark, 0, 0.48, -2.25));
   root.add(c);
-  addWheels(root, 1.05, 1.15, 1.25, -1.4, 0.9, 1.25);
+  addWheels(root, 1.08, 1.18, 1.3, -1.45, 0.92, 1.3);
   return finish(root, "king-egg-kraken.glb");
 }
 

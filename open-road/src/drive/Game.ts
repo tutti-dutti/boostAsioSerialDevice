@@ -84,6 +84,9 @@ export class DriveGame {
   private shiftDown = false;
   private switching = false;
   private inWater = false;
+  /** Seconds of remaining launch camera shake (EV truck punch). */
+  private launchShake = 0;
+  private lastThrottle = 0;
   private readonly desired = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   private readonly onFrame: (info: FrameInfo) => void;
@@ -219,6 +222,8 @@ export class DriveGame {
     resetCar(this.car);
     this.inWater = false;
     this.snap = true;
+    this.launchShake = 0;
+    this.lastThrottle = 0;
     this.say("Back to the start");
   }
 
@@ -397,6 +402,18 @@ export class DriveGame {
       this.say("Bump!");
       this.impactCool = 0.55;
     }
+    // Swamp Beast-class EV: little camera punch when flooring from a stop.
+    if (
+      this.tune.launchGrip &&
+      input.throttle > 0.85 &&
+      this.lastThrottle <= 0.85 &&
+      Math.abs(this.car.speed) < 4 &&
+      !this.car.reverse
+    ) {
+      this.launchShake = Math.max(this.launchShake, 0.55);
+    }
+    this.launchShake = Math.max(0, this.launchShake - dt);
+    this.lastThrottle = input.throttle;
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;
       if (this.toastTimer <= 0) this.toast = "";
@@ -539,6 +556,12 @@ export class DriveGame {
     }
     const camFloor = heightAt(this.camera.position.x, this.camera.position.z) + SURFACE_LIFT + 2.2;
     if (this.camera.position.y < camFloor) this.camera.position.y = camFloor;
+    if (this.launchShake > 0 && this.camMode !== "free") {
+      const amp = 0.09 * (this.launchShake / 0.55);
+      this.camera.position.x += (Math.random() - 0.5) * amp;
+      this.camera.position.y += (Math.random() - 0.5) * amp * 0.7;
+      this.camera.position.z += (Math.random() - 0.5) * amp;
+    }
     this.camera.lookAt(this.look);
   }
 

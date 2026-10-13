@@ -66,6 +66,8 @@ export type Tune = {
   cg: number;
   /** Electric single-speed drivetrain (no gear shifts). */
   singleSpeed?: boolean;
+  /** Sticky launch tires so instant EV torque doesn't spin away. */
+  launchGrip?: boolean;
   /** Hypercar: more top-end shove and planted at very high speed. */
   hyper?: boolean;
 };
@@ -264,8 +266,12 @@ export function stepCar(
   const inWater = surface.name === "Water";
   const onGrass = surface.name === "Grass";
   const loose = !inWater && !onGrass && surface.name !== "Dry" && surface.name !== "Wet";
-  const gripBoost = arcade ? 1.35 : 1;
-  const mu = clamp(surface.grip * (loose ? Math.max(0.55, tune.offroad) : 1) * gripBoost, 0.04, 2.2);
+  let gripBoost = arcade ? 1.35 : 1;
+  // EV launch: glue the tires at low speed so full instant torque sticks.
+  if (tune.launchGrip && !car.reverse && Math.abs(car.speed) < 32 && input.throttle > 0.4) {
+    gripBoost *= arcade ? 1.55 : 1.7;
+  }
+  const mu = clamp(surface.grip * (loose ? Math.max(0.55, tune.offroad) : 1) * gripBoost, 0.04, 3.4);
   // Turning radius in meters. Full lock U-turns in about 36–40 ft on dry road.
   const speedAbs = Math.abs(car.speed);
   const gripAy = (input.handbrake ? 0.45 : arcade ? 2.4 : 1.55) * mu * 9.81;
@@ -359,7 +365,12 @@ export function stepCar(
   // about 0–15 mph in 2–3 seconds.
   const revCap = inWater ? 3 : 10.5;
   const pull = Math.abs(car.speed) / Math.max(12, car.reverse ? revCap : speedCap);
-  const curve = pull < 0.6 ? 1 : Math.max(0.24, 1 - (pull - 0.6) * 1.7);
+  // Launch-grip EVs keep a flatter mid-band shove so 0–60 stays brutal, then
+  // taper hard near their low truck tops.
+  let curve = pull < 0.6 ? 1 : Math.max(0.24, 1 - (pull - 0.6) * 1.7);
+  if (tune.launchGrip && !car.reverse) {
+    curve = pull < 0.45 ? 1 : Math.max(0.18, 1 - (pull - 0.45) * 1.9);
+  }
   let drive: number;
   if (car.reverse) {
     // Fixed reverse shove so trucks reverse as quickly as sports cars.
@@ -382,7 +393,10 @@ export function stepCar(
     const driveCap = frontCap * driveSplit[0] + rearCap * driveSplit[1];
     // Stronger cars may use more of the tire. The rest of the friction stays
     // for cornering, so full throttle does not spin the car around.
-    const use = clamp(0.72 + 0.2 * tune.accel, 0.4, 0.98);
+    // Launch-grip EVs are allowed nearly full tire for the shove.
+    const use = tune.launchGrip
+      ? clamp(0.92 + 0.08 * Math.min(1, tune.accel / 2), 0.9, 0.99)
+      : clamp(0.72 + 0.2 * tune.accel, 0.4, 0.98);
     const limit = (driveCap * use) / Math.max(0.2, Math.abs(drive));
     if (limit < 1) drive *= limit;
   }

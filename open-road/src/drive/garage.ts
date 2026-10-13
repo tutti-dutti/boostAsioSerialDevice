@@ -35,17 +35,18 @@ const truckHeavy: Tune = { accel: 0.3, top: mph(95), offroad: 1.6, drive: "awd",
 /** Mid-size lifted pickup. */
 const truckMid: Tune = { accel: 0.4, top: mph(105), offroad: 1.5, drive: "awd", mass: 2300, cg: 0.7 };
 /**
- * Rivian-style EV truck: ~2.5s 0–60, ~125 mph top, single-speed.
- * Accel is high so launch is instant; top stays truck-like.
+ * Rivian-style EV truck: ~1.5s 0–60 (quickest launch in the game), ~125 mph top.
+ * Instant single-speed shove + sticky launch grip; highway tops stay with supercars.
  */
 const swampBeast: Tune = {
-  accel: 1.35,
+  accel: 2.45,
   top: mph(125),
   offroad: 1.45,
   drive: "awd",
   mass: 2500,
   cg: 0.68,
   singleSpeed: true,
+  launchGrip: true,
 };
 
 function car(
@@ -105,9 +106,9 @@ export const GARAGE: GarageCar[] = [
   // Coyota
   car("Coyota", "Tasmanian Devil", "/models/coyota-tasmanian-devil.glb", truckMid, look(0x2a4a2e), "diesel"),
   // Voltra
-  car("Voltra", "Ankylosaur", "/models/voltra-ankylosaur.glb", truck, look(0x9aa0a6), "ev"),
-  // Bummer
-  car("Bummer", "War Hippo", "/models/bummer-war-hippo.glb", truckHeavy, look(0x5a6248), "diesel"),
+  car("Voltra", "Ankylosaur", "/models/voltra-ankylosaur.glb", truck, look(0xc8ced4), "ev"),
+  // Bummer — army tan Hummer H1 (no bed)
+  car("Bummer", "War Hippo", "/models/bummer-war-hippo.glb", truckHeavy, look(0x9a8b5c), "diesel"),
   // River Run
   car("River Run", "Swamp Beast", "/models/river-run-swamp-beast.glb", swampBeast, look(0x1e3a4a), "ev"),
 ];
