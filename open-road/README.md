@@ -8,6 +8,8 @@ This project is separate from Cookie Guard.
 
 ## Play
 
+Online: https://open-road-632221334464.us-central1.run.app
+
 ```bash
 cd open-road
 npm install
