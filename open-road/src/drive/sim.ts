@@ -70,6 +70,8 @@ export type Tune = {
   launchGrip?: boolean;
   /** Hypercar: more top-end shove and planted at very high speed. */
   hyper?: boolean;
+  /** Raptor-style long-travel suspension: soft, ~2× wheel travel, soaks jumps. */
+  longTravel?: boolean;
 };
 
 export type Handling = "arcade" | "sim";
@@ -350,15 +352,17 @@ export function stepCar(
     }
   }
   // Grass/dirt: trucks keep almost full speed. Cars keep most of it on grass.
+  // Razorback long-travel stays even closer to full pace on trails.
   const isTruck = tune.offroad >= 1.2 || tune.mass >= 2300;
-  const grassFrac = isTruck ? 0.98 : 0.75;
+  const grassFrac = tune.longTravel ? 0.99 : isTruck ? 0.98 : 0.75;
+  const dirtFrac = tune.longTravel ? 0.99 : isTruck ? 0.97 : 0;
   const speedCap = inWater
     ? 3
     : onGrass
       ? tune.top * grassFrac
       : loose
         ? isTruck
-          ? tune.top * 0.97
+          ? tune.top * dirtFrac
           : Math.min(tune.top, surface.max * Math.max(0.55, tune.offroad))
         : tune.top;
   // Reverse: same for cars and trucks, same on road and grass. ~23 mph top,
@@ -477,16 +481,25 @@ export function stepCar(
   const loads = [fl, fr, rl, rr];
   const rest = weight / 4;
   // Sports cars are stiff and low. Trucks are softer and taller.
-  const stiff = tune.mass >= 2400 ? 42 : 95;
-  const damp = tune.mass >= 2400 ? 14 : 22;
-  const throwAmt = tune.mass >= 2400 ? 0.11 : 0.055;
+  // Razorback long-travel: ~2× throw, soft compression, controlled one-shot rebound.
+  const truckSusp = tune.mass >= 2400 || tune.longTravel;
+  const restH = tune.longTravel ? 0.16 : truckSusp ? 0.09 : 0.045;
+  const throwAmt = tune.longTravel ? 0.28 : truckSusp ? 0.11 : 0.055;
+  const maxTravel = tune.longTravel ? 0.58 : truckSusp ? 0.28 : 0.16;
+  const minTravel = tune.longTravel ? -0.12 : -0.02;
+  const baseStiff = tune.longTravel ? 24 : truckSusp ? 42 : 95;
   for (let i = 0; i < 4; i++) {
-    const target = (tune.mass >= 2400 ? 0.09 : 0.045) + clamp((loads[i] - rest) / rest, -0.9, 1.5) * throwAmt;
+    const target = restH + clamp((loads[i] - rest) / rest, -0.9, 1.5) * throwAmt;
+    // Soft on the way down, firmer on rebound so landings settle once.
+    const extending = car.suspV[i] > 0;
+    const stiff = tune.longTravel ? (extending ? 34 : 22) : baseStiff;
+    const damp = tune.longTravel ? (extending ? 30 : 11) : truckSusp ? 14 : 22;
     const spring = (target - car.susp[i]) * stiff;
     const damper = -car.suspV[i] * damp;
     car.suspV[i] += (spring + damper) * dtSafe;
-    car.suspV[i] *= Math.exp(-1.8 * dtSafe);
-    car.susp[i] = clamp(car.susp[i] + car.suspV[i] * dtSafe, -0.02, tune.mass >= 2400 ? 0.28 : 0.16);
+    const velDecay = tune.longTravel ? (extending ? 3.2 : 1.1) : 1.8;
+    car.suspV[i] *= Math.exp(-velDecay * dtSafe);
+    car.susp[i] = clamp(car.susp[i] + car.suspV[i] * dtSafe, minTravel, maxTravel);
   }
 
   const ratio = GEAR_RATIO[car.gear] ?? 1;
@@ -675,7 +688,7 @@ function separate(car: Car, nx: number, nz: number, pen: number) {
   // Settle suspension so a bump does not kick the body into a spasm.
   for (let i = 0; i < 4; i++) {
     car.suspV[i] *= 0.35;
-    car.susp[i] = clamp(car.susp[i], 0.04, 0.18);
+    car.susp[i] = clamp(car.susp[i], 0.04, 0.22);
   }
   return -vn;
 }
@@ -808,12 +821,13 @@ export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = 
       if (soft === "shrub" || soft === "rock") {
         if (isTruck) {
           overs.push({ x: c.x, z: c.z, soft, r: c.r });
+          const suspCeil = tune.longTravel ? 0.58 : 0.28;
+          const amt = soft === "rock" ? (tune.longTravel ? 0.7 : 0.55) : 0.22;
           for (let i = 0; i < 4; i++) {
             const wd = Math.hypot(wheelXZ[i].x - c.x, wheelXZ[i].z - c.z);
             if (wd < c.r + 1.1) {
-              const amt = soft === "rock" ? 0.55 : 0.22;
-              car.susp[i] = clamp(car.susp[i] + amt * (1 - wd / (c.r + 1.1)), 0, 0.22);
-              car.suspV[i] *= 0.7;
+              car.susp[i] = clamp(car.susp[i] + amt * (1 - wd / (c.r + 1.1)), 0, suspCeil);
+              car.suspV[i] *= tune.longTravel ? 0.55 : 0.7;
             }
           }
           continue;

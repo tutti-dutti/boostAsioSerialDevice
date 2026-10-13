@@ -30,6 +30,16 @@ const kraken: Tune = { accel: 2.15, top: mph(310), offroad: 0.42, drive: "awd", 
 const truck: Tune = { accel: 0.35, top: mph(100), offroad: 1.55, drive: "awd", mass: 2550, cg: 0.72 };
 /** Faster trucks (Raptor / TRX class). */
 export const truckFast: Tune = { accel: 0.48, top: mph(110), offroad: 1.55, drive: "awd", mass: 2400, cg: 0.68 };
+/** Fjord Razorback: Raptor long-travel, raised ride, almost full pace on dirt/grass. */
+const razorback: Tune = {
+  accel: 0.5,
+  top: mph(112),
+  offroad: 1.75,
+  drive: "awd",
+  mass: 2450,
+  cg: 0.76,
+  longTravel: true,
+};
 /** Heavy-duty / calmer trucks. */
 const truckHeavy: Tune = { accel: 0.3, top: mph(95), offroad: 1.6, drive: "awd", mass: 2800, cg: 0.75 };
 /** Mid-size lifted pickup. */
@@ -93,8 +103,8 @@ export const GARAGE: GarageCar[] = [
   // King Egg — fastest brand in the game
   car("King Egg", "Leviathan", "/models/king-egg-leviathan.glb", leviathan, look(0xb8ff2a), "v8"),
   car("King Egg", "Kraken", "/models/king-egg-kraken.glb", kraken, look(0xe8ecf0), "v12"),
-  // Fjord
-  car("Fjord", "Razorback", "/models/fjord-razorback.glb", truckFast, look(0xc45a12), "diesel"),
+  // Fjord — Raptor long-travel
+  car("Fjord", "Razorback", "/models/fjord-razorback.glb", razorback, { ...look(0xc45a12), ride: 0.14 }, "diesel"),
   // Beep
   car("Beep", "Sabertooth", "/models/beep-sabertooth.glb", truckFast, look(0x6b7358), "diesel"),
   // Headbutt

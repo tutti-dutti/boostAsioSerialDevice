@@ -87,6 +87,8 @@ export class DriveGame {
   /** Seconds of remaining launch camera shake (EV truck punch). */
   private launchShake = 0;
   private lastThrottle = 0;
+  /** Per-wheel ground height deltas used for long-travel wheel well motion. */
+  private wheelGround: [number, number, number, number] = [0, 0, 0, 0];
   private readonly desired = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   private readonly onFrame: (info: FrameInfo) => void;
@@ -431,23 +433,30 @@ export class DriveGame {
 
     this.roll += (this.car.speed / this.visual.wheelRadius) * dt;
     const steerVis = -wheel;
-    for (const wheel of this.visual.wheels) {
-      wheel.spin.rotation.x = this.roll;
-      if (wheel.front) wheel.pivot.rotation.y = steerVis;
-      const data = wheel.pivot.userData;
-      if (typeof data.restY !== "number") data.restY = wheel.pivot.position.y;
-      const index = (wheel.front ? 0 : 2) + (wheel.pivot.position.x > 0 ? 1 : 0);
-      const drop = wheels[index] ?? 0.08;
-      wheel.pivot.position.y = (data.restY as number) - drop * 0.45;
+
+    this.placeCar(dt);
+    // Long-travel wheels visibly soak bumps in the wells; others stay subtle.
+    const travelMul = this.tune.longTravel ? 1.15 : 0.45;
+    const travelClamp = this.tune.longTravel ? 0.52 : 0.18;
+    for (const wheelRig of this.visual.wheels) {
+      wheelRig.spin.rotation.x = this.roll;
+      if (wheelRig.front) wheelRig.pivot.rotation.y = steerVis;
+      const data = wheelRig.pivot.userData;
+      if (typeof data.restY !== "number") data.restY = wheelRig.pivot.position.y;
+      const index = (wheelRig.front ? 0 : 2) + (wheelRig.pivot.position.x > 0 ? 1 : 0);
+      const suspDrop = (wheels[index] ?? 0.08) * travelMul;
+      const groundPush = this.tune.longTravel ? this.wheelGround[index] * 0.85 : 0;
+      const drop = clampLeanAmt(suspDrop + groundPush, -0.12, travelClamp);
+      wheelRig.pivot.position.y = (data.restY as number) - drop;
     }
 
-    this.visual.chassis.rotation.z += (clampLean(roll) - this.visual.chassis.rotation.z) * 0.35;
-    this.visual.chassis.rotation.x += (clampLean(pitch) - this.visual.chassis.rotation.x) * 0.35;
+    const leanMul = this.tune.longTravel ? 0.55 : 1;
+    this.visual.chassis.rotation.z += (clampLean(roll * leanMul) - this.visual.chassis.rotation.z) * 0.35;
+    this.visual.chassis.rotation.x += (clampLean(pitch * leanMul) - this.visual.chassis.rotation.x) * 0.35;
     const glow = input.brake > 0 && this.car.speed > 0.4 ? 2.8 : 1.15;
     this.visual.tail.emissiveIntensity = glow;
     for (const mat of this.visual.tailLights) mat.emissiveIntensity = glow;
 
-    this.placeCar(dt);
     this.world.updateChunks(this.car.x, this.car.z);
     this.placeCamera(dt);
     this.followSun();
@@ -477,7 +486,18 @@ export class DriveGame {
     const fr = sample(this.car.x + fx * axle + rx * track, this.car.z + fz * axle + rz * track);
     const rl = sample(this.car.x - fx * axle - rx * track, this.car.z - fz * axle - rz * track);
     const rr = sample(this.car.x - fx * axle + rx * track, this.car.z - fz * axle + rz * track);
-    const target = (fl + fr + rl + rr) * 0.25 + SURFACE_LIFT + this.visual.ride;
+    const avg = (fl + fr + rl + rr) * 0.25;
+    // Relative bumps so long-travel wheels climb into the wells over rocks/dirt.
+    this.wheelGround = [fl - avg, fr - avg, rl - avg, rr - avg];
+    if (this.tune.longTravel && this.car.airTime === 0) {
+      for (let i = 0; i < 4; i++) {
+        const bump = Math.max(0, this.wheelGround[i]);
+        if (bump < 0.01) continue;
+        this.car.susp[i] = Math.min(0.58, this.car.susp[i] + bump * 0.45);
+        this.car.suspV[i] *= 0.85;
+      }
+    }
+    const target = avg + SURFACE_LIFT + this.visual.ride;
 
     // Gravity when not touching the surface — never hover or stick to pillars.
     const gap = this.car.y - target;
@@ -486,8 +506,20 @@ export class DriveGame {
       this.car.y += this.car.vy * dt;
       this.car.airTime += dt;
       if (this.car.y <= target) {
-        this.car.y = target;
-        this.car.vy = 0;
+        const impact = Math.max(0, -this.car.vy);
+        if (this.tune.longTravel && impact > 2) {
+          // Compress, then settle in one smooth rebound — no wild bounce/flip.
+          const punch = Math.min(0.45, impact * 0.032);
+          for (let i = 0; i < 4; i++) {
+            this.car.susp[i] = Math.min(0.58, this.car.susp[i] + punch);
+            this.car.suspV[i] = Math.min(this.car.suspV[i], -impact * 0.1);
+          }
+          this.car.y = target + punch * 0.4;
+          this.car.vy = -impact * 0.08;
+        } else {
+          this.car.y = target;
+          this.car.vy = 0;
+        }
         this.car.airTime = 0;
       } else if (this.car.airTime > 2) {
         // Stuck floating for too long — drop straight to the ground/deck.
@@ -496,7 +528,8 @@ export class DriveGame {
         this.car.airTime = 0;
       }
     } else {
-      this.car.y += (target - this.car.y) * 0.55;
+      const follow = this.tune.longTravel ? 0.38 : 0.55;
+      this.car.y += (target - this.car.y) * follow;
       this.car.vy = 0;
       this.car.airTime = 0;
     }
@@ -504,8 +537,9 @@ export class DriveGame {
     this.visual.root.position.set(this.car.x, this.car.y, this.car.z);
     this.visual.root.rotation.order = "YXZ";
     this.visual.root.rotation.y = this.car.yaw;
-    const pitch = THREE.MathUtils.clamp(((rl + rr) - (fl + fr)) * 0.12, -0.14, 0.14);
-    const roll = THREE.MathUtils.clamp(((fr + rr) - (fl + rl)) * 0.12, -0.12, 0.12);
+    const leanScale = this.tune.longTravel ? 0.07 : 0.12;
+    const pitch = THREE.MathUtils.clamp(((rl + rr) - (fl + fr)) * leanScale, -0.14, 0.14);
+    const roll = THREE.MathUtils.clamp(((fr + rr) - (fl + rl)) * leanScale, -0.12, 0.12);
     this.visual.root.rotation.x = pitch;
     this.visual.root.rotation.z = roll;
   }
@@ -603,6 +637,10 @@ export class DriveGame {
 
 function clampLean(v: number) {
   return Math.max(-0.1, Math.min(0.1, v));
+}
+
+function clampLeanAmt(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v));
 }
 
 function emptyCar(): CarVisual {
