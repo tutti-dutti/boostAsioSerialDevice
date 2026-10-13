@@ -425,6 +425,46 @@ h1 {
   outline: 3px solid #ffcc33;
 }
 
+.wanted {
+  position: absolute;
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 10px;
+  background: rgba(160, 0, 30, 0.85);
+  color: #fff;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  font-size: 18px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.track-hud {
+  position: absolute;
+  top: 140px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 10px;
+  background: rgba(10, 16, 28, 0.72);
+  color: #f0f4ff;
+  font-weight: 700;
+  font-size: 14px;
+  z-index: 4;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.limit {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #ffcc33;
+  margin-top: 2px;
+}
+
 @media (max-width: 800px) {
   .top {
     right: 16px;

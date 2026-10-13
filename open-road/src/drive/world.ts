@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import {
-  BORDER_IN,
   BRIDGE_HALF,
   BRIDGE_SAMPLES,
+  EXTRA_PATHS,
   HIGHWAY,
+  INNER_RIM,
   LAKE,
   PATCHES,
   PATHS,
@@ -21,6 +22,16 @@ import {
   type PathDef,
 } from "./mapData";
 import type { Collider, RoadSeg } from "./sim";
+import {
+  addCarWash,
+  addCityBlocks,
+  addGiantForests,
+  addMudPark,
+  addRestaurants,
+  addSkyway,
+  addSpeedTrackProps,
+  addTrailMarkers,
+} from "./worldBuild";
 
 export type World = {
   object: THREE.Group;
@@ -338,7 +349,7 @@ export function createWorld(): World {
   const asphaltHwy = roadMaterial(false, true);
   const dirtMat = roadMaterial(true, false);
 
-  const allPaths: PathDef[] = [...PATHS, HIGHWAY, ...RAMPS];
+  const allPaths: PathDef[] = [...PATHS, HIGHWAY, ...RAMPS, ...EXTRA_PATHS];
   // Wide gravel shoulder first, then asphalt on top so grass never pokes through.
   for (const path of allPaths) {
     if (path.grip < 0.85) continue;
@@ -402,12 +413,19 @@ export function createWorld(): World {
       g.fillRect((i * w) / n, 0, w / n, h);
     }
   }, 128, 32);
+  // Start line: road-width only (main cross is 14 m), flat on the asphalt.
   const start = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.5, 16),
-    new THREE.MeshStandardMaterial({ map: checker, roughness: 0.8 }),
+    new THREE.PlaneGeometry(1.5, 13.5),
+    new THREE.MeshStandardMaterial({
+      map: checker,
+      roughness: 0.8,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    }),
   );
   start.rotation.x = -Math.PI / 2;
-  start.position.set(SPAWN.x, heightAt(SPAWN.x, SPAWN.z) + SURFACE_LIFT + 0.02, SPAWN.z);
+  start.position.set(SPAWN.x, heightAt(SPAWN.x, SPAWN.z) + SURFACE_LIFT + 0.015, SPAWN.z);
   object.add(start);
 
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x4a433c, roughness: 0.86 });
@@ -438,11 +456,21 @@ export function createWorld(): World {
   addSign(object, baseColliders, "MUD", -170, 92, 0, "#c47a3a");
   addSign(object, baseColliders, "ICE", 210, -16, -Math.PI / 2, "#d7e7f2");
   addPatches(object);
+  addCrosswalks(object);
   addLamps(object, baseColliders);
   addUmbrellas(object);
   addMountains(object);
   addClouds(object);
   addCurbsAndRails(object);
+  // WORLD-BUILD jobs
+  addGiantForests(object, baseColliders);
+  addTrailMarkers(object, baseColliders);
+  addMudPark(object, baseColliders);
+  addSpeedTrackProps(object, baseColliders);
+  addCityBlocks(object, baseColliders);
+  addSkyway(object, baseColliders);
+  addRestaurants(object, baseColliders);
+  addCarWash(object, baseColliders);
 
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2.4, 6);
   const leafGeo = new THREE.ConeGeometry(1.35, 2.6, 7);
@@ -521,19 +549,19 @@ export function createWorld(): World {
       const mesh = new THREE.InstancedMesh(rockGeo, rockMat, rocks.length);
       const dummy = new THREE.Object3D();
       rocks.forEach((p, i) => {
-        // Only the rare oversized rocks are solid boulders. Most are climbable.
-        const boulder = p.s >= 1.45;
-        const scale = boulder ? p.s * 1.35 : p.s;
-        dummy.scale.set(scale, scale * (boulder ? 0.9 : 0.65), scale);
+        // Big rocks are solid boulders (size-matched). Only small ones are climbable.
+        const boulder = p.s >= 1.05;
+        const scale = boulder ? p.s * 1.55 : p.s * 0.75;
+        dummy.scale.set(scale, scale * (boulder ? 0.9 : 0.55), scale);
         dummy.rotation.set(rand() * 1.2, rand() * 6, rand() * 0.4);
-        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.22 * scale, p.z);
+        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.28 * scale, p.z);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
         local.push({
           kind: "circle",
           x: p.x,
           z: p.z,
-          r: boulder ? 0.85 * scale : 0.42 * p.s,
+          r: boulder ? Math.max(0.9, 0.95 * scale) : 0.38 * p.s,
           soft: boulder ? "solid" : "rock",
         });
       });
@@ -998,41 +1026,44 @@ function addStreetlight(
     emissiveIntensity: 2.4,
     roughness: 0.25,
   });
-  const y0 = terrainHeightAt(x, z);
+  // Sit on the real ground next to the road. Pole stays world-vertical (no tilt).
+  const y0 = heightAt(x, z);
   const len = Math.hypot(towardX, towardZ) || 1;
   const tx = towardX / len;
   const tz = towardZ / len;
+  const yaw = Math.atan2(tx, tz);
+  const armLen = 2.5;
+  const poleH = 5.5;
 
-  // Gray pole
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 5.4, 10), poleMat);
-  pole.position.set(x, y0 + 2.7, z);
-  pole.castShadow = true;
-  object.add(pole);
+  const rig = new THREE.Group();
+  rig.position.set(x, y0, z);
+  // Only yaw the arm toward the road — never pitch/roll the pole.
+  rig.rotation.set(0, yaw, 0);
 
-  // Curved arm toward the road (approx with a tilted tube + elbow).
-  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 2.4, 8), armMat);
-  arm.position.set(x + tx * 1.0, y0 + 5.15, z + tz * 1.0);
-  arm.rotation.z = Math.atan2(tz, tx);
-  arm.rotation.x = -Math.PI / 2.6;
-  // Orient the arm in xz toward the road.
-  arm.rotation.set(0, Math.atan2(tx, tz), -0.85);
-  object.add(arm);
-  const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), armMat);
-  elbow.position.set(x, y0 + 5.35, z);
-  object.add(elbow);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, poleH, 10), poleMat);
+  pole.position.set(0, poleH * 0.5, 0);
+  pole.rotation.set(0, 0, 0);
+  rig.add(pole);
 
-  // Glowing lamp head at the end of the arm.
-  const headX = x + tx * 1.85;
-  const headZ = z + tz * 1.85;
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.18, 0.35), lampMat);
-  head.position.set(headX, y0 + 4.85, headZ);
-  head.rotation.y = Math.atan2(tx, tz);
-  object.add(head);
-  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), lampMat);
-  bulb.position.set(headX, y0 + 4.7, headZ);
-  object.add(bulb);
+  // Horizontal arm reaching over the road (+Z in local space after yaw).
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, armLen), armMat);
+  arm.position.set(0, poleH - 0.15, armLen * 0.5);
+  arm.rotation.set(0, 0, 0);
+  rig.add(arm);
 
-  colliders.push({ kind: "circle", x, z, r: 0.3 });
+  const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), armMat);
+  elbow.position.set(0, poleH - 0.12, 0.05);
+  rig.add(elbow);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.38), lampMat);
+  head.position.set(0, poleH - 0.35, armLen - 0.1);
+  rig.add(head);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), lampMat);
+  bulb.position.set(0, poleH - 0.5, armLen - 0.1);
+  rig.add(bulb);
+
+  object.add(rig);
+  colliders.push({ kind: "circle", x, z, r: 0.3, soft: "solid" });
 }
 
 function addLamps(object: THREE.Group, colliders: Collider[]) {
@@ -1082,19 +1113,19 @@ function addMountains(object: THREE.Group) {
   const snow = new THREE.MeshStandardMaterial({ color: 0xf3eee6, roughness: 0.75 });
   const leaf = new THREE.MeshStandardMaterial({ color: 0x2a6a30, roughness: 0.9 });
   const trunk = new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.92 });
-  // Mountain ring just outside the highway / soft border.
+  // Mountain ring around the original core map (not the outer speed-track rim).
   for (let i = 0; i < 28; i++) {
     const a = (i / 28) * Math.PI * 2 + 0.12;
-    const r = BORDER_IN + 40 + (i % 4) * 35;
+    const r = INNER_RIM + 40 + (i % 4) * 35;
     const h = 100 + (i % 5) * 34;
     const cone = new THREE.Mesh(new THREE.ConeGeometry(52 + (i % 3) * 22, h, 6), i % 3 === 0 ? snow : rock);
     cone.position.set(Math.cos(a) * r, h * 0.28, Math.sin(a) * r);
     object.add(cone);
   }
-  // Thick forest belt so the edge reads as nature, not an invisible wall.
+  // Thick forest belt around the core so the old edge still reads as nature.
   for (let i = 0; i < 120; i++) {
     const a = (i / 120) * Math.PI * 2;
-    const r = BORDER_IN - 20 + (i % 5) * 12;
+    const r = INNER_RIM - 20 + (i % 5) * 12;
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
     const s = 1.1 + (i % 4) * 0.25;
@@ -1134,32 +1165,154 @@ function addClouds(object: THREE.Group) {
   }
 }
 
-function addCurbsAndRails(object: THREE.Group) {
-  const curbMat = new THREE.MeshStandardMaterial({ color: 0xb8b4aa, roughness: 0.85 });
-  const railMat = new THREE.MeshStandardMaterial({ color: 0x8a9098, metalness: 0.55, roughness: 0.4 });
-  // Town sidewalk strips along the main cross.
-  for (const z of [-11, 11]) {
-    for (let x = -100; x <= 100; x += 8) {
-      if (Math.abs(x) < 12) continue;
-      const y = heightAt(x, z) + 0.18;
-      const curb = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.22, 1.1), curbMat);
-      curb.position.set(x, y, z);
-      object.add(curb);
+/** Continuous sidewalk/curb ribbon offset to one side of a path. */
+function edgeStripGeometry(path: PathDef, side: 1 | -1, stripWidth: number, yLift: number) {
+  const samples = path.closed ? 140 : 90;
+  const pts = samplePath(path, samples);
+  if (pts.length < 2) return null;
+  const half = path.width / 2;
+  // Outer edge of pavement → outward strip sitting on the ground.
+  const inner = half + 0.05;
+  const outer = half + stripWidth;
+  const ys = pts.map((p) => {
+    const nx = -p.tz * side;
+    const nz = p.tx * side;
+    const mx = p.x + nx * ((inner + outer) * 0.5);
+    const mz = p.z + nz * ((inner + outer) * 0.5);
+    return heightAt(mx, mz) + yLift;
+  });
+  for (let pass = 0; pass < 3; pass++) {
+    const src = ys.slice();
+    for (let i = 0; i < ys.length; i++) {
+      const i0 = path.closed ? (i - 1 + ys.length) % ys.length : Math.max(0, i - 1);
+      const i1 = path.closed ? (i + 1) % ys.length : Math.min(ys.length - 1, i + 1);
+      ys[i] = src[i0] * 0.25 + src[i] * 0.5 + src[i1] * 0.25;
     }
   }
-  // Guardrails on outer highway samples.
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const idx: number[] = [];
+  let dist = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const nx = -p.tz * side;
+    const nz = p.tx * side;
+    const y = ys[i];
+    pos.push(p.x + nx * inner, y, p.z + nz * inner, p.x + nx * outer, y, p.z + nz * outer);
+    if (i > 0) dist += Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z);
+    uv.push(0, dist / 8, 1, dist / 8);
+    if (i > 0) {
+      const a = (i - 1) * 2;
+      const b = a + 1;
+      const c = i * 2;
+      const d = c + 1;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  if (path.closed && pts.length > 2) {
+    pos[pos.length - 5] = pos[1];
+    pos[pos.length - 2] = pos[4];
+    const a = (pts.length - 1) * 2;
+    idx.push(a, 0, a + 1, a + 1, 0, 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Zebra crosswalk flat on the asphalt, exactly road-width (inset slightly). */
+function addCrosswalk(
+  object: THREE.Group,
+  cx: number,
+  cz: number,
+  /** Radians: 0 = bars run east-west (crossing N–S traffic). */
+  yaw: number,
+  roadWidth: number,
+) {
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xf4f4f4,
+    roughness: 0.78,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+  });
+  const barLen = roadWidth - 1.2; // stay inside pavement edges
+  const barW = 0.48;
+  const gap = 0.55;
+  const bars = 6;
+  const depth = bars * gap;
+  const y = heightAt(cx, cz) + SURFACE_LIFT + 0.02;
+  const group = new THREE.Group();
+  group.position.set(cx, y, cz);
+  group.rotation.set(0, yaw, 0);
+  for (let i = 0; i < bars; i++) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(barLen, 0.03, barW), mat);
+    stripe.position.set(0, 0, -depth * 0.5 + gap * 0.5 + i * gap);
+    group.add(stripe);
+  }
+  object.add(group);
+}
+
+function addCrosswalks(object: THREE.Group) {
+  // Main town cross — one zebra on each leg, on the road only.
+  const w = 14;
+  addCrosswalk(object, 0, 14, 0, w); // north leg (cross N–S traffic)
+  addCrosswalk(object, 0, -14, 0, w); // south
+  addCrosswalk(object, 14, 0, Math.PI / 2, w); // east
+  addCrosswalk(object, -14, 0, Math.PI / 2, w); // west
+  // Ring-road crossings near the cross tips.
+  addCrosswalk(object, 0, 40, 0, w);
+  addCrosswalk(object, 0, -40, 0, w);
+  addCrosswalk(object, 40, 0, Math.PI / 2, w);
+  addCrosswalk(object, -40, 0, Math.PI / 2, w);
+}
+
+function addCurbsAndRails(object: THREE.Group) {
+  const curbMat = new THREE.MeshStandardMaterial({
+    color: 0xb8b4aa,
+    roughness: 0.85,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x8a9098, metalness: 0.55, roughness: 0.4 });
+
+  // Continuous sidewalk strips along both sides of the town cross (no gaps / floaters).
+  const townPaths = PATHS.filter((p) => p.grip >= 0.85 && !p.closed && p.width >= 12);
+  for (const path of townPaths) {
+    // Skip the short lake spur for sidewalks — only the main cross arms.
+    const span = Math.hypot(path.points[0][0] - path.points[path.points.length - 1][0], path.points[0][1] - path.points[path.points.length - 1][1]);
+    if (span < 500) continue;
+    for (const side of [1, -1] as const) {
+      const geo = edgeStripGeometry(path, side, 1.35, SURFACE_LIFT + 0.04);
+      if (!geo) continue;
+      const mesh = new THREE.Mesh(geo, curbMat);
+      mesh.receiveShadow = true;
+      object.add(mesh);
+      // Slight curb face so the strip reads as raised concrete, still on the ground.
+      const face = edgeStripGeometry(path, side, 0.18, SURFACE_LIFT + 0.1);
+      if (face) object.add(new THREE.Mesh(face, curbMat));
+    }
+  }
+
+  // Guardrails on outer highway samples — posts stay vertical.
   for (let i = 0; i < 48; i++) {
     const a = (i / 48) * Math.PI * 2;
     const bulge = 1 + 0.08 * Math.sin(a * 2);
     const r = 820 * bulge + 16;
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
-    const y = heightAt(x, z) + 0.55;
+    const y = heightAt(x, z);
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.9, 0.12), railMat);
-    post.position.set(x, y, z);
+    post.position.set(x, y + 0.45, z);
+    post.rotation.set(0, 0, 0);
     const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 28), railMat);
-    rail.position.set(x, y + 0.25, z);
-    rail.rotation.y = -a;
+    rail.position.set(x, y + 0.7, z);
+    rail.rotation.set(0, -a, 0);
     object.add(post, rail);
   }
 }

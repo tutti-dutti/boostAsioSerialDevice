@@ -22,6 +22,7 @@ import {
 } from "./sim";
 import { SURFACE_LIFT, carSurfaceHeight, heightAt } from "./mapData";
 import { createWorld } from "./world";
+import { GameFeatures, type TimePreset } from "./gameFeatures";
 
 export type FrameInfo = {
   mph: number;
@@ -37,6 +38,19 @@ export type FrameInfo = {
   audioOn: boolean;
   carName: string;
   assists: string;
+  speedLimit?: number;
+  wanted?: number;
+  chase?: boolean;
+  busted?: boolean;
+  escaped?: boolean;
+  lapTime?: number | null;
+  bestLap?: number | null;
+  trackTop?: number | null;
+  trackBest?: number | null;
+  zeroSixty?: number | null;
+  timeLabel?: string;
+  copsOn?: boolean;
+  dirt?: number;
 };
 
 type CamMode = "chase" | "bumper" | "hood" | "free";
@@ -89,6 +103,7 @@ export class DriveGame {
   private lastThrottle = 0;
   /** Per-wheel ground height deltas used for long-travel wheel well motion. */
   private wheelGround: [number, number, number, number] = [0, 0, 0, 0];
+  private features = new GameFeatures();
   private readonly desired = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   private readonly onFrame: (info: FrameInfo) => void;
@@ -105,11 +120,11 @@ export class DriveGame {
     setCarEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
     pmrem.dispose();
 
-    this.camera = new THREE.PerspectiveCamera(62, 1, 0.35, 3200);
+    this.camera = new THREE.PerspectiveCamera(62, 1, 0.35, 9000);
     this.resize();
 
     this.scene.background = new THREE.Color(0x8ecfff);
-    this.scene.fog = new THREE.Fog(0x9fd4f5, 180, 1100);
+    this.scene.fog = new THREE.Fog(0x9fd4f5, 180, 1400);
 
     const hemi = new THREE.HemisphereLight(0xfff0dc, 0x4e8a46, 0.95);
     this.scene.add(hemi);
@@ -118,6 +133,7 @@ export class DriveGame {
     this.scene.add(this.sun, this.sun.target);
 
     this.scene.add(this.world.object, this.visual.root);
+    this.features.attach(this.scene, hemi, this.sun);
     this.placeCar();
     void this.mountCar();
 
@@ -125,6 +141,24 @@ export class DriveGame {
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("resize", this.resize);
     this.draw(0);
+  }
+
+  setCops(on: boolean) {
+    this.features.setCops(on);
+    this.say(on ? "Cops ON" : "Cops OFF");
+  }
+
+  copsOn() {
+    return this.features.copsOn;
+  }
+
+  copDots() {
+    return this.features.copDots();
+  }
+
+  setTimePreset(preset: TimePreset) {
+    this.features.setTimePreset(preset);
+    this.say(`Time: ${this.features.timeLabel()}`);
   }
 
   private async mountCar() {
@@ -189,7 +223,8 @@ export class DriveGame {
       this.ride = nextRide;
       this.tune = nextRide.tune;
       this.audio.setVoice(nextRide.voice);
-      this.placeCar();
+      // Keep xz/yaw/speed — only snap the new body onto the current spot.
+      this.placeCar(0);
       this.say(`${nextRide.label} is ready`);
     } catch (err) {
       console.error("Could not switch cars", err);
@@ -434,6 +469,11 @@ export class DriveGame {
     this.roll += (this.car.speed / this.visual.wheelRadius) * dt;
     const steerVis = -wheel;
 
+    const mph = Math.abs(this.car.speed) * 2.23694;
+    const onHighway = surface.name === "Dry" && Math.hypot(this.car.x, this.car.z) > 500;
+    const feat = this.features.update(dt, this.car, this.tune, mph, surface.name, onHighway, (t) => this.say(t));
+    this.features.applyDirt(this.visual.root);
+
     this.placeCar(dt);
     // Long-travel wheels visibly soak bumps in the wells; others stay subtle.
     const travelMul = this.tune.longTravel ? 1.15 : 0.45;
@@ -465,7 +505,7 @@ export class DriveGame {
     this.camera.fov += (targetFov - this.camera.fov) * (1 - Math.exp(-3 * dt));
     this.camera.updateProjectionMatrix();
 
-    this.onFrame(this.frameInfo(gear, surface.name));
+    this.onFrame(this.frameInfo(gear, surface.name, undefined, feat));
   }
 
   private placeCar(dt = 1 / 60) {
@@ -599,7 +639,12 @@ export class DriveGame {
     this.camera.lookAt(this.look);
   }
 
-  private frameInfo(gear: string, surface: string, mph?: number): FrameInfo {
+  private frameInfo(
+    gear: string,
+    surface: string,
+    mph?: number,
+    feat?: ReturnType<GameFeatures["update"]>,
+  ): FrameInfo {
     return {
       mph: mph ?? Math.round(Math.abs(this.car.speed) * 2.23694),
       gear,
@@ -614,6 +659,19 @@ export class DriveGame {
       audioOn: this.audio.on,
       carName: this.ride.label,
       assists: `${this.setup.auto ? "Auto" : "Manual"} · ${this.setup.handling === "sim" ? "Sim" : "Arcade"} · TC ${this.setup.tc ? "on" : "off"} · ABS ${this.setup.abs ? "on" : "off"}`,
+      speedLimit: feat?.speedLimit,
+      wanted: feat?.wanted,
+      chase: feat?.chase,
+      busted: feat?.busted,
+      escaped: feat?.escaped,
+      lapTime: feat?.lapTime,
+      bestLap: feat?.bestLap,
+      trackTop: feat?.trackTop,
+      trackBest: feat?.trackBest,
+      zeroSixty: feat?.zeroSixty,
+      timeLabel: feat?.timeLabel,
+      copsOn: feat?.copsOn,
+      dirt: feat?.dirt,
     };
   }
 

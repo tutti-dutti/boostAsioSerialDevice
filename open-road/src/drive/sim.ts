@@ -2,8 +2,10 @@ import {
   BORDER_IN,
   LAKE,
   PATCHES,
+  RIVER,
   WORLD_HALF,
   bridgeHeightAt,
+  elevatedHeightAt,
   inRiverWater,
   riverDistance,
 } from "./mapData";
@@ -191,8 +193,8 @@ function ground(name: string, grip: number, max: number): Surface {
 }
 
 export function surfaceAt(x: number, z: number, roads: RoadSeg[], carY = 999): Surface {
-  // Bridge deck is dry pavement — only when the car is actually up on the deck.
-  const deck = bridgeHeightAt(x, z);
+  // Bridge / skyway deck is dry pavement — only when the car is actually up on the deck.
+  const deck = elevatedHeightAt(x, z);
   if (deck != null && carY > deck - 4.5) return ground("Dry", 1.55, 98);
 
   // Water wins over at-grade roads — lake and river are not driveable.
@@ -221,9 +223,10 @@ export function surfaceAt(x: number, z: number, roads: RoadSeg[], carY = 999): S
   if (mud) return mud;
   const ice = patchAt(x, z, "Ice");
   if (ice) return ice;
-  if (ld < LAKE.r + 16) return ground("Sand", 0.5, 28);
+  // Sand only on the actual beach ring — not a wide halo that steals grass labels.
+  if (ld >= LAKE.r && ld < LAKE.r + 10) return ground("Sand", 0.5, 28);
   const river = riverDistance(x, z);
-  if (river.d < river.bank) return ground("Sand", 0.5, 28);
+  if (river.d >= RIVER.halfWidth && river.d < river.bank) return ground("Sand", 0.5, 28);
   // Grass is a bit less sticky than pavement, but still fast.
   return ground("Grass", 0.92, 72);
 }
@@ -809,7 +812,7 @@ export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = 
     { x: car.x - fx * axle + rx * track, z: car.z - fz * axle + rz * track },
   ];
 
-  // Resolve at most a few solids per step so overlapping rails cannot jitter the car.
+  // Resolve solids every step — capping too low let cars ghost through boulders.
   let solidHits = 0;
   for (const c of colliders) {
     if (c.maxY != null && car.y > c.maxY) continue;
@@ -818,6 +821,7 @@ export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = 
       const dist = Math.hypot(car.x - c.x, car.z - c.z);
       const touch = c.r + radius;
       if (dist >= touch) continue;
+      // Only small rocks / bushes are drive-over. Big boulders are soft:"solid".
       if (soft === "shrub" || soft === "rock") {
         if (isTruck) {
           overs.push({ x: c.x, z: c.z, soft, r: c.r });
@@ -842,11 +846,11 @@ export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = 
         overs.push({ x: c.x, z: c.z, soft, r: c.r });
         continue;
       }
-      if (solidHits >= 3) continue;
+      if (solidHits >= 12) continue;
       impact = Math.max(impact, pushCircle(car, c.x, c.z, touch));
       solidHits += 1;
     } else {
-      if (solidHits >= 3) continue;
+      if (solidHits >= 12) continue;
       impact = Math.max(impact, pushBox(car, c, radius));
       solidHits += 1;
     }

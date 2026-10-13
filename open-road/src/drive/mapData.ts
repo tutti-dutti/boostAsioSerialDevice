@@ -1,13 +1,17 @@
 /** Roads, lake, terrain height, highway, and spawn. The minimap uses this too. */
+import { ZONE_PATCHES, TRAILS, SKYWAY, speedTrackPaths, skywayPaths } from "./mapZones";
 
-/** Playable half-extent. Must clear the highway loop (~885) with room for a forest rim. */
-export const WORLD_HALF = 1200;
-/** Soft border starts here; mountains/forest fill out to WORLD_HALF. */
-export const BORDER_IN = 1050;
+/** Playable half-extent — large enough for the 8 km speed track corridor. */
+export const WORLD_HALF = 4500;
+/** Soft border near the outer rim (inner skyway / forests sit well inside). */
+export const BORDER_IN = 4200;
+/** Decorative mountain / forest belt around the original playable core. */
+export const INNER_RIM = 1050;
 /** Road/car sit this far above the terrain mesh so wheels never sink. */
 export const SURFACE_LIFT = 0.1;
 export const LAKE = { x: 320, z: -300, r: 48 };
-export const SPAWN = { x: -70, z: 4, yaw: Math.PI / 2 };
+/** Clear straight stretch west of town — away from crosswalks / intersections. */
+export const SPAWN = { x: -180, z: 0, yaw: -Math.PI / 2 };
 
 /**
  * Wide river crossing the northeast highway arc.
@@ -53,6 +57,7 @@ export const PATCHES: { name: string; x: number; z: number; hx: number; hz: numb
   { name: "Wet", x: 90, z: 0, hx: 55, hz: 11, mu: 0.85, max: 78 },
   { name: "Mud", x: -170, z: 70, hx: 24, hz: 16, mu: 0.42, max: 22 },
   { name: "Ice", x: 210, z: -36, hx: 30, hz: 18, mu: 0.28, max: 28 },
+  ...ZONE_PATCHES,
 ];
 
 /** Waypoints for a smooth road ribbon (xz). Curves follow hills via heightAt. */
@@ -198,6 +203,15 @@ export const RAMPS: PathDef[] = [
   },
 ];
 
+/** Trail + speed-track + skyway-ramp paths for ribbons / physics.
+ * Skyway deck is elevated (see SKYWAY_SAMPLES) — ramps only get at-grade ribbons;
+ * the raised deck/ramp meshes live in worldBuild.addSkyway. */
+export const EXTRA_PATHS: PathDef[] = [
+  ...TRAILS.map(({ points, width, grip, closed, highway }) => ({ points, width, grip, closed, highway })),
+  ...speedTrackPaths(),
+  ...skywayPaths().ramps,
+];
+
 /** Flat segment list for physics / minimap (built from paths). */
 export const ROADS: RoadDef[] = (() => {
   const out: RoadDef[] = [];
@@ -212,6 +226,7 @@ export const ROADS: RoadDef[] = (() => {
   for (const path of PATHS) add(path);
   add(HIGHWAY);
   for (const ramp of RAMPS) add(ramp);
+  for (const path of EXTRA_PATHS) add(path);
   return out;
 })();
 
@@ -418,6 +433,7 @@ const ROAD_SAMPLES: RoadSample[] = (() => {
   for (const path of PATHS) addPath(path);
   addPath(HIGHWAY);
   for (const ramp of RAMPS) addPath(ramp);
+  for (const path of EXTRA_PATHS) addPath(path);
   return samples;
 })();
 
@@ -604,17 +620,74 @@ export function bridgeHeightAt(x: number, z: number): number | null {
   return bestH;
 }
 
+/** Elevated skyway deck + ramp samples (outside the highway ring). */
+export const SKYWAY_SAMPLES: BridgeSample[] = (() => {
+  const { deck, ramps } = skywayPaths();
+  const out: BridgeSample[] = [];
+  const h = SKYWAY.height;
+  const deckPts = samplePathXZ(deck, 220);
+  for (let i = 0; i < deckPts.length; i++) {
+    const p = deckPts[i];
+    const next = deckPts[(i + 1) % deckPts.length];
+    const dx = next.x - p.x;
+    const dz = next.z - p.z;
+    const len = Math.hypot(dx, dz) || 1;
+    out.push({ x: p.x, z: p.z, h, lift: 1, tx: dx / len, tz: dz / len });
+  }
+  for (const ramp of ramps) {
+    const n = ramp.points.length;
+    for (let i = 0; i < n; i++) {
+      const [x, z] = ramp.points[i];
+      const t = i / Math.max(1, n - 1); // 0 = skyway end, 1 = highway
+      const ground = rawHeight(x, z);
+      const yh = h * (1 - t) + ground * t;
+      const next = ramp.points[Math.min(n - 1, i + 1)];
+      const dx = next[0] - x;
+      const dz = next[1] - z;
+      const len = Math.hypot(dx, dz) || 1;
+      out.push({ x, z, h: yh, lift: 1 - t, tx: dx / len, tz: dz / len });
+    }
+  }
+  return out;
+})();
+
+export function skywayHeightAt(x: number, z: number): number | null {
+  if (!SKYWAY_SAMPLES.length) return null;
+  let bestD = 1e9;
+  let bestH = 0;
+  let bestLift = 0;
+  for (const s of SKYWAY_SAMPLES) {
+    const d = Math.hypot(x - s.x, z - s.z);
+    if (d < bestD) {
+      bestD = d;
+      bestH = s.h;
+      bestLift = s.lift;
+    }
+  }
+  // Wider footprint on the high deck; narrower on ramp toes.
+  const half = SKYWAY.width * 0.5 + 1.5 + bestLift * 2;
+  if (bestD > half) return null;
+  return bestH;
+}
+
+/** Bridge or skyway elevated deck height, if any. */
+export function elevatedHeightAt(x: number, z: number): number | null {
+  const bridge = bridgeHeightAt(x, z);
+  if (bridge != null) return bridge;
+  return skywayHeightAt(x, z);
+}
+
 export function onBridge(x: number, z: number) {
   return bridgeHeightAt(x, z) != null;
 }
 
 /**
- * Driveable / ribbon surface height (includes the raised highway bridge).
+ * Driveable / ribbon surface height (includes the raised highway bridge + skyway).
  * Terrain meshes should use terrainHeightAt so the river stays visible under the span.
  */
 export function heightAt(x: number, z: number): number {
-  const bridge = bridgeHeightAt(x, z);
-  if (bridge != null) return bridge;
+  const elev = elevatedHeightAt(x, z);
+  if (elev != null) return elev;
   return terrainHeightAt(x, z);
 }
 
@@ -625,9 +698,9 @@ export function heightAt(x: number, z: number): number {
  */
 export function carSurfaceHeight(x: number, z: number, carY: number): number {
   const ground = terrainHeightAt(x, z);
-  const deck = bridgeHeightAt(x, z);
+  const deck = elevatedHeightAt(x, z);
   if (deck == null) return ground;
-  // Near or above the deck → drive on the bridge. Well below → under the span.
+  // Near or above the deck → drive on the bridge/skyway. Well below → under the span.
   if (carY > deck - 4.5) return deck;
   return ground;
 }
