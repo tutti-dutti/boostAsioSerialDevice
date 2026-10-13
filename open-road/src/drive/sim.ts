@@ -274,28 +274,33 @@ export function stepCar(
   const inWater = surface.name === "Water";
   const onGrass = surface.name === "Grass";
   const loose = !inWater && !onGrass && surface.name !== "Dry" && surface.name !== "Wet";
-  let gripBoost = arcade ? 1.35 : 1;
+  // Arcade: sticky tires at every speed so hard 90° turns at 150+ mph still plant.
+  let gripBoost = arcade ? 4.2 : 1;
   // EV launch: glue the tires at low speed so full instant torque sticks.
   if (tune.launchGrip && !car.reverse && Math.abs(car.speed) < 32 && input.throttle > 0.4) {
-    gripBoost *= arcade ? 1.55 : 1.7;
+    gripBoost *= arcade ? 1.25 : 1.7;
   }
-  const mu = clamp(surface.grip * (loose ? Math.max(0.55, tune.offroad) : 1) * gripBoost, 0.04, 3.4);
+  const mu = clamp(surface.grip * (loose ? Math.max(0.55, tune.offroad) : 1) * gripBoost, 0.04, arcade ? 5.5 : 3.4);
   // Turning radius in meters. Full lock is gentler (~50–55 ft / ~16 m) so
   // keyboard and pad steering feel less coarse / twitchy.
   const speedAbs = Math.abs(car.speed);
-  const gripAy = (input.handbrake ? 0.45 : arcade ? 2.1 : 1.45) * mu * 9.81;
+  const gripAy = (input.handbrake ? 0.45 : arcade ? 6.5 : 1.45) * mu * 9.81;
   const gripR = (speedAbs * speedAbs) / Math.max(5, gripAy);
-  const tightR = input.handbrake ? 7.5 : 8.8;
-  const blend = arcade ? clamp((speedAbs - 10) / 45, 0, 0.7) : clamp((speedAbs - 4) / 22, 0, 1);
+  const tightR = input.handbrake ? 7.5 : arcade ? 7.0 : 8.8;
+  // Arcade barely widens with speed — keep sharp side-road cuts available.
+  const blend = arcade ? clamp((speedAbs - 55) / 90, 0, 0.18) : clamp((speedAbs - 4) / 22, 0, 1);
   const turnR = tightR * (1 - blend) + Math.max(tightR, gripR) * blend;
   // Partial stick / smoothed keyboard steer scales lock (not just ±1).
   const steerAmt = clamp(Math.abs(input.steer), 0, 1);
   const steerSign = Math.sign(input.steer) || 0;
-  let maxSteer = arcade ? 0.48 : 0.4;
-  if (tune.hyper && speedAbs > 50) {
+  let maxSteer = arcade ? 0.58 : 0.4;
+  // Sim hypercars lose lock at speed; Arcade keeps full steering angle always.
+  if (!arcade && tune.hyper && speedAbs > 50) {
     maxSteer *= Math.max(0.32, 1 - (speedAbs - 50) / 140);
   }
-  const delta = steerSign * steerAmt * Math.min(maxSteer, Math.atan2(WHEELBASE, Math.max(turnR, 2.2)));
+  const delta = arcade
+    ? steerSign * steerAmt * maxSteer
+    : steerSign * steerAmt * Math.min(maxSteer, Math.atan2(WHEELBASE, Math.max(turnR, 2.2)));
 
   const longShift = clamp((mass * car.ax * cg) / WHEELBASE, -0.38 * weight, 0.38 * weight);
   const latShift = clamp((mass * car.ay * cg) / TRACK, -0.34 * weight, 0.34 * weight);
@@ -449,37 +454,48 @@ export function stepCar(
   }
 
   // Heading follows the front wheels. A stopped car cannot pivot.
-  // Lower yaw ceiling + slower follow = finer steering, wider arcs.
-  const yawCeil = arcade ? 1.65 : 1.25;
-  const yawMag = rolling && !inWater ? Math.min(yawCeil, (speedAbs * steerAmt) / Math.max(turnR, 2.2)) : 0;
+  // Arcade: high yaw ceiling + steer-led rate so 150+ mph 90° cuts still rotate.
+  const yawCeil = arcade ? 2.55 : 1.25;
+  const yawMag = rolling && !inWater
+    ? arcade
+      ? Math.min(yawCeil, steerAmt * (1.15 + speedAbs * 0.014))
+      : Math.min(yawCeil, (speedAbs * steerAmt) / Math.max(turnR, 2.2))
+    : 0;
   const yawTarget = -Math.sign(car.speed || 1) * steerSign * yawMag;
   if (!rolling || inWater) {
     car.yawRate = 0;
     car.lat = 0;
     car.ay = 0;
   } else if (steerSign === 0) {
-    car.yawRate *= Math.exp(-(arcade ? 5 : 3.5) * dtSafe);
+    car.yawRate *= Math.exp(-(arcade ? 7 : 3.5) * dtSafe);
   } else {
-    const follow = 1 - Math.exp(-(input.handbrake ? 2.4 : arcade ? 7.5 : 6) * dtSafe);
+    const follow = 1 - Math.exp(-(input.handbrake ? 2.4 : arcade ? 11 : 6) * dtSafe);
     car.yawRate += (yawTarget - car.yawRate) * follow;
   }
   car.yawRate = clamp(car.yawRate, -yawCeil, yawCeil);
   // King Egg hypercars plant harder past ~90 mph so they don't shake or fly.
+  // Arcade keeps steering response — only kill sideways slide, not yaw.
   if (tune.hyper && rolling && speedAbs > 40) {
     const plantH = clamp((speedAbs - 40) / 90, 0, 1);
-    car.yawRate *= Math.exp(-(2.5 + 5 * plantH) * dtSafe);
-    car.lat *= Math.exp(-(3 + 7 * plantH) * dtSafe);
+    if (arcade) {
+      if (steerSign === 0) car.yawRate *= Math.exp(-(1.8 + 2.5 * plantH) * dtSafe);
+      car.lat *= Math.exp(-(5 + 10 * plantH) * dtSafe);
+    } else {
+      car.yawRate *= Math.exp(-(2.5 + 5 * plantH) * dtSafe);
+      car.lat *= Math.exp(-(3 + 7 * plantH) * dtSafe);
+    }
   }
   car.yaw += car.yawRate * dtSafe;
   if (rolling && !inWater && !input.handbrake) {
-    const stick = clamp(mu, 0.35, 2);
-    const plant = arcade ? 18 : 12;
+    const stick = clamp(mu, 0.35, arcade ? 4 : 2);
+    const plant = arcade ? 28 : 12;
     car.lat *= Math.exp(-(4 + plant * stick) * dtSafe);
   }
 
   // One reverse gear: ~20–25 mph top on any dry/grass surface.
   car.speed = clamp(car.speed, car.reverse ? -revCap : -3, speedCap);
-  const latMax = input.handbrake ? 10 : tune.hyper ? (arcade ? 0.9 : 1.2) : arcade ? 1.6 : 2.4;
+  // Arcade: tiny lateral slip budget → no slide-out / spin / wobble in hard turns.
+  const latMax = input.handbrake ? 10 : arcade ? 0.45 : tune.hyper ? 1.2 : 2.4;
   car.lat = clamp(car.lat, -latMax, latMax);
   if (Math.abs(car.speed) < 0.35) car.lat *= Math.exp(-10 * dtSafe);
 

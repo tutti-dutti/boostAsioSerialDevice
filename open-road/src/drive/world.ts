@@ -241,7 +241,8 @@ function ribbonGeometry(path: PathDef, yLift: number) {
   const pts = samplePath(path, samples);
   if (pts.length < 2) return null;
   const half = path.width / 2;
-  // Precompute centerline heights, then lightly smooth so seams cannot open.
+  // Shared height field (already intersection-unified). Avoid heavy path-local
+  // Y smoothing — that pulled crossings apart and made cars jump at seams.
   // atGrade paths (underpass / town→highway merges) stay on terrain under decks.
   const ys = pts.map((p) => (path.atGrade ? terrainHeightAt(p.x, p.z) : heightAt(p.x, p.z)) + yLift);
   if (path.closed && ys.length > 2) {
@@ -249,12 +250,13 @@ function ribbonGeometry(path: PathDef, yLift: number) {
     ys[0] = avg;
     ys[ys.length - 1] = avg;
   }
-  for (let pass = 0; pass < 2; pass++) {
+  // One light pass only — keep continuous, don't invent new grades at junctions.
+  {
     const src = ys.slice();
     for (let i = 0; i < ys.length; i++) {
       const i0 = path.closed ? (i - 1 + ys.length) % ys.length : Math.max(0, i - 1);
       const i1 = path.closed ? (i + 1) % ys.length : Math.min(ys.length - 1, i + 1);
-      ys[i] = src[i0] * 0.25 + src[i] * 0.5 + src[i1] * 0.25;
+      ys[i] = src[i0] * 0.15 + src[i] * 0.7 + src[i1] * 0.15;
     }
   }
   const pos: number[] = [];
@@ -1073,7 +1075,9 @@ function addStreetlight(
   rig.add(head);
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), lampMat);
   bulb.position.set(0, poleH - 0.5, armLen - 0.1);
+  bulb.userData.streetLamp = true;
   rig.add(bulb);
+  head.userData.streetLamp = true;
 
   object.add(rig);
   colliders.push({ kind: "circle", x, z, r: 0.3, soft: "solid" });

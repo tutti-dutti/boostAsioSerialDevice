@@ -121,21 +121,32 @@ export const PATHS: PathDef[] = [
     closed: true,
   },
   {
+    // Dirt spur → cul-de-sac turnaround (no dead end into grass).
     points: [
       [-110, 70],
       [-170, 120],
       [-240, 170],
+      [-300, 210],
+      [-320, 240],
+      [-300, 270],
+      [-270, 250],
+      [-290, 220],
       [-300, 210],
     ],
     width: 8,
     grip: 0.7,
   },
   {
+    // Lake spur loops back onto the town ring (no dead end).
     points: [
       [90, -70],
       [160, -140],
       [240, -210],
       [300, -260],
+      [280, -280],
+      [250, -270],
+      [255, -250],
+      [260, -260],
     ],
     width: 12,
     grip: 1,
@@ -476,7 +487,27 @@ const ROAD_SAMPLES: RoadSample[] = (() => {
   // pavement grade — that contaminated bridge toes and created false ski-jumps.
   for (const ramp of RAMPS) if (!ramp.atGrade) addPath(ramp);
   for (const path of EXTRA_PATHS) if (!path.atGrade) addPath(path);
-  return samples;
+
+  // Unify heights where roads meet so intersections are one continuous surface
+  // (stops seam bumps / lighter overlap patches from mismatched path grades).
+  const out = samples.map((s) => ({ ...s }));
+  const n = samples.length;
+  for (let i = 0; i < n; i++) {
+    let sum = samples[i].h;
+    let w = 1;
+    for (let j = 0; j < n; j++) {
+      if (i === j) continue;
+      const d = Math.hypot(samples[i].x - samples[j].x, samples[i].z - samples[j].z);
+      const r = Math.max(samples[i].half, samples[j].half) + 6;
+      if (d >= r) continue;
+      const t = 1 - d / r;
+      const ww = t * t;
+      sum += samples[j].h * ww;
+      w += ww;
+    }
+    out[i].h = sum / w;
+  }
+  return out;
 })();
 
 /** Raised highway bridge samples (ramps + deck) over the river. */
@@ -666,7 +697,7 @@ export function bridgeHeightAt(x: number, z: number): number | null {
 export const SKYWAY_SAMPLES: BridgeSample[] = (() => {
   const { deck, ramps } = skywayPaths();
   const out: BridgeSample[] = [];
-  const h = SKYWAY.height;
+  const h = SKYWAY.height + SKYWAY.deckThick * 0.5;
   const deckPts = samplePathXZ(deck, 220);
   for (let i = 0; i < deckPts.length; i++) {
     const p = deckPts[i];
@@ -681,13 +712,14 @@ export const SKYWAY_SAMPLES: BridgeSample[] = (() => {
     for (let i = 0; i < n; i++) {
       const [x, z] = ramp.points[i];
       const t = i / Math.max(1, n - 1); // 0 = skyway end, 1 = highway
+      const u = t * t * (3 - 2 * t); // gentle smoothstep (≤~6% over rampLength)
       const ground = rawHeight(x, z);
-      const yh = h * (1 - t) + ground * t;
+      const yh = h * (1 - u) + ground * u;
       const next = ramp.points[Math.min(n - 1, i + 1)];
       const dx = next[0] - x;
       const dz = next[1] - z;
       const len = Math.hypot(dx, dz) || 1;
-      out.push({ x, z, h: yh, lift: 1 - t, tx: dx / len, tz: dz / len });
+      out.push({ x, z, h: yh, lift: 1 - u, tx: dx / len, tz: dz / len });
     }
   }
   return out;

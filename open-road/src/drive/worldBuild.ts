@@ -327,7 +327,7 @@ export function addSpeedTrackProps(object: THREE.Group, colliders: Collider[]) {
 
 /** JOB 6 — elevated skyway deck, pillars, barriers, lights, ramps. */
 export function addSkyway(object: THREE.Group, colliders: Collider[]) {
-  const { deck } = skywayPaths();
+  const { deck, ramps } = skywayPaths();
   const concrete = new THREE.MeshStandardMaterial({ color: 0x8a9098, roughness: 0.88 });
   const asphalt = new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.9 });
   const barrier = new THREE.MeshStandardMaterial({ color: 0xb0b4b8, roughness: 0.7, metalness: 0.25 });
@@ -341,9 +341,11 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
   const pts = deck.points;
   const n = pts.length;
   const h = SKYWAY.height;
+  const thick = SKYWAY.deckThick;
   const half = SKYWAY.width / 2;
+  const deckTop = h + thick * 0.5;
 
-  // Deck segments + pillars
+  // Thick concrete deck + barriers + pillars
   for (let i = 0; i < n; i++) {
     const [x1, z1] = pts[i];
     const [x2, z2] = pts[(i + 1) % n];
@@ -353,71 +355,96 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
     const dz = z2 - z1;
     const seg = Math.hypot(dx, dz);
     const yaw = Math.atan2(dx, dz);
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(SKYWAY.width, 0.7, seg + 0.4), asphalt);
-    slab.position.set(mx, h, mz);
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(SKYWAY.width, thick, seg + 0.4), asphalt);
+    slab.position.set(mx, deckTop, mz);
     slab.rotation.y = yaw;
     object.add(slab);
+    // Underside lip so the deck reads as thick concrete, not a paper plane.
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(SKYWAY.width + 0.8, 0.35, seg + 0.4), concrete);
+    lip.position.set(mx, h - 0.05, mz);
+    lip.rotation.y = yaw;
+    object.add(lip);
 
-    // Side barriers
     for (const side of [-1, 1]) {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.5, seg + 0.4), barrier);
-      wall.position.set(mx + Math.cos(yaw) * side * (half - 0.2), h + 0.9, mz - Math.sin(yaw) * side * (half - 0.2));
-      // offset perpendicular
-      const px = -Math.sin(yaw) * side * (half - 0.15);
-      const pz = -Math.cos(yaw) * side * (half - 0.15);
-      wall.position.set(mx + px, h + 0.95, mz + pz);
+      const px = -Math.sin(yaw) * side * (half - 0.2);
+      const pz = -Math.cos(yaw) * side * (half - 0.2);
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.6, seg + 0.4), barrier);
+      wall.position.set(mx + px, deckTop + 0.95, mz + pz);
       wall.rotation.y = yaw;
       object.add(wall);
     }
-    // Center barrier
-    const center = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.9, seg + 0.3), barrier);
-    center.position.set(mx, h + 0.55, mz);
+    const center = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.0, seg + 0.3), barrier);
+    center.position.set(mx, deckTop + 0.6, mz);
     center.rotation.y = yaw;
     object.add(center);
 
-    // Pillars every ~segment (skip if on road)
     if (i % 2 === 0 && clearOfRoads(mx, mz, 10)) {
       const ground = terrainHeightAt(mx, mz);
       const ph = h - ground;
       if (ph > 4) {
-        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, ph, 8), concrete);
+        const pillar = new THREE.Mesh(new THREE.BoxGeometry(2.4, ph, 2.4), concrete);
         pillar.position.set(mx, ground + ph * 0.5, mz);
         object.add(pillar);
-        colliders.push({ kind: "circle", x: mx, z: mz, r: 1.5, soft: "solid", maxY: h - 2 });
+        colliders.push({ kind: "circle", x: mx, z: mz, r: 1.6, soft: "solid", maxY: h - 2 });
       }
     }
-    // Streetlights on outer barrier
     if (i % 3 === 0) {
       const px = mx - Math.sin(yaw) * (half - 0.4);
       const pz = mz - Math.cos(yaw) * (half - 0.4);
       const light = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 6), lamp);
-      light.position.set(px, h + 2.2, pz);
+      light.position.set(px, deckTop + 2.2, pz);
+      light.userData.streetLamp = true;
       object.add(light);
     }
   }
 
-  // Ramp meshes sloping from skyway height down to highway
-  for (const ramp of skywayPaths().ramps) {
+  // Long gentle ramp slabs with barriers + support pillars (no tall arch walls).
+  for (const ramp of ramps) {
     const rp = ramp.points;
     for (let i = 0; i < rp.length - 1; i++) {
       const [x1, z1] = rp[i];
       const [x2, z2] = rp[i + 1];
       const t0 = i / (rp.length - 1);
       const t1 = (i + 1) / (rp.length - 1);
-      const y0 = h * (1 - t0) + heightAt(x1, z1) * t0;
-      const y1 = h * (1 - t1) + heightAt(x2, z2) * t1;
+      // Smoothstep grade ≤ ~6% over rampLength.
+      const s0 = t0 * t0 * (3 - 2 * t0);
+      const s1 = t1 * t1 * (3 - 2 * t1);
+      const g0 = heightAt(x1, z1);
+      const g1 = heightAt(x2, z2);
+      const y0 = deckTop * (1 - s0) + g0 * s0;
+      const y1 = deckTop * (1 - s1) + g1 * s1;
       const mx = (x1 + x2) * 0.5;
       const mz = (z1 + z2) * 0.5;
       const my = (y0 + y1) * 0.5;
       const seg = Math.hypot(x2 - x1, z2 - z1);
       const yaw = Math.atan2(x2 - x1, z2 - z1);
       const pitch = Math.atan2(y1 - y0, seg);
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(ramp.width, 0.6, seg + 0.5), asphalt);
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(ramp.width, 1.2, seg + 0.6), asphalt);
       slab.position.set(mx, my, mz);
       slab.rotation.order = "YXZ";
       slab.rotation.y = yaw;
       slab.rotation.x = -pitch;
       object.add(slab);
+      for (const side of [-1, 1]) {
+        const px = -Math.sin(yaw) * side * (ramp.width * 0.5 - 0.2);
+        const pz = -Math.cos(yaw) * side * (ramp.width * 0.5 - 0.2);
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.2, seg + 0.4), barrier);
+        wall.position.set(mx + px, my + 0.7, mz + pz);
+        wall.rotation.order = "YXZ";
+        wall.rotation.y = yaw;
+        wall.rotation.x = -pitch;
+        object.add(wall);
+      }
+      if (i % 2 === 0) {
+        const ground = terrainHeightAt(mx, mz);
+        const ph = my - 0.6 - ground;
+        if (ph > 3) {
+          const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, ph, 1.6), concrete);
+          pillar.position.set(mx, ground + ph * 0.5, mz);
+          object.add(pillar);
+          colliders.push({ kind: "circle", x: mx, z: mz, r: 1.1, soft: "solid", maxY: my - 2 });
+        }
+      }
     }
   }
 }

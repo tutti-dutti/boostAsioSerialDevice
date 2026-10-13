@@ -170,6 +170,7 @@ export class DriveGame {
       this.scene.remove(this.visual.root);
       this.visual = next;
       this.scene.add(next.root);
+      this.features.setPlayerRoot(next.root);
       this.audio.setVoice(this.ride.voice);
       this.placeCar();
     } catch (err) {
@@ -226,7 +227,9 @@ export class DriveGame {
       this.ride = nextRide;
       this.tune = nextRide.tune;
       this.audio.setVoice(nextRide.voice);
-      // Keep xz/yaw/speed — only snap the new body onto the current spot.
+      this.features.setPlayerRoot(next.root);
+      // Keep xz/yaw/speed — nudge clear of solids so a bigger body isn't inside a boulder.
+      this.clearSpawnOverlap();
       this.placeCar(0);
       this.say(`${nextRide.label} is ready`);
     } catch (err) {
@@ -234,6 +237,45 @@ export class DriveGame {
       this.say("That car did not load");
     } finally {
       this.switching = false;
+    }
+  }
+
+  /** If the car overlaps a solid, walk backward/sideways to the nearest clear spot. */
+  private clearSpawnOverlap() {
+    const car = this.car;
+    const colliders = this.world.colliders;
+    const radius = 1.6;
+    const blocked = (x: number, z: number) => {
+      for (const c of colliders) {
+        if (c.soft && c.soft !== "solid") continue;
+        if (c.kind === "circle") {
+          if (Math.hypot(x - c.x, z - c.z) < c.r + radius) return true;
+        } else if (c.kind === "box") {
+          if (Math.abs(x - c.x) < c.hx + radius && Math.abs(z - c.z) < c.hz + radius) return true;
+        }
+      }
+      return false;
+    };
+    if (!blocked(car.x, car.z)) return;
+    const fx = Math.sin(car.yaw);
+    const fz = Math.cos(car.yaw);
+    const rx = Math.cos(car.yaw);
+    const rz = -Math.sin(car.yaw);
+    for (let dist = 2; dist <= 18; dist += 2) {
+      for (const [sx, sz] of [
+        [-fx * dist, -fz * dist],
+        [rx * dist, rz * dist],
+        [-rx * dist, -rz * dist],
+        [fx * dist, fz * dist],
+      ]) {
+        const nx = car.x + sx;
+        const nz = car.z + sz;
+        if (!blocked(nx, nz)) {
+          car.x = nx;
+          car.z = nz;
+          return;
+        }
+      }
     }
   }
 
@@ -440,8 +482,11 @@ export class DriveGame {
 
   private step(dt: number) {
     const raw = this.readInput();
-    // Ease keyboard/touch steer in and out (~0.18s to full lock) so turns aren't binary.
-    const steerK = Math.abs(raw.steer) > Math.abs(this.steerSmooth) ? 9 : 12;
+    // Arcade: snap to full lock quickly. Sim: ease in so turns aren't binary.
+    const arcadeSteer = this.setup.handling !== "sim";
+    const steerIn = arcadeSteer ? 22 : 9;
+    const steerOut = arcadeSteer ? 16 : 12;
+    const steerK = Math.abs(raw.steer) > Math.abs(this.steerSmooth) ? steerIn : steerOut;
     this.steerSmooth += (raw.steer - this.steerSmooth) * (1 - Math.exp(-steerK * dt));
     if (Math.abs(this.steerSmooth) < 0.01 && raw.steer === 0) this.steerSmooth = 0;
     const input = { ...raw, steer: this.steerSmooth };

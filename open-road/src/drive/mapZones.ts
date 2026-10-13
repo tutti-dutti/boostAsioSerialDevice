@@ -162,8 +162,13 @@ export const SPEED_TRACK = {
 export const SKYWAY = {
   radius: 1050,
   height: 36,
-  width: 28,
+  /** ~4 lanes each way. */
+  width: 32,
   pillarEvery: 36,
+  /** Concrete deck thickness (meters). */
+  deckThick: 2.0,
+  /** Minimum ramp run for ≤6% grade to deck height. */
+  rampLength: 620,
 };
 
 export type LandmarkKind = "restaurant" | "carwash" | "park" | "speed" | "forest";
@@ -259,19 +264,29 @@ export function skywayPaths(): { deck: PathDef; ramps: PathDef[] } {
     highway: true,
     closed: true,
   };
-  // Four long ramps from skyway down toward highway (visual/physics deck handled separately).
+  // Four long, nearly straight ramps (≥300 m, ≤~6%) from highway up to skyway.
+  const rampLen = SKYWAY.rampLength;
+  const hwyR = 820;
   const ramps: PathDef[] = [0, 1, 2, 3].map((i) => {
     const a = (i / 4) * Math.PI * 2 + 0.2;
     const ox = Math.cos(a);
     const oz = Math.sin(a);
+    // Tangential offset so the ramp runs alongside traffic, not a radial wall.
+    const tx = -oz;
+    const tz = ox;
+    const side = 22;
+    const pts: [number, number][] = [];
+    const steps = 10;
+    for (let s = 0; s <= steps; s++) {
+      const u = s / steps; // 0 = skyway, 1 = highway
+      const along = u * rampLen;
+      // Start at skyway ring, end near highway ring — mostly radial but long.
+      const rad = r - along * ((r - hwyR - 10) / rampLen);
+      pts.push([ox * rad + tx * side * (1 - u * 0.3), oz * rad + tz * side * (1 - u * 0.3)]);
+    }
     return {
-      points: [
-        [ox * r, oz * r],
-        [ox * (r - 80), oz * (r - 80)],
-        [ox * (r - 160), oz * (r - 160)],
-        [ox * 860, oz * 860],
-      ] as [number, number][],
-      width: 10,
+      points: pts,
+      width: 12,
       grip: 1,
       highway: true,
     };
