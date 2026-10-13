@@ -414,68 +414,72 @@ function buildTasmanianDevil() {
 
 /** Cybertruck: side view is a TRIANGLE — one peak, two straight slopes, closed body. */
 function buildAnkylosaur() {
+  // ONE solid wedge: flat floor + two straight roof lines to a single peak.
+  // No stacked hood/cabin/bed boxes.
   const root = new THREE.Group();
   root.name = "ankylosaur";
   const c = new THREE.Group();
   c.name = "chassis";
-  const peakY = 2.05;
-  const peakZ = 0.15;
-  // Extruded triangle silhouette (flat floor + two roof lines meeting at one peak)
-  function sideBodyLocal(upperZY, width, material, yFloor = 0.35) {
-    const shape = new THREE.Shape();
-    shape.moveTo(upperZY[0][0], upperZY[0][1]);
-    for (let i = 1; i < upperZY.length; i++) shape.lineTo(upperZY[i][0], upperZY[i][1]);
-    const last = upperZY[upperZY.length - 1];
-    shape.lineTo(last[0], yFloor);
-    shape.lineTo(upperZY[0][0], yFloor);
-    shape.closePath();
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: width, bevelEnabled: false });
-    geo.translate(0, 0, -width / 2);
-    geo.rotateY(-Math.PI / 2);
-    return new THREE.Mesh(geo, material);
-  }
-  // Nose (+Z) → peak → tail (−Z): two straight lines only on top
-  c.add(
-    sideBodyLocal(
-      [
-        [2.55, 0.45], // front bumper
-        [peakZ, peakY], // ONE peak above front seats
-        [-2.55, 0.5], // tailgate
-      ],
-      2.15,
-      steel,
-      0.35,
-    ),
-  );
-  // Fill so the triangle is solid (no open top)
-  c.add(box(2.1, 0.7, 4.8, steel, 0, 0.75, 0));
-  c.add(box(2.05, 0.55, 1.8, steel, 0, 1.35, 0.85));
-  c.add(box(2.05, 0.55, 1.7, steel, 0, 1.3, -0.9));
-  c.add(box(2.0, 0.14, 0.5, steel, 0, peakY - 0.02, peakZ));
-  // Windshield on the front plane
-  const ws = box(1.7, 0.1, 1.5, glass, 0, 1.45, 1.15);
+
+  const peakY = 2.18;
+  const peakZ = 0.4; // sharp peak above the front seats
+  const noseZ = 2.75;
+  const tailZ = -2.75;
+  const frontY = 0.48; // front bumper top of front plane
+  const backY = 0.52; // tailgate
+  const floorY = 0.36;
+  const width = 2.2;
+
+  // Shape in (car-Z, car-Y); extrude along width (car-X).
+  const shape = new THREE.Shape();
+  shape.moveTo(noseZ, floorY);
+  shape.lineTo(noseZ, frontY);
+  shape.lineTo(peakZ, peakY); // front plane → peak
+  shape.lineTo(tailZ, backY); // back plane → tailgate
+  shape.lineTo(tailZ, floorY);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: width, bevelEnabled: false, curveSegments: 1, steps: 1 });
+  geo.translate(0, 0, -width / 2);
+  geo.rotateY(-Math.PI / 2);
+  c.add(new THREE.Mesh(geo, steel));
+
+  // Windshield = dark tinted section of the front plane (same angle, not a separate hood).
+  const frontLen = Math.hypot(noseZ - peakZ, frontY - peakY);
+  const frontPitch = Math.atan2(peakY - frontY, peakZ - noseZ);
+  const ws = box(width * 0.9, 0.05, frontLen * 0.62, glass, 0, (peakY + frontY) * 0.52, (peakZ + noseZ) * 0.48);
   ws.name = "glass";
-  ws.rotation.x = 0.52;
+  ws.rotation.x = frontPitch;
   c.add(ws);
-  const rs = box(1.5, 0.08, 1.2, glass, 0, 1.4, -1.05);
+
+  // Rear glass tint on the back plane (same plane as the tonneau cover).
+  const backLen = Math.hypot(peakZ - tailZ, peakY - backY);
+  const backPitch = Math.atan2(peakY - backY, peakZ - tailZ);
+  const rs = box(width * 0.85, 0.04, backLen * 0.35, glass, 0, (peakY + backY) * 0.55, (peakZ + tailZ) * 0.35);
   rs.name = "glass";
-  rs.rotation.x = -0.48;
+  rs.rotation.x = backPitch;
   c.add(rs);
-  for (const s of [-1, 1]) {
-    const sideG = box(0.06, 0.4, 1.0, glass, s * 1.08, 1.45, 0.2);
-    sideG.name = "glass";
-    c.add(sideG);
-  }
+
   // Thin full-width light bars
-  c.add(box(2.1, 0.05, 0.07, head, 0, 0.72, 2.65));
-  c.add(box(2.1, 0.05, 0.07, tail, 0, 0.78, -2.65));
-  // Trapezoid wheel arches
+  c.add(box(width * 0.98, 0.045, 0.06, head, 0, 0.7, noseZ - 0.02));
+  c.add(box(width * 0.98, 0.045, 0.06, tail, 0, 0.74, tailZ + 0.02));
+
+  // Trapezoid (angular) wheel arches with thick black trim — cut-in look via boxes.
   for (const s of [-1, 1]) {
-    c.add(box(0.28, 0.45, 0.95, dark, s * 1.12, 0.7, 1.5));
-    c.add(box(0.28, 0.45, 0.95, dark, s * 1.12, 0.7, -1.5));
+    for (const z of [1.45, -1.45]) {
+      const arch = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.5, 1.05), dark);
+      arch.position.set(s * (width * 0.5 + 0.02), 0.68, z);
+      c.add(arch);
+      // Angled “trap” lips
+      const lipF = box(0.34, 0.12, 0.35, dark, s * (width * 0.5 + 0.02), 0.95, z + 0.4);
+      lipF.rotation.x = 0.45;
+      const lipR = box(0.34, 0.12, 0.35, dark, s * (width * 0.5 + 0.02), 0.95, z - 0.4);
+      lipR.rotation.x = -0.45;
+      c.add(lipF, lipR);
+    }
   }
+
   root.add(c);
-  addWheels(root, 1.1, 1.55, -1.55, 0.5, 0.34);
+  addWheels(root, 1.12, 1.55, -1.55, 0.5, 0.34);
   return finish(root, "voltra-ankylosaur.glb");
 }
 

@@ -20,9 +20,10 @@ import {
   type Setup,
   type Tune,
 } from "./sim";
-import { SURFACE_LIFT, carSurfaceHeight, heightAt } from "./mapData";
+import { SPAWN, SURFACE_LIFT, carSurfaceHeight, heightAt } from "./mapData";
 import { createWorld } from "./world";
 import { GameFeatures, type TimePreset } from "./gameFeatures";
+import { bumpCars, readP1Keys, readP2Keys, type SplitHud } from "./splitSupport";
 
 export type FrameInfo = {
   mph: number;
@@ -51,6 +52,8 @@ export type FrameInfo = {
   timeLabel?: string;
   copsOn?: boolean;
   dirt?: number;
+  split?: boolean;
+  p2?: SplitHud;
 };
 
 type CamMode = "chase" | "bumper" | "hood" | "free";
@@ -109,6 +112,18 @@ export class DriveGame {
   private readonly desired = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   private readonly onFrame: (info: FrameInfo) => void;
+  /** 2-player split-screen (top = P1, bottom = P2). */
+  private splitMode = false;
+  private car2: Car = makeCar();
+  private visual2: CarVisual = emptyCar();
+  private ride2: GarageCar = GARAGE[0];
+  private tune2: Tune = GARAGE[0].tune;
+  private steerSmooth2 = 0;
+  private camera2: THREE.PerspectiveCamera;
+  private keyCodes = new Set<string>();
+  private readonly desired2 = new THREE.Vector3();
+  private readonly look2 = new THREE.Vector3();
+  private lastFeat2: SplitHud | null = null;
 
   constructor(canvas: HTMLCanvasElement, onFrame: (info: FrameInfo) => void) {
     this.onFrame = onFrame;
@@ -123,6 +138,7 @@ export class DriveGame {
     pmrem.dispose();
 
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.35, 9000);
+    this.camera2 = new THREE.PerspectiveCamera(62, 1, 0.35, 4500);
     this.resize();
 
     this.scene.background = new THREE.Color(0x8ecfff);
@@ -212,6 +228,57 @@ export class DriveGame {
 
   currentCarId() {
     return this.ride.id;
+  }
+
+  currentCarIdP2() {
+    return this.ride2.id;
+  }
+
+  isSplit() {
+    return this.splitMode;
+  }
+
+  /** Start top/bottom split-screen with P2's chosen garage car. */
+  async enableSplit(p2CarId: string) {
+    this.splitMode = true;
+    this.ride2 = carById(p2CarId);
+    this.tune2 = this.ride2.tune;
+    try {
+      const next = await loadCarModel(this.ride2.model, this.ride2.look);
+      this.scene.remove(this.visual2.root);
+      this.visual2 = next;
+      this.scene.add(next.root);
+    } catch (err) {
+      console.error("P2 car failed to load", err);
+    }
+    // Side-by-side at the dealership facing the doors.
+    resetCar(this.car);
+    this.car.x = SPAWN.x - 2.2;
+    this.car.z = SPAWN.z;
+    this.car.yaw = SPAWN.yaw;
+    this.car2 = makeCar();
+    this.car2.x = SPAWN.x + 2.2;
+    this.car2.z = SPAWN.z;
+    this.car2.yaw = SPAWN.yaw;
+    this.steerSmooth = 0;
+    this.steerSmooth2 = 0;
+    this.snap = true;
+    this.camera.far = 4500;
+    this.camera2.far = 4500;
+    this.placeCar(0);
+    this.placeCar2(0);
+    this.say("2 Players — P1 WASD · P2 Arrows");
+    this.resize();
+  }
+
+  disableSplit() {
+    this.splitMode = false;
+    this.scene.remove(this.visual2.root);
+    this.visual2 = emptyCar();
+    this.camera.far = 9000;
+    this.lastFeat2 = null;
+    this.say("Back to 1 Player");
+    this.resize();
   }
 
   async switchCar(id: string) {
@@ -371,6 +438,9 @@ export class DriveGame {
     const k = e.key.toLowerCase();
     if (e.code === "Space") this.keys.add(" ");
     this.keys.add(k);
+    this.keyCodes.add(e.code);
+    if (this.splitMode && e.code === "KeyQ" && !e.repeat) this.audio.horn();
+    if (this.splitMode && e.code === "Enter" && !e.repeat) this.audio.horn();
     if (k.startsWith("arrow") || e.code === "Space") e.preventDefault();
     if (!this.running || e.repeat) return;
     if (k === "f") this.toggleFreecam();
@@ -384,15 +454,45 @@ export class DriveGame {
   private onKeyUp = (e: KeyboardEvent) => {
     this.keys.delete(e.key.toLowerCase());
     if (e.code === "Space") this.keys.delete(" ");
+    this.keyCodes.delete(e.code);
   };
 
   private resize = () => {
     const w = window.innerWidth;
     const h = Math.max(1, window.innerHeight);
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    if (this.splitMode) {
+      this.camera.aspect = w / Math.max(1, h * 0.5);
+      this.camera2.aspect = w / Math.max(1, h * 0.5);
+    } else {
+      this.camera.aspect = w / h;
+    }
+    this.camera.updateProjectionMatrix();
+    this.camera2.updateProjectionMatrix();
   };
+
+  private smoothSteer(rawSteer: number, which: 1 | 2, dt: number) {
+    const slot = which === 1 ? "steerSmooth" : "steerSmooth2";
+    let s = which === 1 ? this.steerSmooth : this.steerSmooth2;
+    const target = Math.max(-1, Math.min(1, rawSteer));
+    const digital = Math.abs(target) >= 0.95;
+    if (Math.abs(target) < 0.02) {
+      const step = 8.5 * dt;
+      if (Math.abs(s) <= step) s = 0;
+      else s -= Math.sign(s) * step;
+    } else if (digital) {
+      const step = (1 / 0.3) * dt;
+      const want = Math.sign(target);
+      if (Math.sign(s) === want || Math.abs(s) < 0.001) s = Math.max(-1, Math.min(1, s + want * step));
+      else s -= Math.sign(s) * Math.min(step * 2.2, Math.abs(s));
+    } else {
+      s += (target - s) * (1 - Math.exp(-14 * dt));
+    }
+    if (Math.abs(s) < 0.008 && Math.abs(target) < 0.02) s = 0;
+    if (slot === "steerSmooth") this.steerSmooth = s;
+    else this.steerSmooth2 = s;
+    return s;
+  }
 
   private readInput(): Input {
     const shiftUp = this.shiftUp;
@@ -401,6 +501,10 @@ export class DriveGame {
     this.shiftDown = false;
     if (this.inputBlocked) {
       return { throttle: 0, brake: 0, steer: 0, handbrake: false, clutch: false, shiftUp: false, shiftDown: false };
+    }
+    if (this.splitMode) {
+      const p1 = readP1Keys(this.keys, this.holds);
+      return { ...p1, clutch: false, shiftUp, shiftDown };
     }
     let steer = 0;
     if (this.keys.has("a") || this.keys.has("arrowleft") || this.holds.has("left")) steer -= 1;
@@ -425,6 +529,14 @@ export class DriveGame {
       shiftUp,
       shiftDown,
     };
+  }
+
+  private readInputP2(): Input {
+    if (this.inputBlocked) {
+      return { throttle: 0, brake: 0, steer: 0, handbrake: false, clutch: false, shiftUp: false, shiftDown: false };
+    }
+    const p2 = readP2Keys(this.keys, this.keyCodes);
+    return { ...p2, clutch: false, shiftUp: false, shiftDown: false };
   }
 
   private readPad(): Input | null {
@@ -482,33 +594,7 @@ export class DriveGame {
 
   private step(dt: number) {
     const raw = this.readInput();
-    // Progressive wheel: turns right away; ~0.15 s → medium, ~0.3 s → full lock.
-    // Quick tap stays small. Release snaps back to straight fast.
-    // Digital (±1) ramps linearly with hold time. Analog eases toward stick amount.
-    const target = Math.max(-1, Math.min(1, raw.steer));
-    const digital = Math.abs(target) >= 0.95;
-    if (Math.abs(target) < 0.02) {
-      const outRate = 8.5; // ~0.12 s from full lock to center
-      const step = outRate * dt;
-      if (Math.abs(this.steerSmooth) <= step) this.steerSmooth = 0;
-      else this.steerSmooth -= Math.sign(this.steerSmooth) * step;
-    } else if (digital) {
-      const inRate = 1 / 0.3; // medium ≈ 0.15 s, full lock ≈ 0.3 s
-      const step = inRate * dt;
-      const want = Math.sign(target);
-      if (Math.sign(this.steerSmooth) === want || Math.abs(this.steerSmooth) < 0.001) {
-        this.steerSmooth = Math.max(-1, Math.min(1, this.steerSmooth + want * step));
-      } else {
-        // Crossing through center when reversing direction — unwind first.
-        this.steerSmooth -= Math.sign(this.steerSmooth) * Math.min(step * 2.2, Math.abs(this.steerSmooth));
-      }
-    } else {
-      // Partial stick: follow stick quickly so pad feel matches the faster keyboard ramp.
-      const k = 14;
-      this.steerSmooth += (target - this.steerSmooth) * (1 - Math.exp(-k * dt));
-    }
-    if (Math.abs(this.steerSmooth) < 0.008 && Math.abs(target) < 0.02) this.steerSmooth = 0;
-    const input = { ...raw, steer: this.steerSmooth };
+    const input = { ...raw, steer: this.smoothSteer(raw.steer, 1, dt) };
     const surface = surfaceUnderCar(this.car.x, this.car.z, this.car.yaw, this.world.roads, this.car.y);
     const { skid, pitch, roll, wheels, wheel } = stepCar(this.car, input, surface, dt, this.tune, this.setup);
     const wet = resolveWater(this.car);
@@ -559,6 +645,41 @@ export class DriveGame {
     this.features.applyDirt(this.visual.root);
 
     this.placeCar(dt);
+
+    // Player 2 sim (split-screen)
+    if (this.splitMode) {
+      const raw2 = this.readInputP2();
+      const input2 = { ...raw2, steer: this.smoothSteer(raw2.steer, 2, dt) };
+      const surface2 = surfaceUnderCar(this.car2.x, this.car2.z, this.car2.yaw, this.world.roads, this.car2.y);
+      const step2 = stepCar(this.car2, input2, surface2, dt, this.tune2, this.setup);
+      resolveBorder(this.car2);
+      resolveCollisions(this.car2, this.world.colliders, this.tune2);
+      resolveWater(this.car2);
+      bumpCars(this.car, this.car2);
+      this.placeCar2(dt);
+      // Light chase interest in P2 if they're the speeder.
+      const mph2 = Math.abs(this.car2.speed) * 2.23694;
+      const lim2 = this.features.speedLimitAt(this.car2.x, this.car2.z, onHighway, this.car2.y);
+      if (this.features.copsOn && mph2 > lim2 + 15) {
+        for (const c of this.features.cops) {
+          if (Math.hypot(c.x - this.car2.x, c.z - this.car2.z) < 150) c.chase = true;
+        }
+      }
+      this.lastFeat2 = {
+        mph: mph2,
+        gear: gearLabel(this.car2, input2.throttle, this.setup.auto, !!this.tune2.singleSpeed),
+        speedLimit: lim2,
+        wanted: feat.wanted,
+        chase: feat.chase,
+        x: this.car2.x,
+        z: this.car2.z,
+        yaw: this.car2.yaw,
+        surface: surface2.name,
+      };
+      void step2;
+    } else {
+      this.lastFeat2 = null;
+    }
     // Long-travel wheels visibly soak bumps in the wells; others stay subtle.
     const travelMul = this.tune.longTravel ? 1.15 : 0.45;
     const travelClamp = this.tune.longTravel ? 0.52 : 0.18;
@@ -583,13 +704,57 @@ export class DriveGame {
 
     this.world.updateChunks(this.car.x, this.car.z);
     this.placeCamera(dt);
+    if (this.splitMode) this.placeCamera2(dt);
     this.followSun();
 
     const targetFov = this.camMode === "hood" ? 74 : 58 + Math.min(6, Math.abs(this.car.speed) * 0.06);
     this.camera.fov += (targetFov - this.camera.fov) * (1 - Math.exp(-3 * dt));
     this.camera.updateProjectionMatrix();
+    if (this.splitMode) {
+      this.camera2.fov = this.camera.fov;
+      this.camera2.updateProjectionMatrix();
+    }
 
     this.onFrame(this.frameInfo(gear, surface.name, undefined, feat));
+  }
+
+  private placeCar2(dt = 1 / 60) {
+    const isTruck = this.tune2.offroad >= 1.2 || this.tune2.mass >= 2300;
+    const fx = Math.sin(this.car2.yaw);
+    const fz = Math.cos(this.car2.yaw);
+    const rx = Math.cos(this.car2.yaw);
+    const rz = -Math.sin(this.car2.yaw);
+    const axle = 1.35;
+    const track = 0.9;
+    const sample = (ox: number, oz: number) => {
+      const base = carSurfaceHeight(ox, oz, this.car2.y);
+      const bump = base < this.car2.y - 3 ? 0 : climbBumpAt(ox, oz, this.world.colliders, isTruck);
+      return base + bump;
+    };
+    const fl = sample(this.car2.x + fx * axle - rx * track, this.car2.z + fz * axle - rz * track);
+    const fr = sample(this.car2.x + fx * axle + rx * track, this.car2.z + fz * axle + rz * track);
+    const rl = sample(this.car2.x - fx * axle - rx * track, this.car2.z - fz * axle - rz * track);
+    const rr = sample(this.car2.x - fx * axle + rx * track, this.car2.z - fz * axle + rz * track);
+    const avg = (fl + fr + rl + rr) * 0.25;
+    const target = avg + SURFACE_LIFT + this.visual2.ride;
+    const gap = this.car2.y - target;
+    if (gap > 0.25) {
+      this.car2.vy -= 28 * dt;
+      this.car2.y += this.car2.vy * dt;
+      this.car2.airTime += dt;
+      if (this.car2.y < target) {
+        this.car2.y = target;
+        this.car2.vy = 0;
+        this.car2.airTime = 0;
+      }
+    } else {
+      this.car2.y += (target - this.car2.y) * 0.55;
+      this.car2.vy = 0;
+      this.car2.airTime = 0;
+    }
+    this.visual2.root.position.set(this.car2.x, this.car2.y, this.car2.z);
+    this.visual2.root.rotation.order = "YXZ";
+    this.visual2.root.rotation.y = this.car2.yaw;
   }
 
   private placeCar(dt = 1 / 60) {
@@ -745,6 +910,20 @@ export class DriveGame {
     this.camera.lookAt(this.look);
   }
 
+  private placeCamera2(dt: number) {
+    const carY = this.visual2.root.position.y;
+    const fx = Math.sin(this.car2.yaw);
+    const fz = Math.cos(this.car2.yaw);
+    this.desired2.set(this.car2.x - fx * 12, carY + 4.8, this.car2.z - fz * 12);
+    this.look2.set(this.car2.x + fx * 10, carY + 1.1, this.car2.z + fz * 10);
+    const floor = heightAt(this.desired2.x, this.desired2.z) + SURFACE_LIFT + 2.4;
+    this.desired2.y = Math.max(this.desired2.y, floor, carY + 1.2);
+    this.camera2.position.lerp(this.desired2, 1 - Math.exp(-4.2 * dt));
+    const camFloor = heightAt(this.camera2.position.x, this.camera2.position.z) + SURFACE_LIFT + 2.2;
+    if (this.camera2.position.y < camFloor) this.camera2.position.y = camFloor;
+    this.camera2.lookAt(this.look2);
+  }
+
   private frameInfo(
     gear: string,
     surface: string,
@@ -778,6 +957,8 @@ export class DriveGame {
       timeLabel: feat?.timeLabel,
       copsOn: feat?.copsOn,
       dirt: feat?.dirt,
+      split: this.splitMode,
+      p2: this.lastFeat2 ?? undefined,
     };
   }
 
@@ -792,10 +973,30 @@ export class DriveGame {
     if (!this.running) {
       this.placeCar();
       this.placeCamera(Math.max(dt, 0.016));
+      if (this.splitMode) {
+        this.placeCar2();
+        this.placeCamera2(Math.max(dt, 0.016));
+      }
       this.followSun();
       this.onFrame(this.frameInfo("N", "Road", 0));
     }
-    this.renderer.render(this.scene, this.camera);
+    const w = this.renderer.domElement.width;
+    const h = this.renderer.domElement.height;
+    if (this.splitMode) {
+      this.renderer.setScissorTest(true);
+      // Top half — Player 1
+      this.renderer.setViewport(0, h * 0.5, w, h * 0.5);
+      this.renderer.setScissor(0, h * 0.5, w, h * 0.5);
+      this.renderer.render(this.scene, this.camera);
+      // Bottom half — Player 2
+      this.renderer.setViewport(0, 0, w, h * 0.5);
+      this.renderer.setScissor(0, 0, w, h * 0.5);
+      this.renderer.render(this.scene, this.camera2);
+      this.renderer.setScissorTest(false);
+      this.renderer.setViewport(0, 0, w, h);
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 }
 

@@ -14,6 +14,7 @@ app.innerHTML = `
     <h1>Open Road</h1>
     <p class="lede">One red car. A big map. A loud engine.</p>
     <button id="play" class="play" type="button">Drive</button>
+    <button id="play-2p" class="play play-2p" type="button">2 Players</button>
     <ul class="tips">
       <li><b>W</b> gas</li>
       <li><b>S</b> brake</li>
@@ -66,6 +67,21 @@ app.innerHTML = `
         <div id="gear" class="gear">N</div>
       </div>
     </footer>
+    <div id="hud-p2" class="hud-p2 is-hidden">
+      <div class="cluster">
+        <div id="speed-p2" class="speed">0</div>
+        <div class="unit">MPH</div>
+        <div id="limit-p2" class="limit">LIM 150</div>
+        <div id="gear-p2" class="gear">N</div>
+        <div id="wanted-p2" class="wanted is-hidden">WANTED</div>
+      </div>
+      <div class="p2-label">P2 · Arrows</div>
+    </div>
+    <div id="pause-2p" class="pause-2p is-hidden">
+      <h2>Paused</h2>
+      <button id="resume-2p" type="button">Resume</button>
+      <button id="back-1p" type="button">Back to 1 Player</button>
+    </div>
     <div class="touch">
       <button data-hold="left" type="button">Left</button>
       <button data-hold="brake" type="button">Brake</button>
@@ -111,6 +127,15 @@ const copsBtn = document.querySelector<HTMLButtonElement>("#cops-btn")!;
 const rpmBar = document.querySelector<HTMLElement>("#rpm-bar")!;
 const mapCanvas = document.querySelector<HTMLCanvasElement>("#map")!;
 const mapCtx = mapCanvas.getContext("2d")!;
+const hudP2 = document.querySelector<HTMLElement>("#hud-p2")!;
+const speedP2 = document.querySelector<HTMLElement>("#speed-p2")!;
+const limitP2 = document.querySelector<HTMLElement>("#limit-p2")!;
+const gearP2 = document.querySelector<HTMLElement>("#gear-p2")!;
+const wantedP2 = document.querySelector<HTMLElement>("#wanted-p2")!;
+const pause2p = document.querySelector<HTMLElement>("#pause-2p")!;
+const play2pBtn = document.querySelector<HTMLButtonElement>("#play-2p")!;
+
+let splitPick: "p1" | "p2" | null = null;
 
 const game = new DriveGame(canvas, (info) => {
   paintHud(info);
@@ -119,7 +144,7 @@ const game = new DriveGame(canvas, (info) => {
 (window as unknown as { __driveGame: DriveGame }).__driveGame = game;
 
 function paintHud(info: FrameInfo) {
-  carNameEl.textContent = info.carName;
+  carNameEl.textContent = info.split && info.p2 ? `P1 ${info.carName}` : info.carName;
   speedEl.textContent = String(info.mph);
   limitEl.textContent = info.speedLimit != null ? `LIM ${info.speedLimit}` : "";
   gearEl.textContent = info.gear;
@@ -146,6 +171,15 @@ function paintHud(info: FrameInfo) {
     trackHudEl.textContent = `Track ${info.mph} · Top ${Math.round(info.trackTop ?? 0)} · Best ${Math.round(info.trackBest ?? 0)}${info.zeroSixty != null ? ` · 0-60 ${info.zeroSixty.toFixed(2)}s` : ""}`;
   } else if (onPark) {
     trackHudEl.textContent = `Lap ${info.lapTime != null ? info.lapTime.toFixed(1) + "s" : "—"} · Best ${info.bestLap != null ? info.bestLap.toFixed(1) + "s" : "—"}`;
+  }
+  hudP2.classList.toggle("is-hidden", !info.split || !info.p2);
+  if (info.split && info.p2) {
+    speedP2.textContent = String(Math.round(info.p2.mph));
+    limitP2.textContent = `LIM ${info.p2.speedLimit}`;
+    gearP2.textContent = info.p2.gear;
+    const w2 = info.p2.wanted > 0 || info.p2.chase;
+    wantedP2.classList.toggle("is-hidden", !w2);
+    wantedP2.textContent = w2 ? `WANTED ${"★".repeat(Math.max(1, Math.round(info.p2.wanted)))}` : "";
   }
   if (copsBtn) copsBtn.textContent = info.copsOn ? "Cops: ON" : "Cops: OFF";
 }
@@ -277,10 +311,11 @@ function paintMap(info: FrameInfo) {
     mapCtx.arc(X(c.x), Y(c.z), c.chase ? 3.5 : 2.5, 0, Math.PI * 2);
     mapCtx.fill();
   }
+  // P1 blue · P2 orange (split) / single player red triangle otherwise
   mapCtx.save();
   mapCtx.translate(X(info.x), Y(info.z));
   mapCtx.rotate(-info.yaw);
-  mapCtx.fillStyle = "#ff3355";
+  mapCtx.fillStyle = info.split ? "#3388ff" : "#ff3355";
   mapCtx.beginPath();
   mapCtx.moveTo(0, 6);
   mapCtx.lineTo(3.5, -4);
@@ -288,6 +323,19 @@ function paintMap(info: FrameInfo) {
   mapCtx.closePath();
   mapCtx.fill();
   mapCtx.restore();
+  if (info.split && info.p2) {
+    mapCtx.save();
+    mapCtx.translate(X(info.p2.x), Y(info.p2.z));
+    mapCtx.rotate(-info.p2.yaw);
+    mapCtx.fillStyle = "#ff8800";
+    mapCtx.beginPath();
+    mapCtx.moveTo(0, 6);
+    mapCtx.lineTo(3.5, -4);
+    mapCtx.lineTo(-3.5, -4);
+    mapCtx.closePath();
+    mapCtx.fill();
+    mapCtx.restore();
+  }
 }
 
 const showPlay = () => {
@@ -303,9 +351,19 @@ const showMenu = () => {
 };
 
 playBtn.addEventListener("click", () => {
+  if (game.isSplit()) game.disableSplit();
   showPlay();
   game.playMusic();
   void game.start();
+});
+
+play2pBtn.addEventListener("click", () => {
+  splitPick = "p1";
+  home.classList.add("is-hidden");
+  paintGarage();
+  garageEl.classList.remove("is-hidden");
+  const head = garageEl.querySelector("h2");
+  if (head) head.textContent = "Player 1 — pick a car";
 });
 
 // Browsers block sound until a click or key. Unlock on the first gesture too.
@@ -401,11 +459,49 @@ garageList.addEventListener("click", (event) => {
   const button = target instanceof HTMLElement ? target.closest("button") : null;
   const id = button?.getAttribute("data-car");
   if (!id) return;
+  if (splitPick === "p1") {
+    void game.switchCar(id).then(() => {
+      splitPick = "p2";
+      paintGarage();
+      const head = garageEl.querySelector("h2");
+      if (head) head.textContent = "Player 2 — pick a car";
+    });
+    return;
+  }
+  if (splitPick === "p2") {
+    closeGarage();
+    splitPick = null;
+    const head = garageEl.querySelector("h2");
+    if (head) head.textContent = "Garage";
+    showPlay();
+    void game.enableSplit(id).then(() => {
+      game.playMusic();
+      void game.start();
+    });
+    return;
+  }
   closeGarage();
   void game.switchCar(id);
 });
 
+document.querySelector("#resume-2p")?.addEventListener("click", () => {
+  pause2p.classList.add("is-hidden");
+  void game.start();
+});
+document.querySelector("#back-1p")?.addEventListener("click", () => {
+  pause2p.classList.add("is-hidden");
+  game.disableSplit();
+  showMenu();
+  playBtn.textContent = "Drive";
+});
+
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && game.isSplit() && !hud.classList.contains("is-hidden")) {
+    event.preventDefault();
+    game.pause();
+    pause2p.classList.remove("is-hidden");
+    return;
+  }
   if (event.key.toLowerCase() !== "g" || event.repeat) return;
   if (hud.classList.contains("is-hidden")) return;
   if (garageEl.classList.contains("is-hidden")) openGarage();
