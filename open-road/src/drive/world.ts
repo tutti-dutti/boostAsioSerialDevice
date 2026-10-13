@@ -550,9 +550,9 @@ export function createWorld(): World {
       const dummy = new THREE.Object3D();
       rocks.forEach((p, i) => {
         // Big rocks are solid boulders (size-matched). Only small ones are climbable.
-        const boulder = p.s >= 1.05;
-        const scale = boulder ? p.s * 1.55 : p.s * 0.75;
-        dummy.scale.set(scale, scale * (boulder ? 0.9 : 0.55), scale);
+        const boulder = p.s >= 0.95;
+        const scale = boulder ? p.s * 1.7 : p.s * 0.7;
+        dummy.scale.set(scale, scale * (boulder ? 0.95 : 0.5), scale);
         dummy.rotation.set(rand() * 1.2, rand() * 6, rand() * 0.4);
         dummy.position.set(p.x, heightAt(p.x, p.z) + 0.28 * scale, p.z);
         dummy.updateMatrix();
@@ -737,17 +737,19 @@ function addRiverAndBridge(object: THREE.Group, colliders: Collider[]) {
     waterGeo.computeVertexNormals();
     object.add(new THREE.Mesh(waterGeo, waterMat));
 
-    // Rocky patches along the banks.
+    // Rocky patches along the banks — large boulders are solid.
     for (let i = 4; i < riverPts.length; i += 5) {
       const p = riverPts[i];
       for (const side of [-1, 1]) {
         const x = p.x - p.tz * side * (RIVER.halfWidth + 14);
         const z = p.z + p.tx * side * (RIVER.halfWidth + 14);
-        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(2.2 + (i % 3) * 0.6, 0), rockBankMat);
+        const rr = 2.2 + (i % 3) * 0.6;
+        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rr, 0), rockBankMat);
         rock.position.set(x, terrainHeightAt(x, z) + 0.6, z);
         rock.rotation.set(i * 0.2, i * 0.5, 0.1);
         rock.castShadow = true;
         object.add(rock);
+        colliders.push({ kind: "circle", x, z, r: rr * 0.95, soft: "solid" });
       }
     }
   }

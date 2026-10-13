@@ -812,8 +812,7 @@ export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = 
     { x: car.x - fx * axle + rx * track, z: car.z - fz * axle + rz * track },
   ];
 
-  // Resolve solids every step — capping too low let cars ghost through boulders.
-  let solidHits = 0;
+  // Resolve every solid in range — no hit-cap (capping let cars ghost through boulder clusters).
   for (const c of colliders) {
     if (c.maxY != null && car.y > c.maxY) continue;
     const soft = c.soft ?? "solid";
@@ -846,13 +845,9 @@ export function resolveCollisions(car: Car, colliders: Collider[], tune: Tune = 
         overs.push({ x: c.x, z: c.z, soft, r: c.r });
         continue;
       }
-      if (solidHits >= 12) continue;
       impact = Math.max(impact, pushCircle(car, c.x, c.z, touch));
-      solidHits += 1;
     } else {
-      if (solidHits >= 12) continue;
       impact = Math.max(impact, pushBox(car, c, radius));
-      solidHits += 1;
     }
   }
   return { impact, overs };
