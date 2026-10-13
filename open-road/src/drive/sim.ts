@@ -37,6 +37,8 @@ export type Car = {
   ax: number;
   ay: number;
   grind: number;
+  /** Seconds held at a stop with S — reverse only after a short brake dwell. */
+  brakeHold: number;
 };
 
 export type Input = {
@@ -155,6 +157,7 @@ export function makeCar(): Car {
     ax: 0,
     ay: 0,
     grind: 0,
+    brakeHold: 0,
   };
 }
 
@@ -317,11 +320,15 @@ export function stepCar(
   let throttle = inWater ? 0 : input.throttle;
   let brake = input.brake;
   // Direction rules:
-  // - Forward while rolling backward → brake to a stop, then leave reverse.
-  // - Back while rolling forward → brake to a stop (reverse engages only when stopped).
-  // - In reverse with S held (auto) → reverse drive.
+  // - S always brakes while rolling forward (never snaps straight into reverse).
+  // - Reverse only after a short stop+hold (shiftGears). Then S drives reverse.
+  // - W while reversing brakes to a stop, then leaves reverse.
   if (!inWater) {
-    if (car.speed < -0.4 && input.throttle > 0.1) {
+    if (!car.reverse && input.brake > 0.1) {
+      // Forward / coasting: S is the brake pedal.
+      throttle = 0;
+      brake = input.brake;
+    } else if (car.speed < -0.4 && input.throttle > 0.1) {
       brake = Math.max(brake, input.throttle);
       throttle = 0;
       if (Math.abs(car.speed) < 0.55) car.reverse = false;
@@ -334,12 +341,9 @@ export function stepCar(
         throttle = 0;
       }
     } else if (setup.auto && car.reverse && input.brake > 0 && input.throttle < 0.1) {
-      // Kids expect S = reverse once reverse is selected.
+      // Already in reverse: S backs up. (Entered only after brake dwell at a stop.)
       throttle = input.brake;
       brake = 0;
-    } else if (!car.reverse && car.speed > 0.4 && input.brake > 0.1) {
-      // Keep braking forward; reverse only after a stop (handled in shiftGears).
-      throttle = 0;
     }
   }
   if (car.grind > 0 || (setup.clutchNeeded && !setup.auto && input.clutch)) throttle *= 0.08;
@@ -533,31 +537,41 @@ export function stepCar(
 
 function shiftGears(car: Car, input: Input, setup: Setup, dt: number, tune: Tune = DEFAULT_TUNE) {
   car.grind = Math.max(0, car.grind - dt);
+  // Hold S at a full stop briefly before reverse — so S brakes first.
+  const wantReverse = Math.abs(car.speed) < 0.45 && input.brake > 0.4 && input.throttle < 0.1;
+  if (!car.reverse && wantReverse) car.brakeHold += dt;
+  else if (!car.reverse) car.brakeHold = 0;
+  const reverseReady = car.brakeHold > 0.35;
+
   if (tune.singleSpeed) {
     car.gear = 0;
     if (car.reverse) {
-      if (input.throttle > 0.2 && car.speed > -0.35) car.reverse = false;
+      if (input.throttle > 0.2 && car.speed > -0.35) {
+        car.reverse = false;
+        car.brakeHold = 0;
+      }
       return;
     }
-    if (Math.abs(car.speed) < 0.5 && input.brake > 0.4 && input.throttle < 0.1) {
+    if (reverseReady) {
       car.reverse = true;
+      car.brakeHold = 0;
     }
     return;
   }
   if (setup.auto) {
-    // Stopped + brake → reverse. Gas from a stop → drive. Brake while
-    // reversing only slows; throttle drives reverse.
+    // S brakes while moving. Stopped + hold S → reverse, then S backs up.
     if (car.reverse) {
       car.gear = 0;
-      if (input.throttle > 0.2 && car.speed > -0.35) car.reverse = false;
-      if (input.brake > 0.5 && Math.abs(car.speed) < 0.35 && input.throttle < 0.1) {
-        /* stay in reverse at a stop while holding brake */
+      if (input.throttle > 0.2 && car.speed > -0.35) {
+        car.reverse = false;
+        car.brakeHold = 0;
       }
       return;
     }
-    if (Math.abs(car.speed) < 0.5 && input.brake > 0.4 && input.throttle < 0.1) {
+    if (reverseReady) {
       car.reverse = true;
       car.gear = 0;
+      car.brakeHold = 0;
       return;
     }
     if (car.speed > 2.2) {
