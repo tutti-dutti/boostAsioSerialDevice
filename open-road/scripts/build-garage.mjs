@@ -383,6 +383,65 @@ function buildGreatWhite() {
   return finish(root, "mcroar-great-white.glb");
 }
 
+/** Jesko Absolut: very low/wide, huge wing on tall posts, big splitter, teardrop cabin */
+function buildKraken() {
+  // Jesko Absolut: very low/wide, huge rear wing on tall posts, big splitter,
+  // teardrop cabin, white/silver paint.
+  const silver = new THREE.MeshStandardMaterial({
+    name: "paint",
+    color: 0xe8ecf0,
+    metalness: 0.72,
+    roughness: 0.2,
+  });
+  const root = new THREE.Group();
+  root.name = "kraken";
+  const c = new THREE.Group();
+  c.name = "chassis";
+  c.add(
+    sideBody(
+      [
+        [2.45, 0.22],
+        [1.9, 0.34],
+        [1.2, 0.42],
+        [0.5, 0.48],
+        [0.05, 0.68],
+        [-0.4, 0.78],
+        [-0.9, 0.65],
+        [-1.5, 0.48],
+        [-2.05, 0.36],
+      ],
+      2.25,
+      silver,
+      0.2,
+    ),
+  );
+  // Big front splitter
+  c.add(box(2.2, 0.05, 0.55, silver, 0, 0.22, 2.35));
+  c.add(box(2.05, 0.04, 0.2, dark, 0, 0.2, 2.55));
+  for (const s of [-1, 1]) {
+    c.add(box(0.45, 0.32, 1.3, silver, s * 1.15, 0.42, -0.55));
+    c.add(box(0.22, 0.16, 0.7, silver, s * 1.12, 0.55, 1.25));
+    c.add(box(0.26, 0.2, 0.85, silver, s * 1.18, 0.55, -1.35));
+    c.add(box(0.4, 0.05, 0.1, head, s * 0.65, 0.34, 2.4));
+    c.add(box(0.08, 0.2, 0.04, tail, s * 0.5, 0.48, -2.1));
+    // Tall wing posts
+    c.add(box(0.06, 0.55, 0.18, dark, s * 0.85, 0.95, -1.55));
+  }
+  // Teardrop cabin
+  c.add(sideBody([[0.5, 0.55], [0.15, 0.9], [-0.35, 0.95], [-0.75, 0.8], [-1.0, 0.55]], 1.1, glass, 0.52));
+  const ws = box(1.15, 0.34, 0.07, glass, 0, 0.78, 0.45);
+  ws.name = "glass";
+  ws.rotation.x = -0.4;
+  c.add(ws);
+  // Huge rear wing
+  c.add(box(2.3, 0.06, 0.45, silver, 0, 1.28, -1.55));
+  c.add(box(2.15, 0.04, 0.12, dark, 0, 1.32, -1.7));
+  c.add(box(1.9, 0.08, 0.4, dark, 0, 0.22, -2.15));
+  root.add(c);
+  addWheels(root, 1.05, 1.15, 1.25, -1.4, 0.9, 1.25);
+  return finish(root, "king-egg-kraken.glb");
+}
+
 /** Agera: short dipped nose, wraparound bubble, round tails, wide muscular */
 function buildLeviathan() {
   const root = new THREE.Group();
@@ -679,6 +738,7 @@ const cars = [
   buildHellbender(),
   buildPterodactyl(),
   buildGreatWhite(),
+  buildKraken(),
   buildLeviathan(),
   buildHellhound(),
   buildCerberus(),

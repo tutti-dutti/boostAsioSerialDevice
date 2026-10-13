@@ -5,7 +5,15 @@ export type EngineVoice = "v8" | "v10" | "v12" | "turbo" | "ev" | "diesel" | "la
 const ENGINE_LOOP = "/sfx/engine-loop.mp3";
 const TRUCK_IDLE = "/sfx/truck-idle.mp3";
 const SUPERCAR_REV = "/sfx/supercar-rev.mp3";
-const SONG = "/music/paulyudin-rock-490391.mp3";
+
+/** Background playlist: rock → tropical house → tropical chill → rock… */
+const PLAYLIST = [
+  { src: "/music/paulyudin-rock-490391.mp3", id: "paulyudin-rock" },
+  { src: "/music/aurec-tropical-house-580209.mp3", id: "aurec-tropical-house" },
+  { src: "/music/prettyjohn1-tropical-chill-581650.mp3", id: "prettyjohn1-tropical-chill" },
+] as const;
+const MUSIC_VOL = 0.42;
+const CROSSFADE_SEC = 2.8;
 
 function noiseBuffer(ctx: AudioContext) {
   const length = ctx.sampleRate * 2;
@@ -65,12 +73,25 @@ export class EngineAudio {
   private revGain: GainNode | null = null;
   private revUntil = 0;
 
+  /** Quiet electric motor whine (EV voice). */
+  private evOsc: OscillatorNode | null = null;
+  private evOsc2: OscillatorNode | null = null;
+  private evGain: GainNode | null = null;
+  private evFilter: BiquadFilterNode | null = null;
+
   private lastGear = "";
   private lastRpm = 900;
   private lastThrottle = 0;
   private wobblePhase = 0;
-  private music: HTMLAudioElement | null = null;
+  private tracks: HTMLAudioElement[] = [];
+  private trackIndex = 0;
+  private fading = false;
+  private fadeRaf = 0;
   private voice: EngineVoice = "v12";
+  private onTrackTime = () => this.maybeCrossfade();
+  private onTrackEnded = () => {
+    if (!this.fading) this.startCrossfade();
+  };
 
   /** Latest mix values, for tests. */
   debug = {
@@ -94,6 +115,10 @@ export class EngineAudio {
     return this.voice === "diesel";
   }
 
+  private isEv() {
+    return this.voice === "ev";
+  }
+
   private isSupercar() {
     return this.voice === "lambchop" || this.voice === "v12";
   }
@@ -102,25 +127,86 @@ export class EngineAudio {
     this.voice = voice;
     if (this.ctx?.state === "running") {
       void this.ensureSamples().then(() => {
-        this.startLoops();
+        if (this.isEv()) {
+          this.stopLoops();
+          this.startEvWhine();
+        } else {
+          this.stopEvWhine();
+          this.startLoops();
+        }
         this.syncTruckLayer();
       });
     }
   }
 
-  /** Start the background song immediately. Call this from the Drive click. */
+  /** Start the background playlist immediately. Call this from the Drive click. */
   playMusic() {
-    if (!this.music) {
-      const music = new Audio(SONG);
-      music.loop = true;
-      music.preload = "auto";
-      music.volume = 0.42;
-      music.setAttribute("data-bgm", "paulyudin-rock");
-      document.body.appendChild(music);
-      this.music = music;
+    if (this.tracks.length === 0) this.buildPlaylist();
+    const cur = this.tracks[this.trackIndex];
+    if (!cur) return;
+    if (cur.paused) {
+      cur.volume = MUSIC_VOL;
+      const pending = cur.play();
+      if (pending) pending.catch(() => undefined);
     }
-    const pending = this.music.play();
+  }
+
+  private buildPlaylist() {
+    for (const item of PLAYLIST) {
+      const audio = new Audio(item.src);
+      audio.loop = false;
+      audio.preload = "auto";
+      audio.volume = 0;
+      audio.setAttribute("data-bgm", item.id);
+      audio.addEventListener("timeupdate", this.onTrackTime);
+      audio.addEventListener("ended", this.onTrackEnded);
+      document.body.appendChild(audio);
+      this.tracks.push(audio);
+    }
+  }
+
+  private maybeCrossfade() {
+    if (this.fading) return;
+    const cur = this.tracks[this.trackIndex];
+    if (!cur || !Number.isFinite(cur.duration) || cur.duration <= 0) return;
+    if (cur.paused) return;
+    if (cur.duration - cur.currentTime <= CROSSFADE_SEC) this.startCrossfade();
+  }
+
+  private startCrossfade() {
+    if (this.fading || this.tracks.length < 2) return;
+    const from = this.tracks[this.trackIndex];
+    if (!from) return;
+    this.fading = true;
+    const next = (this.trackIndex + 1) % this.tracks.length;
+    const to = this.tracks[next]!;
+    to.currentTime = 0;
+    to.volume = 0;
+    const pending = to.play();
     if (pending) pending.catch(() => undefined);
+
+    if (this.fadeRaf) cancelAnimationFrame(this.fadeRaf);
+    const start = performance.now();
+    const fromVol = from.volume;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / (CROSSFADE_SEC * 1000));
+      // Smoothstep for a softer blend.
+      const ease = t * t * (3 - 2 * t);
+      from.volume = Math.max(0, fromVol * (1 - ease));
+      to.volume = MUSIC_VOL * ease;
+      if (t < 1) {
+        this.fadeRaf = requestAnimationFrame(tick);
+        return;
+      }
+      from.pause();
+      from.currentTime = 0;
+      from.volume = 0;
+      to.volume = MUSIC_VOL;
+      this.trackIndex = next;
+      this.fading = false;
+      this.fadeRaf = 0;
+    };
+    this.fadeRaf = requestAnimationFrame(tick);
   }
 
   /** Call from a click or key press so the browser allows sound. */
@@ -129,7 +215,11 @@ export class EngineAudio {
     if (!this.ctx) this.build();
     if (this.ctx && this.ctx.state !== "running") await this.ctx.resume();
     await this.ensureSamples();
-    this.startLoops();
+    if (this.isEv()) {
+      this.startEvWhine();
+    } else {
+      this.startLoops();
+    }
     this.syncTruckLayer();
   }
 
@@ -138,17 +228,30 @@ export class EngineAudio {
     if (!this.ctx) this.build();
     if (this.ctx && this.ctx.state !== "running") await this.ctx.resume();
     await this.ensureSamples();
-    this.startLoops();
+    if (this.isEv()) {
+      this.startEvWhine();
+    } else {
+      this.startLoops();
+    }
     this.syncTruckLayer();
   }
 
   silence() {
-    this.music?.pause();
+    if (this.fadeRaf) {
+      cancelAnimationFrame(this.fadeRaf);
+      this.fadeRaf = 0;
+    }
+    this.fading = false;
+    for (const track of this.tracks) {
+      track.pause();
+      track.volume = 0;
+    }
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
     this.loopBus?.gain.setTargetAtTime(0.0001, now, 0.03);
     this.truckGain?.gain.setTargetAtTime(0.0001, now, 0.03);
     this.revGain?.gain.setTargetAtTime(0.0001, now, 0.03);
+    this.evGain?.gain.setTargetAtTime(0.0001, now, 0.03);
     this.windGain?.gain.setTargetAtTime(0.0001, now, 0.05);
     this.skidGain?.gain.setTargetAtTime(0.0001, now, 0.03);
   }
@@ -184,6 +287,7 @@ export class EngineAudio {
   }
 
   private startLoops() {
+    if (this.isEv()) return;
     if (!this.ctx || !this.loopBuf || !this.loopGainA || !this.loopGainB) return;
     if (this.loopA) return;
     const dur = this.loopBuf.duration;
@@ -199,6 +303,78 @@ export class EngineAudio {
     this.loopA = make(this.loopGainA, 0);
     this.loopB = make(this.loopGainB, dur * 0.5);
     this.debug.looping = true;
+  }
+
+  private stopLoops() {
+    for (const src of [this.loopA, this.loopB]) {
+      if (!src) continue;
+      try {
+        src.stop();
+      } catch {
+        /* already stopped */
+      }
+      src.disconnect();
+    }
+    this.loopA = null;
+    this.loopB = null;
+    this.debug.looping = false;
+    if (this.ctx && this.loopBus) {
+      this.loopBus.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.04);
+    }
+  }
+
+  private startEvWhine() {
+    if (!this.ctx || !this.master || this.evOsc) return;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 900;
+    filter.Q.value = 2.2;
+    this.evFilter = filter;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.0001;
+    this.evGain = gain;
+    filter.connect(gain);
+    gain.connect(this.master);
+
+    const osc = this.ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = 220;
+    osc.connect(filter);
+    osc.start();
+    this.evOsc = osc;
+
+    // Soft second partial for a fuller motor tone without sounding like an ICE.
+    const osc2 = this.ctx.createOscillator();
+    osc2.type = "triangle";
+    osc2.frequency.value = 440;
+    const partial = this.ctx.createGain();
+    partial.gain.value = 0.28;
+    osc2.connect(partial);
+    partial.connect(filter);
+    osc2.start();
+    this.evOsc2 = osc2;
+  }
+
+  private stopEvWhine() {
+    for (const src of [this.evOsc, this.evOsc2]) {
+      if (!src) continue;
+      try {
+        src.stop();
+      } catch {
+        /* already stopped */
+      }
+      src.disconnect();
+    }
+    this.evOsc = null;
+    this.evOsc2 = null;
+    this.evFilter?.disconnect();
+    this.evFilter = null;
+    if (this.ctx && this.evGain) {
+      this.evGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.04);
+      this.evGain.disconnect();
+    }
+    this.evGain = null;
   }
 
   private syncTruckLayer() {
@@ -319,18 +495,51 @@ export class EngineAudio {
   }) {
     if (!this.ctx || this.ctx.state !== "running") return;
     if (!this.loopBus || !this.windGain || !this.skidGain) return;
-    if (!this.loopBuf) void this.ensureSamples();
-    else if (!this.loopA) this.startLoops();
 
     const now = this.ctx.currentTime;
     const audible = opts.active ? 1 : 0;
     const rpm = Math.max(700, opts.rpm);
     const gas = opts.throttle;
+    const speedAbs = Math.abs(opts.speed);
     const rpmN = Math.max(0, Math.min(1, (rpm - 850) / 6750));
     const atIdle = gas < 0.1 && rpm < 1400;
     const rpmRising = gas > 0.15 && rpm > this.lastRpm + 12;
     this.debug.rpmRising = rpmRising;
     this.wobblePhase += 0.05;
+
+    // Quiet electric whine: pitch follows road speed, no gear shifts / ICE loop.
+    if (this.isEv()) {
+      if (!this.evOsc) this.startEvWhine();
+      this.loopBus.gain.setTargetAtTime(0.0001, now, 0.05);
+      const speedN = Math.min(1, speedAbs / 55);
+      const hz = 180 + speedN * 920 + gas * 80;
+      const hz2 = hz * 2.05;
+      if (this.evOsc) this.evOsc.frequency.setTargetAtTime(hz, now, 0.06);
+      if (this.evOsc2) this.evOsc2.frequency.setTargetAtTime(hz2, now, 0.06);
+      if (this.evFilter) this.evFilter.frequency.setTargetAtTime(700 + speedN * 1400, now, 0.08);
+      const whine =
+        audible *
+        (0.04 + speedN * 0.1 + gas * 0.05) *
+        (speedAbs < 0.4 && gas < 0.05 ? 0.35 : 1);
+      this.evGain?.gain.setTargetAtTime(Math.max(0.0001, whine), now, 0.08);
+      this.windGain.gain.setTargetAtTime(audible * Math.min(0.1, speedAbs / 100), now, 0.1);
+      this.skidGain.gain.setTargetAtTime(audible * Math.min(0.28, opts.skid * 0.4), now, 0.04);
+      this.debug.rate = hz / 400;
+      this.debug.loopVol = whine;
+      this.debug.revVol = 0;
+      this.debug.looping = whine > 0.02;
+      this.debug.idle = speedAbs < 0.5 ? whine : 0;
+      this.debug.mid = speedAbs >= 0.5 ? whine : 0;
+      this.debug.high = 0;
+      this.debug.filterHz = hz;
+      this.lastRpm = rpm;
+      this.lastThrottle = gas;
+      this.lastGear = opts.gear;
+      return;
+    }
+
+    if (!this.loopBuf) void this.ensureSamples();
+    else if (!this.loopA) this.startLoops();
 
     // Idle: normal pitch, low volume. Climb to ~1.8x at redline with RPM.
     // Trucks stay deeper so they never whistle.

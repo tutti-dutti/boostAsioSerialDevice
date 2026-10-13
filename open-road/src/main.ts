@@ -27,7 +27,7 @@ app.innerHTML = `
       <button id="abs-mode" type="button">ABS: On</button>
     </div>
     <p class="note">Turn your sound on. Manual uses Q and E to shift, and Shift is the clutch. Press F for freecam. A song plays while you drive.</p>
-    <p class="credits">Models: all garage cars are original bodies made for this game. Road props use Kenney's Car Kit (CC0). Engine sounds: freesound_community and Chrysalyn on Pixabay.</p>
+    <p class="credits">Models: all garage cars are original bodies made for this game. Road props use Kenney's Car Kit (CC0). Music: Aurec and prettyjohn1 on Pixabay. Engine sounds: freesound_community and Chrysalyn on Pixabay.</p>
   </section>
   <div id="hud" class="hud is-hidden">
     <header class="top">

@@ -402,7 +402,7 @@ export class DriveGame {
       if (this.toastTimer <= 0) this.toast = "";
     }
 
-    const gear = gearLabel(this.car, input.throttle, this.setup.auto);
+    const gear = gearLabel(this.car, input.throttle, this.setup.auto, !!this.tune.singleSpeed);
     this.audio.update({
       rpm: this.car.rpm,
       throttle: input.throttle,

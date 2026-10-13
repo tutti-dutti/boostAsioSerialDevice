@@ -64,6 +64,10 @@ export type Tune = {
   mass: number;
   /** Height of the weight above the ground, in meters. */
   cg: number;
+  /** Electric single-speed drivetrain (no gear shifts). */
+  singleSpeed?: boolean;
+  /** Hypercar: more top-end shove and planted at very high speed. */
+  hyper?: boolean;
 };
 
 export type Handling = "arcade" | "sim";
@@ -230,9 +234,10 @@ function patchAt(x: number, z: number, name: string): Surface | null {
   return null;
 }
 
-export function gearLabel(car: Car, throttle: number, auto = true) {
+export function gearLabel(car: Car, throttle: number, auto = true, singleSpeed = false) {
   if (car.reverse || car.speed < -0.6) return "R";
   if (auto && Math.abs(car.speed) < 0.45 && throttle <= 0) return "N";
+  if (singleSpeed) return "D";
   return String(car.gear + 1);
 }
 
@@ -249,7 +254,7 @@ export function stepCar(
   setup: Setup = DEFAULT_SETUP,
 ): StepInfo {
   const dtSafe = clamp(dt, 0, 0.05);
-  shiftGears(car, input, setup, dtSafe);
+  shiftGears(car, input, setup, dtSafe, tune);
 
   const mass = tune.mass;
   const weight = mass * 9.81;
@@ -269,7 +274,10 @@ export function stepCar(
   const blend = arcade ? clamp((speedAbs - 18) / 40, 0, 0.45) : clamp((speedAbs - 4) / 20, 0, 1);
   const turnR = tightR * (1 - blend) + Math.max(tightR, gripR) * blend;
   const steerSign = Math.sign(input.steer) || 0;
-  const maxSteer = arcade ? 0.72 : 0.55;
+  let maxSteer = arcade ? 0.72 : 0.55;
+  if (tune.hyper && speedAbs > 50) {
+    maxSteer *= Math.max(0.35, 1 - (speedAbs - 50) / 140);
+  }
   const delta = steerSign * Math.min(maxSteer, Math.atan2(WHEELBASE, Math.max(turnR, 1.4)));
 
   const longShift = clamp((mass * car.ax * cg) / WHEELBASE, -0.38 * weight, 0.38 * weight);
@@ -322,7 +330,19 @@ export function stepCar(
   }
   if (car.grind > 0 || (setup.clutchNeeded && !setup.auto && input.clutch)) throttle *= 0.08;
 
-  const gearMul = GEAR_POWER[car.gear] ?? 0.46;
+  // Single-speed EVs keep full shove. Hypercars / 270+ mph cars keep more
+  // power in tall gears so listed top speeds are reachable against aero drag.
+  let gearMul = tune.singleSpeed ? 1 : (GEAR_POWER[car.gear] ?? 0.46);
+  if (!tune.singleSpeed) {
+    if (tune.hyper) {
+      const tall = clamp((tune.top - 90) / 60, 0, 0.9);
+      gearMul = gearMul + (1 - gearMul) * tall;
+    } else if (tune.top > 110) {
+      // Cerberus-class tops (~273 mph) need a milder tall-gear boost.
+      const tall = clamp((tune.top - 100) / 70, 0, 0.6);
+      gearMul = gearMul + (1 - gearMul) * tall;
+    }
+  }
   // Grass/dirt: trucks keep almost full speed. Cars keep most of it on grass.
   const isTruck = tune.offroad >= 1.2 || tune.mass >= 2300;
   const grassFrac = isTruck ? 0.98 : 0.75;
@@ -384,7 +404,7 @@ export function stepCar(
   const useRear = clamp((Math.abs(fxDrive) * driveSplit[1] + fxBrakeMag * 0.36) / Math.max(1, rearCap), 0, 1);
   const fyF = limitTire(tireSide(slipF, frontN, mu, useFront), Math.abs(fxDrive) * driveSplit[0] + fxBrakeMag * 0.64, frontCap);
   const fyR = limitTire(tireSide(slipR, rearN, rearMu, useRear), Math.abs(fxDrive) * driveSplit[1] + fxBrakeMag * 0.36, rearCap);
-  const drag = dragForce(car.speed, mass, inWater ? 0.8 : surface.roll);
+  const drag = dragForce(car.speed, mass, inWater ? 0.8 : surface.roll, !!tune.hyper);
   const fx = fxDrive - fxBrake - drag;
   const fy = fyF + fyR;
 
@@ -414,6 +434,12 @@ export function stepCar(
     car.yawRate += (yawTarget - car.yawRate) * follow;
   }
   car.yawRate = clamp(car.yawRate, -yawCeil, yawCeil);
+  // King Egg hypercars plant harder past ~90 mph so they don't shake or fly.
+  if (tune.hyper && rolling && speedAbs > 40) {
+    const plantH = clamp((speedAbs - 40) / 90, 0, 1);
+    car.yawRate *= Math.exp(-(2.5 + 5 * plantH) * dtSafe);
+    car.lat *= Math.exp(-(3 + 7 * plantH) * dtSafe);
+  }
   car.yaw += car.yawRate * dtSafe;
   if (rolling && !inWater && !input.handbrake) {
     const stick = clamp(mu, 0.35, 2);
@@ -423,7 +449,7 @@ export function stepCar(
 
   // One reverse gear: ~20–25 mph top on any dry/grass surface.
   car.speed = clamp(car.speed, car.reverse ? -revCap : -3, speedCap);
-  const latMax = input.handbrake ? 10 : arcade ? 1.6 : 2.4;
+  const latMax = input.handbrake ? 10 : tune.hyper ? (arcade ? 0.9 : 1.2) : arcade ? 1.6 : 2.4;
   car.lat = clamp(car.lat, -latMax, latMax);
   if (Math.abs(car.speed) < 0.35) car.lat *= Math.exp(-10 * dtSafe);
 
@@ -471,8 +497,19 @@ export function stepCar(
   };
 }
 
-function shiftGears(car: Car, input: Input, setup: Setup, dt: number) {
+function shiftGears(car: Car, input: Input, setup: Setup, dt: number, tune: Tune = DEFAULT_TUNE) {
   car.grind = Math.max(0, car.grind - dt);
+  if (tune.singleSpeed) {
+    car.gear = 0;
+    if (car.reverse) {
+      if (input.throttle > 0.2 && car.speed > -0.35) car.reverse = false;
+      return;
+    }
+    if (Math.abs(car.speed) < 0.5 && input.brake > 0.4 && input.throttle < 0.1) {
+      car.reverse = true;
+    }
+    return;
+  }
   if (setup.auto) {
     // Stopped + brake → reverse. Gas from a stop → drive. Brake while
     // reversing only slows; throttle drives reverse.
@@ -537,8 +574,10 @@ function limitTire(fy: number, fx: number, cap: number) {
  * Aero drag is ½ ρ CdA v². Rolling resistance is Crr × weight.
  * Heavier vehicles use a larger frontal area.
  */
-function dragForce(speed: number, mass: number, roll: number) {
-  const cdA = mass > 2200 ? 1.15 : 0.6;
+function dragForce(speed: number, mass: number, roll: number, hyper = false) {
+  // Hypercars use a tiny frontal area so 300 mph is reachable.
+  // Sports cars sit between hyper and truck CdA.
+  const cdA = hyper ? 0.42 : mass > 2200 ? 1.15 : 0.52;
   const aero = 0.5 * 1.225 * cdA * speed * Math.abs(speed);
   if (Math.abs(speed) < 0.05) return 0;
   return aero + roll * mass * 9.81 * Math.sign(speed);
