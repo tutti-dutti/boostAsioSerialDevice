@@ -242,7 +242,8 @@ function ribbonGeometry(path: PathDef, yLift: number) {
   if (pts.length < 2) return null;
   const half = path.width / 2;
   // Precompute centerline heights, then lightly smooth so seams cannot open.
-  const ys = pts.map((p) => heightAt(p.x, p.z) + yLift);
+  // atGrade paths (underpass / town→highway merges) stay on terrain under decks.
+  const ys = pts.map((p) => (path.atGrade ? terrainHeightAt(p.x, p.z) : heightAt(p.x, p.z)) + yLift);
   if (path.closed && ys.length > 2) {
     const avg = (ys[0] + ys[ys.length - 1]) * 0.5;
     ys[0] = avg;
@@ -738,11 +739,21 @@ function addRiverAndBridge(object: THREE.Group, colliders: Collider[]) {
     object.add(new THREE.Mesh(waterGeo, waterMat));
 
     // Rocky patches along the banks — large boulders are solid.
+    // Keep them well clear of pavement (highway / underpass / ramps).
     for (let i = 4; i < riverPts.length; i += 5) {
       const p = riverPts[i];
       for (const side of [-1, 1]) {
-        const x = p.x - p.tz * side * (RIVER.halfWidth + 14);
-        const z = p.z + p.tx * side * (RIVER.halfWidth + 14);
+        let x = p.x - p.tz * side * (RIVER.halfWidth + 28);
+        let z = p.z + p.tx * side * (RIVER.halfWidth + 28);
+        const clr = nearestRoadClearance(x, z);
+        if (clr.d < clr.half + 10) {
+          // Nudge farther off the roadway along the bank normal.
+          const need = clr.half + 14 - clr.d;
+          x -= p.tz * side * need;
+          z += p.tx * side * need;
+          const again = nearestRoadClearance(x, z);
+          if (again.d < again.half + 8) continue;
+        }
         const rr = 2.2 + (i % 3) * 0.6;
         const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rr, 0), rockBankMat);
         rock.position.set(x, terrainHeightAt(x, z) + 0.6, z);

@@ -67,6 +67,11 @@ export type PathDef = {
   grip: number;
   highway?: boolean;
   closed?: boolean;
+  /**
+   * Stay on terrain even under elevated decks (underpasses / at-grade merges).
+   * Ribbon + road samples ignore bridge/skyway height.
+   */
+  atGrade?: boolean;
 };
 
 /** Town cross + ring + dirt spur + lake spur. Widths are ~2 lanes (~7m/lane). */
@@ -151,31 +156,46 @@ export const HIGHWAY: PathDef = {
   closed: true,
 };
 
-/** On/off ramps tying the highway to the town cross. */
+/**
+ * On/off ramps tying the town cross to the highway.
+ * Merge alongside the ring at grade (before the river bridge climb) — never
+ * head-on into the elevated deck. Bridge height is only on HIGHWAY itself.
+ */
 export const RAMPS: PathDef[] = [
   {
+    // East town → NE highway, merge northbound on the south approach (pre-bridge).
     points: [
       [420, 0],
-      [520, 20],
-      [640, 80],
-      [720, 200],
-      [780, 380],
+      [510, 20],
+      [600, 45],
+      [680, 70],
+      [740, 85],
+      [780, 95],
+      [810, 105],
+      [825, 115],
+      [830, 130],
     ],
     width: 10,
     grip: 1,
     highway: true,
+    atGrade: true,
   },
   {
+    // North town → NW highway, merge westbound on the north approach (post-bridge).
     points: [
       [0, 420],
       [30, 520],
-      [120, 640],
-      [280, 740],
-      [480, 800],
+      [50, 600],
+      [30, 670],
+      [-20, 720],
+      [-70, 755],
+      [-120, 775],
+      [-150, 785],
     ],
     width: 10,
     grip: 1,
     highway: true,
+    atGrade: true,
   },
   {
     points: [
@@ -188,6 +208,7 @@ export const RAMPS: PathDef[] = [
     width: 10,
     grip: 1,
     highway: true,
+    atGrade: true,
   },
   {
     points: [
@@ -200,13 +221,33 @@ export const RAMPS: PathDef[] = [
     width: 10,
     grip: 1,
     highway: true,
+    atGrade: true,
   },
 ];
+
+/**
+ * Local road under the river bridge — stays at grade between the pillars.
+ * Crosses the NE highway span perpendicularly; does not climb onto the deck.
+ */
+export const BRIDGE_UNDERPASS: PathDef = {
+  points: [
+    [380, 540],
+    [430, 600],
+    [480, 660],
+    [520, 710],
+    [560, 760],
+    [610, 820],
+  ],
+  width: 10,
+  grip: 1,
+  atGrade: true,
+};
 
 /** Trail + speed-track + skyway-ramp paths for ribbons / physics.
  * Skyway deck is elevated (see SKYWAY_SAMPLES) — ramps only get at-grade ribbons;
  * the raised deck/ramp meshes live in worldBuild.addSkyway. */
 export const EXTRA_PATHS: PathDef[] = [
+  BRIDGE_UNDERPASS,
   ...TRAILS.map(({ points, width, grip, closed, highway }) => ({ points, width, grip, closed, highway })),
   ...speedTrackPaths(),
   ...skywayPaths().ramps,
