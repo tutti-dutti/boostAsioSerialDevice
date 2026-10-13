@@ -80,7 +80,6 @@ export class GameFeatures {
   private windowMats: THREE.MeshStandardMaterial[] = [];
   private streetLampMats: THREE.MeshStandardMaterial[] = [];
   private sirenOsc: OscillatorNode | null = null;
-  private sirenGain: GainNode | null = null;
   private audioCtx: AudioContext | null = null;
   private playerRoot: THREE.Object3D | null = null;
 
@@ -496,7 +495,6 @@ export class GameFeatures {
       gain.connect(ctx.destination);
       osc.start();
       this.sirenOsc = osc;
-      this.sirenGain = gain;
       // Wail between two tones
       const t0 = ctx.currentTime;
       osc.frequency.setValueAtTime(680, t0);
@@ -524,7 +522,6 @@ export class GameFeatures {
       /* already stopped */
     }
     this.sirenOsc = null;
-    this.sirenGain = null;
   }
 
   nightFactor() {

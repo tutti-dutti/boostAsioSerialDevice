@@ -67,12 +67,30 @@ function wheel(front, left, x, z, tireR = 0.56, tireW = 0.4) {
   const pivot = new THREE.Group();
   pivot.name = `wheel-${front ? "front" : "back"}-${left ? "left" : "right"}`;
   const spin = new THREE.Group();
-  const tire = new THREE.Mesh(new THREE.CylinderGeometry(tireR, tireR, tireW, 18), rubber);
+  const tire = new THREE.Mesh(new THREE.CylinderGeometry(tireR, tireR, tireW, 20), rubber);
   tire.rotation.z = Math.PI / 2;
-  const dish = new THREE.Mesh(new THREE.CylinderGeometry(tireR * 0.55, tireR * 0.55, 0.05, 12), dark);
+  // Chunky tread rings
+  for (let i = 0; i < 8; i++) {
+    const tread = new THREE.Mesh(new THREE.BoxGeometry(tireW * 1.05, tireR * 0.16, tireR * 0.12), rubber);
+    tread.position.y = Math.cos((i / 8) * Math.PI * 2) * tireR * 0.92;
+    tread.position.z = Math.sin((i / 8) * Math.PI * 2) * tireR * 0.92;
+    tread.rotation.x = (i / 8) * Math.PI * 2;
+    spin.add(tread);
+  }
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(tireR * 0.58, tireR * 0.58, tireW * 0.5, 14), chrome);
+  rim.rotation.z = Math.PI / 2;
+  const dish = new THREE.Mesh(new THREE.CylinderGeometry(tireR * 0.5, tireR * 0.5, 0.06, 12), dark);
   dish.rotation.z = Math.PI / 2;
-  dish.position.x = left ? -tireW * 0.52 : tireW * 0.52;
-  spin.add(tire, dish);
+  const faceX = left ? -tireW * 0.52 : tireW * 0.52;
+  dish.position.x = faceX;
+  spin.add(tire, rim, dish);
+  for (let i = 0; i < 6; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, tireR * 0.45, 0.08), chrome);
+    spoke.geometry.translate(0, tireR * 0.28, 0);
+    spoke.rotation.x = (i / 6) * Math.PI * 2;
+    spoke.position.x = faceX + (left ? -0.02 : 0.02);
+    spin.add(spoke);
+  }
   pivot.add(spin);
   pivot.position.set(left ? -x : x, tireR, z);
   return pivot;
@@ -216,41 +234,46 @@ function buildTyrannosaur() {
 }
 
 /** Ram 1500: longer hood than the others, calmer pickup */
+/** Ram 1500: tall full-size pickup — high hood, boxy 4-door, crosshair grille. */
 function buildThunderBison() {
   const root = new THREE.Group();
   root.name = "thunder-bison";
   const c = new THREE.Group();
   c.name = "chassis";
-  c.add(box(2.1, 0.22, 5.4, dark, 0, 0.52, 0.1));
-  // Cab sits farther back — long hood is the side signature
-  c.add(box(2.05, 0.95, 2.15, paint, 0, 1.2, 0.15));
-  c.add(box(2.0, 0.14, 2.05, paint, 0, 1.72, 0.15));
-  const ws = box(1.9, 0.48, 0.08, glass, 0, 1.4, 1.15);
+  // Higher ride / taller body (not a sedan-with-bed)
+  c.add(box(2.25, 0.32, 5.5, dark, 0, 0.72, 0));
+  // Tall boxy 4-door cab
+  c.add(box(2.2, 1.25, 2.45, paint, 0, 1.55, 0.35));
+  c.add(box(2.15, 0.16, 2.4, paint, 0, 2.22, 0.35));
+  const ws = box(2.0, 0.58, 0.08, glass, 0, 1.85, 1.5);
   ws.name = "glass";
-  ws.rotation.x = -0.26;
+  ws.rotation.x = -0.18;
   c.add(ws);
-  c.add(box(1.85, 0.42, 0.06, glass, 0, 1.4, -0.85));
+  c.add(box(1.95, 0.5, 0.07, glass, 0, 1.85, -0.8));
   for (const s of [-1, 1]) {
-    c.add(box(0.06, 0.42, 0.7, glass, s * 1.04, 1.35, 0.45));
-    c.add(box(0.06, 0.42, 0.55, glass, s * 1.04, 1.35, -0.25));
+    c.add(box(0.07, 0.5, 0.85, glass, s * 1.12, 1.8, 0.85));
+    c.add(box(0.07, 0.5, 0.7, glass, s * 1.12, 1.8, 0.05));
   }
-  // Extra-long hood
-  c.add(box(1.95, 0.28, 2.15, paint, 0, 0.95, 2.25));
-  c.add(box(1.7, 0.08, 1.6, paint, 0, 1.12, 2.35));
-  c.add(box(1.8, 0.55, 0.12, dark, 0, 0.82, 3.3));
-  for (let i = -2; i <= 2; i++) c.add(box(1.55, 0.04, 0.05, chrome, 0, 0.82 + i * 0.08, 3.36));
+  // High flat hood ~chest height
+  c.add(box(2.1, 0.38, 1.7, paint, 0, 1.35, 2.2));
+  c.add(box(1.9, 0.1, 1.4, paint, 0, 1.58, 2.25));
+  // Giant upright grille with big crosshair
+  c.add(box(2.05, 0.85, 0.16, dark, 0, 1.2, 3.05));
+  c.add(box(1.75, 0.1, 0.08, chrome, 0, 1.2, 3.14));
+  c.add(box(0.1, 0.7, 0.08, chrome, 0, 1.2, 3.14));
   for (const s of [-1, 1]) {
-    c.add(box(0.42, 0.22, 0.1, head, s * 0.85, 0.95, 3.32));
-    c.add(box(0.28, 0.28, 0.85, dark, s * 1.15, 0.82, 1.55));
-    c.add(box(0.28, 0.28, 0.85, dark, s * 1.15, 0.82, -1.55));
+    c.add(box(0.48, 0.32, 0.1, head, s * 0.95, 1.35, 3.08)); // tall square headlights
+    c.add(box(0.38, 0.4, 0.95, dark, s * 1.22, 1.05, 1.85));
+    c.add(box(0.38, 0.4, 0.95, dark, s * 1.22, 1.05, -1.55));
   }
-  c.add(box(2.0, 0.12, 2.2, paint, 0, 0.78, -1.95));
-  for (const s of [-1, 1]) c.add(box(0.1, 0.48, 2.2, paint, s * 0.98, 1.02, -1.95));
-  c.add(box(2.0, 0.48, 0.1, paint, 0, 1.02, -3.05));
-  for (const s of [-1, 1]) c.add(box(0.28, 0.18, 0.08, tail, s * 0.7, 0.95, -3.12));
-  c.add(box(2.1, 0.16, 0.35, dark, 0, 0.5, 3.55));
+  // Bed
+  c.add(box(2.15, 0.14, 2.25, paint, 0, 1.0, -1.95));
+  for (const s of [-1, 1]) c.add(box(0.12, 0.65, 2.25, paint, s * 1.05, 1.35, -1.95));
+  c.add(box(2.15, 0.65, 0.12, paint, 0, 1.35, -3.1));
+  for (const s of [-1, 1]) c.add(box(0.32, 0.22, 0.1, tail, s * 0.75, 1.25, -3.18));
+  c.add(box(2.3, 0.28, 0.45, dark, 0, 0.7, 3.35));
   root.add(c);
-  addWheels(root, 1.18, 1.7, -1.55, 0.54, 0.38);
+  addWheels(root, 1.22, 1.85, -1.55, 0.62, 0.42);
   return finish(root, "headbutt-thunder-bison.glb");
 }
 
@@ -389,59 +412,70 @@ function buildTasmanianDevil() {
   return finish(root, "coyota-tasmanian-devil.glb");
 }
 
-/** Cybertruck: ONE solid closed doorstop — peak over doors, flat slopes front/back, no open top. */
+/** Cybertruck: side view is a TRIANGLE — one peak, two straight slopes, closed body. */
 function buildAnkylosaur() {
   const root = new THREE.Group();
   root.name = "ankylosaur";
   const c = new THREE.Group();
   c.name = "chassis";
-  const peakY = 1.9;
-  const peakZ = 0.1;
-  // Solid filled body volume (not separate upright side walls)
-  c.add(box(2.1, 0.85, 5.2, steel, 0, 0.85, 0));
-  // Flat steel sides flush with the wedge
-  for (const s of [-1, 1]) {
-    c.add(box(0.12, 1.4, 5.15, steel, s * 1.05, 0.95, 0));
+  const peakY = 2.05;
+  const peakZ = 0.15;
+  // Extruded triangle silhouette (flat floor + two roof lines meeting at one peak)
+  function sideBodyLocal(upperZY, width, material, yFloor = 0.35) {
+    const shape = new THREE.Shape();
+    shape.moveTo(upperZY[0][0], upperZY[0][1]);
+    for (let i = 1; i < upperZY.length; i++) shape.lineTo(upperZY[i][0], upperZY[i][1]);
+    const last = upperZY[upperZY.length - 1];
+    shape.lineTo(last[0], yFloor);
+    shape.lineTo(upperZY[0][0], yFloor);
+    shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: width, bevelEnabled: false });
+    geo.translate(0, 0, -width / 2);
+    geo.rotateY(-Math.PI / 2);
+    return new THREE.Mesh(geo, material);
   }
-  // Front slope: peak → bumper (one straight face)
-  const frontFace = box(2.05, 0.14, 2.85, steel, 0, (peakY + 0.4) * 0.5, 1.4);
-  frontFace.rotation.x = 0.48;
-  c.add(frontFace);
-  // Rear slope: peak → tail
-  const rearFace = box(2.05, 0.14, 2.7, steel, 0, (peakY + 0.4) * 0.5, -1.35);
-  rearFace.rotation.x = -0.42;
-  c.add(rearFace);
-  // Sharp roof peak ridge above the doors
-  c.add(box(2.0, 0.12, 0.55, steel, 0, peakY, peakZ));
-  // Fill the triangle so there is no open top / bathtub
-  c.add(box(1.95, 0.55, 1.6, steel, 0, 1.35, 0.9));
-  c.add(box(1.95, 0.55, 1.5, steel, 0, 1.35, -0.85));
-  // Dark windshield on the front slope
-  const ws = box(1.65, 0.1, 1.35, glass, 0, 1.4, 1.05);
+  // Nose (+Z) → peak → tail (−Z): two straight lines only on top
+  c.add(
+    sideBodyLocal(
+      [
+        [2.55, 0.45], // front bumper
+        [peakZ, peakY], // ONE peak above front seats
+        [-2.55, 0.5], // tailgate
+      ],
+      2.15,
+      steel,
+      0.35,
+    ),
+  );
+  // Fill so the triangle is solid (no open top)
+  c.add(box(2.1, 0.7, 4.8, steel, 0, 0.75, 0));
+  c.add(box(2.05, 0.55, 1.8, steel, 0, 1.35, 0.85));
+  c.add(box(2.05, 0.55, 1.7, steel, 0, 1.3, -0.9));
+  c.add(box(2.0, 0.14, 0.5, steel, 0, peakY - 0.02, peakZ));
+  // Windshield on the front plane
+  const ws = box(1.7, 0.1, 1.5, glass, 0, 1.45, 1.15);
   ws.name = "glass";
-  ws.rotation.x = 0.48;
+  ws.rotation.x = 0.52;
   c.add(ws);
-  const rs = box(1.45, 0.08, 1.0, glass, 0, 1.35, -0.95);
+  const rs = box(1.5, 0.08, 1.2, glass, 0, 1.4, -1.05);
   rs.name = "glass";
-  rs.rotation.x = -0.42;
+  rs.rotation.x = -0.48;
   c.add(rs);
   for (const s of [-1, 1]) {
-    const sideG = box(0.06, 0.45, 0.95, glass, s * 1.05, 1.4, 0.15);
+    const sideG = box(0.06, 0.4, 1.0, glass, s * 1.08, 1.45, 0.2);
     sideG.name = "glass";
     c.add(sideG);
   }
-  // Full-width thin light bars
-  c.add(box(2.05, 0.055, 0.07, head, 0, 0.7, 2.7));
-  c.add(box(2.05, 0.055, 0.07, tail, 0, 0.75, -2.7));
-  c.add(box(2.15, 0.14, 0.3, dark, 0, 0.38, 2.75));
-  c.add(box(2.15, 0.14, 0.3, dark, 0, 0.38, -2.75));
-  // Angular wheel arches — wheels sit inside
+  // Thin full-width light bars
+  c.add(box(2.1, 0.05, 0.07, head, 0, 0.72, 2.65));
+  c.add(box(2.1, 0.05, 0.07, tail, 0, 0.78, -2.65));
+  // Trapezoid wheel arches
   for (const s of [-1, 1]) {
-    c.add(box(0.22, 0.4, 0.9, dark, s * 1.12, 0.65, 1.55));
-    c.add(box(0.22, 0.4, 0.9, dark, s * 1.12, 0.65, -1.55));
+    c.add(box(0.28, 0.45, 0.95, dark, s * 1.12, 0.7, 1.5));
+    c.add(box(0.28, 0.45, 0.95, dark, s * 1.12, 0.7, -1.5));
   }
   root.add(c);
-  addWheels(root, 1.08, 1.6, -1.6, 0.48, 0.32);
+  addWheels(root, 1.1, 1.55, -1.55, 0.5, 0.34);
   return finish(root, "voltra-ankylosaur.glb");
 }
 

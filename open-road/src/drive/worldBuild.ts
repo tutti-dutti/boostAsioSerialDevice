@@ -449,21 +449,73 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
   }
 }
 
-/** JOB 5 — denser city blocks inside the highway (instanced buildings). */
+/** JOB 5 — denser city blocks inside the highway (detailed facades). */
 export function addCityBlocks(object: THREE.Group, colliders: Collider[]) {
-  const colors = [0xe8dcc8, 0xd0d6e0, 0xc8b8a0, 0xb0c0d0, 0xe0e4e8, 0xd8c8b8];
+  const colors = [0xe8dcc8, 0xd0d6e0, 0xc8b8a0, 0xb0c0d0, 0xe0e4e8, 0xd8c8b8, 0xb8c4b0, 0xd4c0b0];
   const glassMat = new THREE.MeshStandardMaterial({
+    name: "window-glass",
     color: 0x88ccee,
     metalness: 0.6,
     roughness: 0.15,
     emissive: 0x224466,
     emissiveIntensity: 0.35,
   });
+  glassMat.userData.nightWindow = true;
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x4a5048, roughness: 0.9 });
   const rand = mulberry32(99);
-  // Grid of blocks inside ~r 280, skipping roads (near ± axes and ring).
+
+  const addDetailedBuilding = (x: number, z: number, w: number, h: number, d: number, color: number, glassy: boolean) => {
+    const y0 = heightAt(x, z);
+    const mat = glassy
+      ? glassMat
+      : new THREE.MeshStandardMaterial({ color, roughness: 0.78, metalness: 0.05 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    body.position.set(x, y0 + h / 2, z);
+    object.add(body);
+    // Roof edge / parapet
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.7, 0.45, d + 0.7), roofMat);
+    roof.position.set(x, y0 + h + 0.15, z);
+    object.add(roof);
+    // Window grid on each face (skip full-glass towers)
+    if (!glassy) {
+      const winMat = new THREE.MeshStandardMaterial({
+        name: "window-glass",
+        color: 0xa8d0e8,
+        emissive: 0xffe0a0,
+        emissiveIntensity: 0.15,
+        metalness: 0.4,
+        roughness: 0.2,
+      });
+      winMat.userData.nightWindow = true;
+      const floors = Math.max(2, Math.floor(h / 3.2));
+      const colsW = Math.max(2, Math.floor(w / 2.4));
+      const colsD = Math.max(2, Math.floor(d / 2.4));
+      for (let f = 0; f < floors; f++) {
+        const wy = y0 + 1.4 + f * (h / floors);
+        for (let c = 0; c < colsW; c++) {
+          const wx = x - w * 0.5 + (c + 0.5) * (w / colsW);
+          for (const side of [-1, 1]) {
+            const pane = new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.1, w / colsW - 0.35), 1.15, 0.08), winMat);
+            pane.position.set(wx, wy, z + side * (d * 0.5 + 0.04));
+            object.add(pane);
+          }
+        }
+        for (let c = 0; c < colsD; c++) {
+          const wz = z - d * 0.5 + (c + 0.5) * (d / colsD);
+          for (const side of [-1, 1]) {
+            const pane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.15, Math.min(1.1, d / colsD - 0.35)), winMat);
+            pane.position.set(x + side * (w * 0.5 + 0.04), wy, wz);
+            object.add(pane);
+          }
+        }
+      }
+    }
+    colliders.push({ kind: "box", x, z, hx: w / 2, hz: d / 2 });
+  };
+
   for (let gx = -4; gx <= 4; gx++) {
     for (let gz = -4; gz <= 4; gz++) {
-      if (gx === 0 || gz === 0) continue; // keep cross clear
+      if (gx === 0 || gz === 0) continue;
       const x = gx * 55 + (rand() - 0.5) * 8;
       const z = gz * 55 + (rand() - 0.5) * 8;
       if (Math.hypot(x, z) > 280) continue;
@@ -472,25 +524,14 @@ export function addCityBlocks(object: THREE.Group, colliders: Collider[]) {
       const h = downtown ? 28 + rand() * 45 : 8 + rand() * 18;
       const w = 12 + rand() * 10;
       const d = 12 + rand() * 10;
-      const y0 = heightAt(x, z);
-      const mat =
-        downtown && rand() > 0.7
-          ? glassMat
-          : new THREE.MeshStandardMaterial({
-              color: colors[Math.floor(rand() * colors.length)],
-              roughness: 0.82,
-            });
-      const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-      body.position.set(x, y0 + h / 2, z);
-      object.add(body);
-      colliders.push({ kind: "box", x, z, hx: w / 2, hz: d / 2 });
+      const glassy = downtown && rand() > 0.7;
+      const color = colors[Math.floor(rand() * colors.length)];
+      addDetailedBuilding(x, z, w, h, d, color, glassy);
     }
   }
-  // Landmarks: glass tower, stadium, parking garage
-  const tower = new THREE.Mesh(new THREE.BoxGeometry(18, 90, 18), glassMat);
-  tower.position.set(35, heightAt(35, -35) + 45, -35);
-  object.add(tower);
-  colliders.push({ kind: "box", x: 35, z: -35, hx: 9, hz: 9 });
+
+  addDetailedBuilding(35, -35, 18, 90, 18, 0x88ccee, true);
+  // Replace glass-only tower collider from helper — already added inside.
 
   const stadium = new THREE.Mesh(
     new THREE.CylinderGeometry(28, 32, 12, 20),
@@ -500,13 +541,7 @@ export function addCityBlocks(object: THREE.Group, colliders: Collider[]) {
   object.add(stadium);
   colliders.push({ kind: "circle", x: -90, z: -90, r: 30, soft: "solid" });
 
-  const garage = new THREE.Mesh(
-    new THREE.BoxGeometry(30, 14, 22),
-    new THREE.MeshStandardMaterial({ color: 0x6a7078, roughness: 0.85 }),
-  );
-  garage.position.set(100, heightAt(100, -80) + 7, -80);
-  object.add(garage);
-  colliders.push({ kind: "box", x: 100, z: -80, hx: 15, hz: 11 });
+  addDetailedBuilding(100, -80, 30, 14, 22, 0x6a7078, false);
 }
 
 /** JOB 7 — three restaurants on the busy E–W street. */
@@ -564,14 +599,44 @@ export function addRestaurants(object: THREE.Group, colliders: Collider[]) {
     object.add(pad);
   }
 
-  // Pizza delivery car (simple)
+  // Pizza delivery hatch (not a plain orange box placeholder)
   const y0 = heightAt(70, 42);
-  const car = new THREE.Mesh(
-    new THREE.BoxGeometry(2.2, 1.1, 4.2),
-    new THREE.MeshStandardMaterial({ color: 0xff2222 }),
+  const paint = new THREE.MeshStandardMaterial({ color: 0xc41e2a, roughness: 0.55, metalness: 0.15 });
+  const glassM = new THREE.MeshStandardMaterial({
+    color: 0x223344,
+    roughness: 0.2,
+    metalness: 0.3,
+    transparent: true,
+    opacity: 0.65,
+  });
+  const darkM = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 });
+  const delivery = new THREE.Group();
+  delivery.position.set(70, y0, 42);
+  delivery.rotation.y = Math.PI * 0.15;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 3.6), paint);
+  body.position.y = 0.55;
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.5, 1.4), paint);
+  cabin.position.set(0, 1.05, -0.2);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 1.35), paint);
+  roof.position.set(0, 1.32, -0.2);
+  const ws = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.06), glassM);
+  ws.position.set(0, 1.05, 0.55);
+  ws.rotation.x = -0.35;
+  const topper = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.35, 0.7),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }),
   );
-  car.position.set(70, y0 + 0.7, 42);
-  object.add(car);
+  topper.position.set(0, 1.55, -0.15);
+  for (const s of [-1, 1]) {
+    for (const z of [1.1, -1.15]) {
+      const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.22, 12), darkM);
+      tire.rotation.z = Math.PI / 2;
+      tire.position.set(s * 0.78, 0.28, z);
+      delivery.add(tire);
+    }
+  }
+  delivery.add(body, cabin, roof, ws, topper);
+  object.add(delivery);
 
   // Phở lanterns
   const lanternMat = new THREE.MeshStandardMaterial({
