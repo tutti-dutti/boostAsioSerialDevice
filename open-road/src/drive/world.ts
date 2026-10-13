@@ -807,7 +807,8 @@ function addRiverAndBridge(object: THREE.Group, colliders: Collider[]) {
       const slab = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 0.6, 1.1, 4.2), concrete);
       slab.position.set(s.x, s.h + SURFACE_LIFT - 0.55, s.z);
       slab.rotation.y = Math.atan2(s.tx, s.tz);
-      slab.castShadow = true;
+      // Underside only — never cast a mystery strip onto the road below.
+      slab.castShadow = false;
       slab.receiveShadow = true;
       object.add(slab);
     }
@@ -1010,16 +1011,17 @@ function addFountain(object: THREE.Group, colliders: Collider[], x: number, z: n
 }
 
 function addPatches(object: THREE.Group) {
-  const colors: Record<string, number> = { Wet: 0x243848, Mud: 0x5c3b22, Ice: 0xd5e6f4 };
+  // Wet is a subtle sheen — never a long dark band that looks like a shadow.
+  const colors: Record<string, number> = { Wet: 0x6a7a88, Mud: 0x5c3b22, Ice: 0xd5e6f4 };
   for (const patch of PATCHES) {
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(patch.hx * 2, patch.hz * 2),
       new THREE.MeshStandardMaterial({
         color: colors[patch.name] ?? 0x888888,
-        roughness: patch.name === "Mud" ? 1 : 0.18,
-        metalness: patch.name === "Wet" ? 0.45 : 0.05,
+        roughness: patch.name === "Mud" ? 1 : patch.name === "Wet" ? 0.28 : 0.18,
+        metalness: patch.name === "Wet" ? 0.35 : 0.05,
         transparent: true,
-        opacity: 0.82,
+        opacity: patch.name === "Wet" ? 0.45 : 0.82,
         polygonOffset: true,
         polygonOffsetFactor: -2,
         polygonOffsetUnits: -2,
@@ -1027,6 +1029,8 @@ function addPatches(object: THREE.Group) {
     );
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(patch.x, heightAt(patch.x, patch.z) + SURFACE_LIFT + 0.03, patch.z);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
     object.add(mesh);
   }
 }

@@ -11,6 +11,9 @@ const DAY_LEN_SEC = 20 * 60; // 20-minute day
 const COP_COUNT = 5;
 const COP_PATROL_R = 500;
 const COP_NOTICE_R = 150;
+/** Keep cops off the player's body — bump OK, overlap never. */
+const COP_MIN_SEP = 4.5;
+const COP_SPAWN_MIN = 110;
 const MAX_STREET_LIGHTS = 6;
 
 export type TimePreset = "morning" | "noon" | "sunset" | "night" | "pause";
@@ -237,34 +240,78 @@ export class GameFeatures {
     this.spawnCopsNear(SPAWN.x, SPAWN.z);
   }
 
+  private makeCop(x: number, z: number, yaw: number, patrolA: number): Cop {
+    const { mesh } = this.carMesh(0x2244aa);
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.2, 0.4),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xff0044, emissiveIntensity: 1.4 }),
+    );
+    bar.position.y = 1.05;
+    mesh.add(bar);
+    mesh.position.set(x, heightAt(x, z) + 0.2, z);
+    this.copRoot.add(mesh);
+    return { x, z, yaw, speed: 30, mesh, chase: false, bar, patrolA };
+  }
+
+  /** Spawn/replace all cops ≥100 m away, out of sight. */
   private spawnCopsNear(px: number, pz: number) {
     for (const c of this.cops) this.copRoot.remove(c.mesh);
     this.cops = [];
     for (let i = 0; i < COP_COUNT; i++) {
       const a = (i / COP_COUNT) * Math.PI * 2 + 0.35;
-      const dist = 140 + (i % 3) * 110; // ~140–360 m, within 500 m
+      const dist = COP_SPAWN_MIN + 30 + (i % 3) * 110; // ~140–360 m
       const x = px + Math.cos(a) * dist;
       const z = pz + Math.sin(a) * dist;
-      const { mesh } = this.carMesh(0x2244aa);
-      const bar = new THREE.Mesh(
-        new THREE.BoxGeometry(1.2, 0.2, 0.4),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xff0044, emissiveIntensity: 1.4 }),
-      );
-      bar.position.y = 1.05;
-      mesh.add(bar);
-      mesh.position.set(x, heightAt(x, z) + 0.2, z);
-      this.copRoot.add(mesh);
-      this.cops.push({
-        x,
-        z,
-        yaw: a + Math.PI / 2,
-        speed: 30,
-        mesh,
-        chase: false,
-        bar,
-        patrolA: a,
-      });
+      this.cops.push(this.makeCop(x, z, a + Math.PI / 2, a));
     }
+  }
+
+  /** Top up missing/far cops without wiping an active chase pack. */
+  private ensureCopsNear(px: number, pz: number) {
+    // Drop only idle cops that wandered too far; keep chasers.
+    this.cops = this.cops.filter((c) => {
+      const d = Math.hypot(c.x - px, c.z - pz);
+      if (c.chase || d < COP_PATROL_R) return true;
+      this.copRoot.remove(c.mesh);
+      return false;
+    });
+    let i = 0;
+    while (this.cops.length < COP_COUNT && i < COP_COUNT * 3) {
+      const a = Math.random() * Math.PI * 2;
+      const dist = COP_SPAWN_MIN + 40 + (i % 4) * 80;
+      const x = px + Math.cos(a) * dist;
+      const z = pz + Math.sin(a) * dist;
+      // Never spawn on top of the player or another cop.
+      if (Math.hypot(x - px, z - pz) < COP_SPAWN_MIN) {
+        i++;
+        continue;
+      }
+      let ok = true;
+      for (const c of this.cops) {
+        if (Math.hypot(c.x - x, c.z - z) < 18) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) this.cops.push(this.makeCop(x, z, a + Math.PI / 2, a));
+      i++;
+    }
+  }
+
+  /** Separate cop from player: bump OK, mesh overlap never. */
+  private separateCop(c: Cop, car: Car, dt: number) {
+    const d = Math.hypot(c.x - car.x, c.z - car.z);
+    if (d >= COP_MIN_SEP || d < 1e-4) return;
+    const nx = (c.x - car.x) / d;
+    const nz = (c.z - car.z) / d;
+    const push = COP_MIN_SEP - d;
+    c.x += nx * push;
+    c.z += nz * push;
+    // Soft bump on the player (opposite) — never teleport into the cop.
+    const bump = Math.min(2.8, push * 6) * dt;
+    car.x -= nx * bump;
+    car.z -= nz * bump;
+    if (c.chase) c.speed *= 0.85;
   }
 
   setTimePreset(preset: TimePreset) {
@@ -383,15 +430,15 @@ export class GameFeatures {
 
     let anyChase = false;
     if (this.copsOn) {
-      // Keep a few cops near the player on patrol.
+      // Keep a few cops near the player on patrol (never wipe mid-chase).
       let near = 0;
       for (const c of this.cops) if (Math.hypot(c.x - car.x, c.z - car.z) < COP_PATROL_R) near++;
-      if (this.cops.length < COP_COUNT || near < 2) this.spawnCopsNear(car.x, car.z);
+      if (this.cops.length < COP_COUNT || near < 2) this.ensureCopsNear(car.x, car.z);
 
       const limit = this.speedLimitAt(car.x, car.z, onHighway);
       const speeding = mph > limit + 10;
       for (const c of this.cops) {
-        const d = Math.hypot(c.x - car.x, c.z - car.z);
+        let d = Math.hypot(c.x - car.x, c.z - car.z);
         // Notice within 150 m for any rule break (speeding), even off-road.
         if (speeding && d < COP_NOTICE_R) c.chase = true;
         if (c.chase) {
@@ -401,6 +448,8 @@ export class GameFeatures {
           c.speed = Math.min(62, Math.max(c.speed, mph * 0.45 + 28) + 12 * dt);
           c.x += Math.sin(c.yaw) * c.speed * dt;
           c.z += Math.cos(c.yaw) * c.speed * dt;
+          this.separateCop(c, car, dt);
+          d = Math.hypot(c.x - car.x, c.z - car.z);
           if (d < 10 && Math.abs(car.speed) < 2) this.stoppedNearCop += dt;
           else this.stoppedNearCop = Math.max(0, this.stoppedNearCop - dt);
         } else {
@@ -414,11 +463,13 @@ export class GameFeatures {
           c.speed = 28;
           c.x += Math.sin(c.yaw) * c.speed * dt;
           c.z += Math.cos(c.yaw) * c.speed * dt;
-          // Soft leash within ~500 m of player
+          this.separateCop(c, car, dt);
+          // Soft leash within ~500 m of player — teleport only if still ≥ spawn min.
           const pd = Math.hypot(c.x - car.x, c.z - car.z);
           if (pd > COP_PATROL_R) {
-            c.x = car.x + ((c.x - car.x) / pd) * (COP_PATROL_R - 40);
-            c.z = car.z + ((c.z - car.z) / pd) * (COP_PATROL_R - 40);
+            const leash = Math.max(COP_SPAWN_MIN, COP_PATROL_R - 40);
+            c.x = car.x + ((c.x - car.x) / pd) * leash;
+            c.z = car.z + ((c.z - car.z) / pd) * leash;
           }
         }
         c.mesh.position.set(c.x, heightAt(c.x, c.z) + 0.2, c.z);
