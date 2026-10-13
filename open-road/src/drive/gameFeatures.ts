@@ -10,14 +10,48 @@ import { surfaceAt, type Car, type RoadSeg, type Tune } from "./sim";
 const DAY_LEN_SEC = 20 * 60; // 20-minute day
 const COP_COUNT = 5;
 const COP_PATROL_R = 500;
-const COP_NOTICE_R = 150;
+const COP_NOTICE_R = 220;
 const COP_ESCAPE_DIST = 300;
 const COP_LOS_ESCAPE_SEC = 10;
 const COP_STAR_DROP_SEC = 15;
 /** Keep cops off the player's body — bump OK, overlap never. */
 const COP_MIN_SEP = 4.5;
-const COP_SPAWN_MIN = 110;
+const COP_SPAWN_MIN = 100;
 const MAX_STREET_LIGHTS = 6;
+
+/** Stars / chaser count from mph over the posted limit (COPS-TRAFFIC #39). */
+export function starsFromOverLimit(overMph: number): number {
+  if (overMph < 5) return 0;
+  if (overMph < 15) return 1;
+  if (overMph < 25) return 2;
+  if (overMph < 35) return 3;
+  if (overMph < 45) return 4;
+  return 5;
+}
+
+type PlayerHeat = {
+  wanted: number;
+  chaseTimer: number;
+  losHiddenTimer: number;
+  starDropTimer: number;
+  stoppedNearCop: number;
+  bustedFlash: number;
+  escapedFlash: number;
+  escapePending: number;
+};
+
+function makeHeat(): PlayerHeat {
+  return {
+    wanted: 0,
+    chaseTimer: 0,
+    losHiddenTimer: 0,
+    starDropTimer: 0,
+    stoppedNearCop: 0,
+    bustedFlash: 0,
+    escapedFlash: 0,
+    escapePending: 0,
+  };
+}
 
 const COP_ROADS: RoadSeg[] = ROADS.map((r) => ({
   x1: r.x1,
@@ -54,6 +88,8 @@ type Cop = {
   speed: number;
   mesh: THREE.Group;
   chase: boolean;
+  /** Which player this unit is pursuing (1 / 2); 0 when patrolling. */
+  target: 0 | 1 | 2;
   bar: THREE.Mesh;
   patrolA: number;
 };
@@ -63,18 +99,9 @@ export class GameFeatures {
   timePaused = false;
   copsOn = false;
   dirt = 0;
-  wanted = 0;
-  chaseTimer = 0;
+  /** Per-player wanted / escape state (P1 = heat[0], P2 = heat[1]). */
+  private heat: [PlayerHeat, PlayerHeat] = [makeHeat(), makeHeat()];
   escapeTimer = 0;
-  /** Seconds with no cop line-of-sight while wanted. */
-  losHiddenTimer = 0;
-  /** Seconds without LOS toward the next star drop. */
-  starDropTimer = 0;
-  stoppedNearCop = 0;
-  bustedFlash = 0;
-  escapedFlash = 0;
-  /** Brief flash of WANTED stars before ESCAPED clears. */
-  escapePending = 0;
   lapStart: number | null = null;
   lapTime: number | null = null;
   bestLap: number | null = null;
@@ -250,12 +277,15 @@ export class GameFeatures {
     if (!on) {
       for (const c of this.cops) this.copRoot.remove(c.mesh);
       this.cops = [];
-      this.wanted = 0;
-      this.chaseTimer = 0;
+      this.heat = [makeHeat(), makeHeat()];
       this.stopSiren();
       return;
     }
     this.spawnCopsNear(SPAWN.x, SPAWN.z);
+  }
+
+  get wanted() {
+    return this.heat[0].wanted;
   }
 
   /** Full 3D cruiser — never a flat blue panel. */
@@ -297,7 +327,7 @@ export class GameFeatures {
     mesh.position.set(x, heightAt(x, z) + 0.02, z);
     mesh.rotation.y = yaw;
     this.copRoot.add(mesh);
-    return { x, z, yaw, speed: 30, mesh, chase: false, bar, patrolA };
+    return { x, z, yaw, speed: 30, mesh, chase: false, target: 0, bar, patrolA };
   }
 
   /** Spawn/replace all cops ≥100 m away, out of sight. */
@@ -372,13 +402,13 @@ export class GameFeatures {
   }
 
   speedLimitAt(x: number, z: number, onHighway: boolean, carY = 0): number {
-    // NEXT #29: city 130 / roads 150 / highway 195 / skyway 210
+    // COPS-TRAFFIC #39: city 110 / roads 130 / highway 175 / skyway 190
     const deck = elevatedHeightAt(x, z, carY);
-    if (deck != null && carY > deck - 5.5 && Math.hypot(x, z) > SKYWAY.radius - 80) return 210;
-    if (Math.hypot(x, z) > SKYWAY.radius - 40) return 210;
-    if (onHighway) return 195;
-    if (Math.hypot(x, z) < 320) return 130;
-    return 150;
+    if (deck != null && carY > deck - 5.5 && Math.hypot(x, z) > SKYWAY.radius - 80) return 190;
+    if (Math.hypot(x, z) > SKYWAY.radius - 40) return 190;
+    if (onHighway) return 175;
+    if (Math.hypot(x, z) < 320) return 110;
+    return 130;
   }
 
   /** Hide under bridges/skyway, in forests, or tight against buildings. */
@@ -403,26 +433,55 @@ export class GameFeatures {
     return true;
   }
 
-  private maxChasers(): number {
-    const w = Math.floor(this.wanted);
-    if (w >= 5) return 3;
-    if (w >= 3) return 2;
-    if (w >= 1) return 1;
-    return 1; // first notice still gets one unit
+  private maxChasersFor(wanted: number): number {
+    return Math.max(0, Math.min(5, Math.floor(wanted)));
   }
 
-  private clearChase(say: (t: string) => void, escaped: boolean) {
-    for (const c of this.cops) c.chase = false;
-    this.stopSiren();
-    this.losHiddenTimer = 0;
-    this.starDropTimer = 0;
-    this.chaseTimer = 0;
-    if (escaped) {
-      this.wanted = 0;
-      this.escapedFlash = 2.2;
-      this.escapePending = 0;
-      say("ESCAPED");
+  private clearChase(slot: 0 | 1, say: (t: string) => void, escaped: boolean) {
+    const who = (slot + 1) as 1 | 2;
+    for (const c of this.cops) {
+      if (c.target === who || (slot === 0 && c.target === 0 && c.chase)) {
+        c.chase = false;
+        c.target = 0;
+      }
     }
+    const h = this.heat[slot];
+    h.losHiddenTimer = 0;
+    h.starDropTimer = 0;
+    h.chaseTimer = 0;
+    if (escaped) {
+      h.wanted = 0;
+      h.escapedFlash = 2.2;
+      h.escapePending = 0;
+      say(slot === 0 ? "ESCAPED" : "P2 ESCAPED");
+    }
+    if (!this.cops.some((c) => c.chase)) this.stopSiren();
+  }
+
+  /** Spawn one new cruiser ≥100 m away and preferably behind the player. */
+  private spawnCopOutOfSight(car: Car, who: 1 | 2): Cop | null {
+    const back = car.yaw + Math.PI;
+    for (let i = 0; i < 12; i++) {
+      const a = back + (Math.random() - 0.5) * 2.4 + (i % 4) * 0.7;
+      const dist = COP_SPAWN_MIN + 40 + Math.random() * 160;
+      const x = car.x + Math.sin(a) * dist;
+      const z = car.z + Math.cos(a) * dist;
+      if (Math.hypot(x - car.x, z - car.z) < COP_SPAWN_MIN) continue;
+      let ok = true;
+      for (const c of this.cops) {
+        if (Math.hypot(c.x - x, c.z - z) < 22) {
+          ok = false;
+          break;
+        }
+      }
+      if (!ok) continue;
+      const cop = this.makeCop(x, z, a + Math.PI, a);
+      cop.chase = true;
+      cop.target = who;
+      this.cops.push(cop);
+      return cop;
+    }
+    return null;
   }
 
   onSpeedTrack(x: number, z: number) {
@@ -527,153 +586,25 @@ export class GameFeatures {
       const d = Math.hypot(t.x - car.x, t.z - car.z);
       if (d < 18) t.speed = Math.max(12, t.speed - 20 * dt);
       else t.speed = Math.min(36, t.speed + 8 * dt);
-      // Crash into another car (not a red light — there are none).
+      // Crash into traffic (red lights do NOT start a chase).
       if (d < 3.6 && Math.abs(car.speed) > 4) hitTraffic = true;
     }
 
-    let anyChase = false;
-    if (this.copsOn) {
-      let near = 0;
-      for (const c of this.cops) if (Math.hypot(c.x - car.x, c.z - car.z) < COP_PATROL_R) near++;
-      if (this.cops.length < COP_COUNT || near < 2) this.ensureCopsNear(car.x, car.z);
+    const limit = this.speedLimitAt(car.x, car.z, onHighway, car.y);
+    const anyChase = this.tickPlayerCops(0, dt, car, mph, playerTopMph, copTopMs, copAccel, limit, hitTraffic, say);
 
-      const limit = this.speedLimitAt(car.x, car.z, onHighway, car.y);
-      const speeding = mph > limit + 15;
-      const wantedNow = speeding || hitTraffic;
-      const maxChase = this.maxChasers();
-      let chaseCount = this.cops.filter((c) => c.chase).length;
-
-      // Recruit nearest idle cops up to the star cap.
-      if (wantedNow) {
-        const candidates = this.cops
-          .filter((c) => !c.chase)
-          .map((c) => ({ c, d: Math.hypot(c.x - car.x, c.z - car.z) }))
-          .filter(({ d }) => d < (hitTraffic ? COP_PATROL_R : COP_NOTICE_R))
-          .sort((a, b) => a.d - b.d);
-        for (const { c } of candidates) {
-          if (chaseCount >= maxChase) break;
-          c.chase = true;
-          chaseCount++;
-          if (this.wanted < 1) this.wanted = 1;
-        }
-      }
-      // Drop excess chasers (keep closest).
-      if (chaseCount > maxChase) {
-        const ranked = this.cops
-          .filter((c) => c.chase)
-          .map((c) => ({ c, d: Math.hypot(c.x - car.x, c.z - car.z) }))
-          .sort((a, b) => a.d - b.d);
-        for (let i = maxChase; i < ranked.length; i++) ranked[i].c.chase = false;
-      }
-
-      let anySee = false;
-      let nearestChase = Infinity;
-      for (const c of this.cops) {
-        let d = Math.hypot(c.x - car.x, c.z - car.z);
-        if (c.chase) {
-          anyChase = true;
-          nearestChase = Math.min(nearestChase, d);
-          if (this.canSeePlayer(c, car)) anySee = true;
-          const ang = Math.atan2(car.x - c.x, car.z - c.z);
-          // Slow on sharp turns (big heading change).
-          const turn = Math.abs(((ang - c.yaw + Math.PI) % (Math.PI * 2)) - Math.PI);
-          c.yaw = ang;
-          const surf = surfaceAt(c.x, c.z, COP_ROADS, heightAt(c.x, c.z) + 0.5);
-          let top = copTopMs;
-          if (surf.name === "Grass") top *= 0.72;
-          else if (surf.name === "Dirt" || surf.name === "Mud" || surf.name === "Sand") top *= 0.62;
-          if (turn > 0.45) top *= 0.7;
-          c.speed = Math.min(top, c.speed + copAccel * (surf.name === "Dry" || surf.name === "Wet" ? 1 : 0.55) * dt);
-          const chasePace = Math.min(top, Math.max(18, (mph * 0.9) / 2.23694));
-          if (c.speed > chasePace) c.speed += (chasePace - c.speed) * Math.min(1, 1.8 * dt);
-          c.x += Math.sin(c.yaw) * c.speed * dt;
-          c.z += Math.cos(c.yaw) * c.speed * dt;
-          this.separateCop(c, car, dt);
-          d = Math.hypot(c.x - car.x, c.z - car.z);
-          if (d < 10 && Math.abs(car.speed) < 2) this.stoppedNearCop += dt;
-          else this.stoppedNearCop = Math.max(0, this.stoppedNearCop - dt);
-        } else {
-          c.patrolA += 0.22 * dt;
-          const pr = 180 + (c.patrolA % 3) * 90;
-          const tx = car.x + Math.cos(c.patrolA) * pr;
-          const tz = car.z + Math.sin(c.patrolA) * pr;
-          c.yaw = Math.atan2(tx - c.x, tz - c.z);
-          c.speed = 28;
-          c.x += Math.sin(c.yaw) * c.speed * dt;
-          c.z += Math.cos(c.yaw) * c.speed * dt;
-          this.separateCop(c, car, dt);
-          const pd = Math.hypot(c.x - car.x, c.z - car.z);
-          if (pd > COP_PATROL_R) {
-            const leash = Math.max(COP_SPAWN_MIN, COP_PATROL_R - 40);
-            c.x = car.x + ((c.x - car.x) / pd) * leash;
-            c.z = car.z + ((c.z - car.z) / pd) * leash;
-          }
-        }
-        // Sit on terrain — mesh origin is ground level (wheels at y≈0.32).
-        c.mesh.position.set(c.x, heightAt(c.x, c.z), c.z);
-        c.mesh.rotation.y = c.yaw;
-        c.mesh.scale.set(1, 1, 1);
-        const mat = c.bar.material as THREE.MeshStandardMaterial;
-        if (c.chase) {
-          mat.emissive.set(Math.sin(performance.now() * 0.025) > 0 ? 0xff0044 : 0x0044ff);
-          mat.emissiveIntensity = 2.2;
-        } else {
-          mat.emissive.setHex(0x2244aa);
-          mat.emissiveIntensity = 0.4;
-        }
-      }
-
-      if (this.escapePending > 0) {
-        this.escapePending -= dt;
-        if (this.escapePending <= 0) this.clearChase(say, true);
-      } else if (anyChase || this.wanted > 0) {
-        if (anySee) {
-          this.wanted = Math.min(5, Math.max(1, this.wanted + dt * 0.18));
-          this.chaseTimer += dt;
-          this.losHiddenTimer = 0;
-          this.starDropTimer = 0;
-          this.startSiren();
-        } else if (this.wanted > 0) {
-          this.losHiddenTimer += dt;
-          this.starDropTimer += dt;
-          if (this.starDropTimer >= COP_STAR_DROP_SEC) {
-            this.wanted = Math.max(0, Math.floor(this.wanted) - 1);
-            this.starDropTimer = 0;
-            if (this.wanted <= 0) {
-              this.escapePending = 0.85; // WANTED flash, then ESCAPED
-              say("WANTED");
-            }
-          }
-          if (nearestChase > COP_ESCAPE_DIST || this.losHiddenTimer >= COP_LOS_ESCAPE_SEC) {
-            this.escapePending = 0.85;
-            say("WANTED");
-          }
-        }
-      } else {
-        this.stopSiren();
-      }
-
-      if (this.stoppedNearCop > 3) {
-        this.bustedFlash = 2.5;
-        this.wanted = 0;
-        this.stoppedNearCop = 0;
-        this.clearChase(say, false);
-        car.x = SPAWN.x;
-        car.z = SPAWN.z;
-        car.yaw = SPAWN.yaw;
-        car.speed = 0;
-        say("BUSTED");
-      }
-    }
-    this.bustedFlash = Math.max(0, this.bustedFlash - dt);
-    this.escapedFlash = Math.max(0, this.escapedFlash - dt);
+    const h0 = this.heat[0];
+    h0.bustedFlash = Math.max(0, h0.bustedFlash - dt);
+    h0.escapedFlash = Math.max(0, h0.escapedFlash - dt);
+    this.heat[1].bustedFlash = Math.max(0, this.heat[1].bustedFlash - dt);
+    this.heat[1].escapedFlash = Math.max(0, this.heat[1].escapedFlash - dt);
 
     return {
-      speedLimit: this.speedLimitAt(car.x, car.z, onHighway, car.y),
-      wanted: this.wanted,
+      speedLimit: limit,
+      wanted: h0.wanted,
       chase: anyChase,
-      busted: this.bustedFlash > 0,
-      escaped: this.escapedFlash > 0,
+      busted: h0.bustedFlash > 0,
+      escaped: h0.escapedFlash > 0,
       lapTime: this.onLap && this.lapStart ? (performance.now() - this.lapStart) / 1000 : this.lapTime,
       bestLap: this.bestLap,
       trackMph,
@@ -683,6 +614,222 @@ export class GameFeatures {
       dirt: this.dirt,
       timeLabel: this.timeLabel(),
       copsOn: this.copsOn,
+    };
+  }
+
+  /**
+   * Per-player wanted / chase tick (slot 0 = P1, 1 = P2).
+   * Speeding 5+ over the limit or crashing traffic starts/raises heat.
+   */
+  tickPlayerCops(
+    slot: 0 | 1,
+    dt: number,
+    car: Car,
+    mph: number,
+    playerTopMph: number,
+    copTopMs: number,
+    copAccel: number,
+    limit: number,
+    hitTraffic: boolean,
+    say: (t: string) => void,
+  ): boolean {
+    if (!this.copsOn) return false;
+    const who = (slot + 1) as 1 | 2;
+    const h = this.heat[slot];
+    const over = mph - limit;
+    const speedStars = starsFromOverLimit(over);
+    if (speedStars > 0) h.wanted = Math.max(h.wanted, speedStars);
+    if (hitTraffic) h.wanted = Math.max(h.wanted, 1);
+
+    const maxChase = this.maxChasersFor(h.wanted);
+    let mine = this.cops.filter((c) => c.chase && c.target === who);
+    // Drop excess (keep closest).
+    if (mine.length > maxChase) {
+      mine
+        .map((c) => ({ c, d: Math.hypot(c.x - car.x, c.z - car.z) }))
+        .sort((a, b) => a.d - b.d)
+        .slice(maxChase)
+        .forEach(({ c }) => {
+          c.chase = false;
+          c.target = 0;
+        });
+      mine = this.cops.filter((c) => c.chase && c.target === who);
+    }
+    // Recruit / spawn up to star count.
+    if (maxChase > 0 && (speedStars > 0 || hitTraffic || h.wanted > 0)) {
+      while (mine.length < maxChase) {
+        const idle = this.cops
+          .filter((c) => !c.chase)
+          .map((c) => ({ c, d: Math.hypot(c.x - car.x, c.z - car.z) }))
+          .filter(({ d }) => d < COP_NOTICE_R || hitTraffic)
+          .sort((a, b) => a.d - b.d);
+        if (idle.length) {
+          const c = idle[0].c;
+          c.chase = true;
+          c.target = who;
+          mine.push(c);
+          continue;
+        }
+        // No idle nearby — spawn a new unit out of sight (≥100 m).
+        if (this.cops.length >= COP_COUNT + 4 && mine.length > 0) break;
+        const spawned = this.spawnCopOutOfSight(car, who);
+        if (!spawned) break;
+        mine.push(spawned);
+      }
+    }
+
+    // Keep a few patrol units around the primary player.
+    if (slot === 0) {
+      let near = 0;
+      for (const c of this.cops) if (Math.hypot(c.x - car.x, c.z - car.z) < COP_PATROL_R) near++;
+      if (this.cops.length < COP_COUNT || near < 2) this.ensureCopsNear(car.x, car.z);
+    }
+
+    let anySee = false;
+    let nearestChase = Infinity;
+    let anyChase = false;
+    for (const c of this.cops) {
+      const chasingMe = c.chase && c.target === who;
+      // P1 also moves unassigned patrols; P2 only steers its own chasers.
+      if (!chasingMe && !(slot === 0 && !c.chase)) {
+        if (c.chase && c.target !== who) {
+          // Other player's chaser — still update mesh later in P1 pass.
+        }
+        if (slot === 1) continue;
+      }
+
+      let d = Math.hypot(c.x - car.x, c.z - car.z);
+      if (chasingMe) {
+        anyChase = true;
+        nearestChase = Math.min(nearestChase, d);
+        if (this.canSeePlayer(c, car)) anySee = true;
+        const ang = Math.atan2(car.x - c.x, car.z - c.z);
+        const turn = Math.abs(((ang - c.yaw + Math.PI) % (Math.PI * 2)) - Math.PI);
+        c.yaw = ang;
+        const surf = surfaceAt(c.x, c.z, COP_ROADS, heightAt(c.x, c.z) + 0.5);
+        let top = copTopMs;
+        if (surf.name === "Grass") top *= 0.72;
+        else if (surf.name === "Dirt" || surf.name === "Mud" || surf.name === "Sand") top *= 0.62;
+        if (turn > 0.45) top *= 0.7;
+        c.speed = Math.min(top, c.speed + copAccel * (surf.name === "Dry" || surf.name === "Wet" ? 1 : 0.55) * dt);
+        // Stay ~90% of the player's current pace (and never above car top).
+        const chasePace = Math.min(top, Math.max(18, (mph * 0.9) / 2.23694));
+        if (c.speed > chasePace) c.speed += (chasePace - c.speed) * Math.min(1, 1.8 * dt);
+        c.x += Math.sin(c.yaw) * c.speed * dt;
+        c.z += Math.cos(c.yaw) * c.speed * dt;
+        this.separateCop(c, car, dt);
+        d = Math.hypot(c.x - car.x, c.z - car.z);
+        if (d < 10 && Math.abs(car.speed) < 2) h.stoppedNearCop += dt;
+        else h.stoppedNearCop = Math.max(0, h.stoppedNearCop - dt);
+      } else if (slot === 0 && !c.chase) {
+        c.patrolA += 0.22 * dt;
+        const pr = 180 + (c.patrolA % 3) * 90;
+        const tx = car.x + Math.cos(c.patrolA) * pr;
+        const tz = car.z + Math.sin(c.patrolA) * pr;
+        c.yaw = Math.atan2(tx - c.x, tz - c.z);
+        c.speed = 28;
+        c.x += Math.sin(c.yaw) * c.speed * dt;
+        c.z += Math.cos(c.yaw) * c.speed * dt;
+        this.separateCop(c, car, dt);
+        const pd = Math.hypot(c.x - car.x, c.z - car.z);
+        if (pd > COP_PATROL_R) {
+          const leash = Math.max(COP_SPAWN_MIN, COP_PATROL_R - 40);
+          c.x = car.x + ((c.x - car.x) / pd) * leash;
+          c.z = car.z + ((c.z - car.z) / pd) * leash;
+        }
+      }
+
+      if (slot === 0 || chasingMe) {
+        c.mesh.position.set(c.x, heightAt(c.x, c.z), c.z);
+        c.mesh.rotation.y = c.yaw;
+        const mat = c.bar.material as THREE.MeshStandardMaterial;
+        if (c.chase) {
+          mat.emissive.set(Math.sin(performance.now() * 0.025) > 0 ? 0xff0044 : 0x0044ff);
+          mat.emissiveIntensity = 2.2;
+        } else {
+          mat.emissive.setHex(0x2244aa);
+          mat.emissiveIntensity = 0.4;
+        }
+      }
+    }
+
+    // Also move P2-targeted cops when this is the P2 tick (chase branch above).
+    // Escape / busted.
+    if (h.escapePending > 0) {
+      h.escapePending -= dt;
+      if (h.escapePending <= 0) this.clearChase(slot, say, true);
+    } else if (anyChase || h.wanted > 0) {
+      if (anySee) {
+        // Hold stars from speed; slow creep only if already wanted and still seen.
+        h.wanted = Math.min(5, Math.max(h.wanted, speedStars || 1));
+        h.chaseTimer += dt;
+        h.losHiddenTimer = 0;
+        h.starDropTimer = 0;
+        this.startSiren();
+      } else if (h.wanted > 0) {
+        h.losHiddenTimer += dt;
+        h.starDropTimer += dt;
+        if (h.starDropTimer >= COP_STAR_DROP_SEC) {
+          h.wanted = Math.max(0, Math.floor(h.wanted) - 1);
+          h.starDropTimer = 0;
+          if (h.wanted <= 0) {
+            h.escapePending = 0.85;
+            say("WANTED");
+          }
+        }
+        if (nearestChase > COP_ESCAPE_DIST || h.losHiddenTimer >= COP_LOS_ESCAPE_SEC) {
+          h.escapePending = 0.85;
+          say("WANTED");
+        }
+      }
+    } else if (slot === 0 && !this.cops.some((c) => c.chase)) {
+      this.stopSiren();
+    }
+
+    if (h.stoppedNearCop > 3) {
+      h.bustedFlash = 2.5;
+      h.wanted = 0;
+      h.stoppedNearCop = 0;
+      this.clearChase(slot, say, false);
+      car.x = SPAWN.x;
+      car.z = SPAWN.z;
+      car.yaw = SPAWN.yaw;
+      car.speed = 0;
+      say(slot === 0 ? "BUSTED" : "P2 BUSTED");
+    }
+
+    void playerTopMph;
+    return anyChase || mine.some((c) => c.chase);
+  }
+
+  /** Split-screen P2 wanted / chase (separate stars from P1). */
+  updatePlayer2(
+    dt: number,
+    car: Car,
+    tune: Tune | unknown,
+    mph: number,
+    onHighway: boolean,
+    say: (t: string) => void,
+  ): { speedLimit: number; wanted: number; chase: boolean; busted: boolean; escaped: boolean; hitTraffic: boolean } {
+    const playerTopMph =
+      tune && typeof tune === "object" && tune !== null && "top" in tune && typeof (tune as Tune).top === "number"
+        ? (tune as Tune).top * 2.23694
+        : 140;
+    const copTopMs = (playerTopMph * 0.9) / 2.23694;
+    const limit = this.speedLimitAt(car.x, car.z, onHighway, car.y);
+    let hitTraffic = false;
+    for (const t of this.traffic) {
+      if (Math.hypot(t.x - car.x, t.z - car.z) < 3.6 && Math.abs(car.speed) > 4) hitTraffic = true;
+    }
+    const chase = this.tickPlayerCops(1, dt, car, mph, playerTopMph, copTopMs, 9.5, limit, hitTraffic, say);
+    const h = this.heat[1];
+    return {
+      speedLimit: limit,
+      wanted: h.wanted,
+      chase,
+      busted: h.bustedFlash > 0,
+      escaped: h.escapedFlash > 0,
+      hitTraffic,
     };
   }
 

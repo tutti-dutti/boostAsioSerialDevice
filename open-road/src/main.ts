@@ -63,7 +63,7 @@ app.innerHTML = `
         <div class="rpm"><div id="rpm-bar"></div></div>
         <div id="speed" class="speed">0</div>
         <div class="unit">MPH</div>
-        <div id="limit" class="limit">LIM 150</div>
+        <div id="limit" class="limit">LIM 130</div>
         <div id="gear" class="gear">N</div>
       </div>
     </footer>
@@ -71,7 +71,7 @@ app.innerHTML = `
       <div class="cluster">
         <div id="speed-p2" class="speed">0</div>
         <div class="unit">MPH</div>
-        <div id="limit-p2" class="limit">LIM 150</div>
+        <div id="limit-p2" class="limit">LIM 130</div>
         <div id="gear-p2" class="gear">N</div>
         <div id="wanted-p2" class="wanted is-hidden">WANTED</div>
       </div>

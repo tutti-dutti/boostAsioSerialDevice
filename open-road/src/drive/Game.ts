@@ -659,20 +659,15 @@ export class DriveGame {
       resolveWater(this.car2);
       bumpCars(this.car, this.car2);
       this.placeCar2(dt);
-      // Light chase interest in P2 if they're the speeder.
       const mph2 = Math.abs(this.car2.speed) * 2.23694;
-      const lim2 = this.features.speedLimitAt(this.car2.x, this.car2.z, onHighway, this.car2.y);
-      if (this.features.copsOn && mph2 > lim2 + 15) {
-        for (const c of this.features.cops) {
-          if (Math.hypot(c.x - this.car2.x, c.z - this.car2.z) < 150) c.chase = true;
-        }
-      }
+      const onHighway2 = surface2.name === "Dry" && Math.hypot(this.car2.x, this.car2.z) > 500;
+      const feat2 = this.features.updatePlayer2(dt, this.car2, this.tune2, mph2, onHighway2, (t) => this.say(t));
       this.lastFeat2 = {
         mph: mph2,
         gear: gearLabel(this.car2, input2.throttle, this.setup.auto, !!this.tune2.singleSpeed),
-        speedLimit: lim2,
-        wanted: feat.wanted,
-        chase: feat.chase,
+        speedLimit: feat2.speedLimit,
+        wanted: feat2.wanted,
+        chase: feat2.chase,
         x: this.car2.x,
         z: this.car2.z,
         yaw: this.car2.yaw,

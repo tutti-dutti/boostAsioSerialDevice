@@ -530,15 +530,15 @@ export function createWorld(): World {
   addSign(object, baseColliders, "WET", 40, 16, -Math.PI / 2, "#7ec8ff");
   addSign(object, baseColliders, "MUD", -170, 92, 0, "#c47a3a");
   addSign(object, baseColliders, "ICE", 210, -16, -Math.PI / 2, "#d7e7f2");
-  // Posted limits: city 130 / roads 150 / highway 195 / skyway 210
-  addSpeedLimitSign(object, baseColliders, 130, -40, 20, -Math.PI / 2);
-  addSpeedLimitSign(object, baseColliders, 130, 100, -20, Math.PI / 2);
-  addSpeedLimitSign(object, baseColliders, 150, 280, 30, -Math.PI / 2);
-  addSpeedLimitSign(object, baseColliders, 150, -250, 40, Math.PI);
-  addSpeedLimitSign(object, baseColliders, 195, 420, 40, -Math.PI / 2);
-  addSpeedLimitSign(object, baseColliders, 195, 700, 200, facing(-100, 40));
-  addSpeedLimitSign(object, baseColliders, 210, 980, 80, -Math.PI / 2);
-  addSpeedLimitSign(object, baseColliders, 210, -980, 40, Math.PI / 2);
+  // Posted limits: city 110 / roads 130 / highway 175 / skyway 190
+  addSpeedLimitSign(object, baseColliders, 110, -40, 20, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 110, 100, -20, Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 130, 280, 30, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 130, -250, 40, Math.PI);
+  addSpeedLimitSign(object, baseColliders, 175, 420, 40, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 175, 700, 200, facing(-100, 40));
+  addSpeedLimitSign(object, baseColliders, 190, 980, 80, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 190, -980, 40, Math.PI / 2);
   addPatches(object);
   addCrosswalks(object);
   addLamps(object, baseColliders);
