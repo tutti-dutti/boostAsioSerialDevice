@@ -394,11 +394,11 @@ export function stepCar(
     const push = mass * 12.5 * tune.accel * gearMul * curve;
     drive = throttle * push;
   }
-  // Sports cars ~60→0 in about 3s. Trucks take longer.
-  const brakeG = tune.mass >= 2400 ? 6.8 : 14.5;
+  // Strong arcade brakes: sports cars ~60→0 in ~1.8–2.2s; trucks a bit longer.
+  const brakeG = tune.mass >= 2400 ? 11 : arcade ? 22 : 18;
   let brakeForce = brake * mass * brakeG;
-  if (tune.mass >= 2400) brakeForce = Math.min(brakeForce, mass * 6.8);
-  if (input.handbrake) brakeForce += mass * 5.5;
+  if (tune.mass >= 2400) brakeForce = Math.min(brakeForce, mass * 11);
+  if (input.handbrake) brakeForce += mass * 7;
 
   const frontCap = mu * frontN;
   const rearMu = mu * (input.handbrake ? 0.22 : 1);
@@ -415,8 +415,9 @@ export function stepCar(
     if (limit < 1) drive *= limit;
   }
   if (setup.abs && brake > 0) {
-    const brakeCap = frontCap * 0.66 + rearCap * 0.4;
-    const limit = (brakeCap * 1.05) / Math.max(1, brakeForce);
+    // Let brakes use most of the tire — old caps made stopping distances huge.
+    const brakeCap = frontCap * 0.9 + rearCap * 0.75;
+    const limit = (brakeCap * 1.1) / Math.max(1, brakeForce);
     if (limit < 1) brakeForce *= limit;
   }
 
@@ -425,7 +426,7 @@ export function stepCar(
     -(frontCap * driveSplit[0] + rearCap * driveSplit[1]),
     frontCap * driveSplit[0] + rearCap * driveSplit[1],
   );
-  const fxBrakeMag = Math.min(brakeForce, frontCap * 0.64 + rearCap * 0.36);
+  const fxBrakeMag = Math.min(brakeForce, frontCap * 0.88 + rearCap * 0.72);
   const brakeSign = Math.abs(car.speed) < 0.05 ? 0 : Math.sign(car.speed);
   const fxBrake = fxBrakeMag * brakeSign;
   const useFront = clamp((Math.abs(fxDrive) * driveSplit[0] + fxBrakeMag * 0.64) / Math.max(1, frontCap), 0, 1);
