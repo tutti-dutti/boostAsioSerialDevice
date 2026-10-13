@@ -163,17 +163,17 @@ export const HIGHWAY: PathDef = {
  */
 export const RAMPS: PathDef[] = [
   {
-    // East town → NE highway, merge northbound on the south approach (pre-bridge).
+    // East town → NE highway, merge northbound south of the bridge strip (same direction).
     points: [
       [420, 0],
-      [510, 20],
-      [600, 45],
-      [680, 70],
-      [740, 85],
-      [780, 95],
-      [810, 105],
-      [825, 115],
-      [830, 130],
+      [510, 15],
+      [600, 30],
+      [680, 42],
+      [740, 50],
+      [780, 55],
+      [810, 60],
+      [825, 68],
+      [828, 78],
     ],
     width: 10,
     grip: 1,
@@ -181,16 +181,16 @@ export const RAMPS: PathDef[] = [
     atGrade: true,
   },
   {
-    // North town → NW highway, merge westbound on the north approach (post-bridge).
+    // North town → NW highway, merge westbound past the bridge strip (same direction).
     points: [
       [0, 420],
-      [30, 520],
-      [50, 600],
-      [30, 670],
-      [-20, 720],
-      [-70, 755],
-      [-120, 775],
-      [-150, 785],
+      [20, 510],
+      [30, 580],
+      [10, 640],
+      [-50, 690],
+      [-110, 725],
+      [-170, 750],
+      [-210, 765],
     ],
     width: 10,
     grip: 1,
@@ -227,16 +227,15 @@ export const RAMPS: PathDef[] = [
 
 /**
  * Local road under the river bridge — stays at grade between the pillars.
- * Crosses the NE highway span perpendicularly; does not climb onto the deck.
+ * Crosses the north span on dry bank (not through the river); does not climb onto the deck.
  */
 export const BRIDGE_UNDERPASS: PathDef = {
   points: [
-    [380, 540],
-    [430, 600],
-    [480, 660],
-    [520, 710],
-    [560, 760],
-    [610, 820],
+    [80, 680],
+    [95, 740],
+    [108, 790],
+    [112, 830],
+    [114, 860],
   ],
   width: 10,
   grip: 1,
@@ -473,8 +472,10 @@ const ROAD_SAMPLES: RoadSample[] = (() => {
   };
   for (const path of PATHS) addPath(path);
   addPath(HIGHWAY);
-  for (const ramp of RAMPS) addPath(ramp);
-  for (const path of EXTRA_PATHS) addPath(path);
+  // At-grade connectors (on-ramps / underpass) must not flatten or raise the
+  // pavement grade — that contaminated bridge toes and created false ski-jumps.
+  for (const ramp of RAMPS) if (!ramp.atGrade) addPath(ramp);
+  for (const path of EXTRA_PATHS) if (!path.atGrade) addPath(path);
   return samples;
 })();
 

@@ -743,16 +743,16 @@ function addRiverAndBridge(object: THREE.Group, colliders: Collider[]) {
     for (let i = 4; i < riverPts.length; i += 5) {
       const p = riverPts[i];
       for (const side of [-1, 1]) {
-        let x = p.x - p.tz * side * (RIVER.halfWidth + 28);
-        let z = p.z + p.tx * side * (RIVER.halfWidth + 28);
+        let x = p.x - p.tz * side * (RIVER.halfWidth + 40);
+        let z = p.z + p.tx * side * (RIVER.halfWidth + 40);
         const clr = nearestRoadClearance(x, z);
-        if (clr.d < clr.half + 10) {
+        if (clr.d < clr.half + 16) {
           // Nudge farther off the roadway along the bank normal.
-          const need = clr.half + 14 - clr.d;
+          const need = clr.half + 22 - clr.d;
           x -= p.tz * side * need;
           z += p.tx * side * need;
           const again = nearestRoadClearance(x, z);
-          if (again.d < again.half + 8) continue;
+          if (again.d < again.half + 14) continue;
         }
         const rr = 2.2 + (i % 3) * 0.6;
         const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rr, 0), rockBankMat);
