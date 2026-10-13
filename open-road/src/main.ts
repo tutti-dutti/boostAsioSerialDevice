@@ -2,7 +2,7 @@ import "./style.css";
 import { GARAGE } from "./drive/garage";
 import { DriveGame, type FrameInfo } from "./drive/Game";
 import { BRIDGE_SAMPLES, EXTRA_PATHS, LAKE, RIVER, ROADS } from "./drive/mapData";
-import { FORESTS, LANDMARKS, MUD_PARK, SPEED_TRACK, SKYWAY } from "./drive/mapZones";
+import { FORESTS, LANDMARKS, MUD_PARK, SPEED_TRACK, SKYWAY, skywayPaths } from "./drive/mapZones";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Missing #app");
@@ -171,12 +171,21 @@ function paintMap(info: FrameInfo) {
   // Mud park
   mapCtx.fillStyle = "#5a3a18";
   mapCtx.fillRect(X(MUD_PARK.x - MUD_PARK.hx), Y(MUD_PARK.z - MUD_PARK.hz), MUD_PARK.hx * 2 * scale, MUD_PARK.hz * 2 * scale);
-  // Skyway (distinct color)
+  // Skyway ring + on-ramps (distinct color)
   mapCtx.strokeStyle = "#7ec8ff";
   mapCtx.lineWidth = 3;
   mapCtx.beginPath();
   mapCtx.arc(X(0), Y(0), SKYWAY.radius * scale, 0, Math.PI * 2);
   mapCtx.stroke();
+  mapCtx.lineWidth = 2.5;
+  for (const ramp of skywayPaths().ramps) {
+    mapCtx.beginPath();
+    mapCtx.moveTo(X(ramp.points[0][0]), Y(ramp.points[0][1]));
+    for (let i = 1; i < ramp.points.length; i++) {
+      mapCtx.lineTo(X(ramp.points[i][0]), Y(ramp.points[i][1]));
+    }
+    mapCtx.stroke();
+  }
   // Highway first (wide yellow-edge loop), then local roads on top.
   for (const road of ROADS) {
     if (!road.highway) continue;

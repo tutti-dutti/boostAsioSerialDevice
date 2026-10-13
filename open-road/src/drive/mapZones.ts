@@ -282,29 +282,31 @@ export function skywayPaths(): { deck: PathDef; ramps: PathDef[] } {
     highway: true,
     closed: true,
   };
-  // Four long, nearly straight ramps (≥300 m, ≤~6%) from highway up to skyway.
+  // Four long ramps (≥300 m path, ≤~6% grade) from highway up to skyway.
+  // Radial gap is only ~230 m, so each ramp sweeps tangentially to get length.
   const rampLen = SKYWAY.rampLength;
   const hwyR = 820;
   const ramps: PathDef[] = [0, 1, 2, 3].map((i) => {
-    const a = (i / 4) * Math.PI * 2 + 0.2;
-    const ox = Math.cos(a);
-    const oz = Math.sin(a);
-    // Tangential offset so the ramp runs alongside traffic, not a radial wall.
-    const tx = -oz;
-    const tz = ox;
-    const side = 22;
+    const a0 = (i / 4) * Math.PI * 2 + 0.25;
+    // Sweep ~rampLen along a spiral between highway and skyway radii.
+    const sweep = rampLen / ((hwyR + r) * 0.5); // radians of arc ≈ length / mean R
     const pts: [number, number][] = [];
-    const steps = 10;
+    const steps = 24;
     for (let s = 0; s <= steps; s++) {
-      const u = s / steps; // 0 = skyway, 1 = highway
-      const along = u * rampLen;
-      // Start at skyway ring, end near highway ring — mostly radial but long.
-      const rad = r - along * ((r - hwyR - 10) / rampLen);
-      pts.push([ox * rad + tx * side * (1 - u * 0.3), oz * rad + tz * side * (1 - u * 0.3)]);
+      const u = s / steps; // 0 = skyway deck, 1 = highway merge
+      const rad = r * (1 - u) + (hwyR + 14) * u;
+      const ang = a0 + sweep * u;
+      // Slight outward lane offset so the ramp sits beside the highway, not on it.
+      const side = 18 * u;
+      const ox = Math.cos(ang);
+      const oz = Math.sin(ang);
+      const tx = -oz;
+      const tz = ox;
+      pts.push([ox * rad + tx * side, oz * rad + tz * side]);
     }
     return {
       points: pts,
-      width: 12,
+      width: 14, // ≥2 lanes
       grip: 1,
       highway: true,
     };

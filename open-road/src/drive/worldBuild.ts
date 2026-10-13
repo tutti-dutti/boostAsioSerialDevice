@@ -399,6 +399,49 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
     }
   }
 
+  // Big green SKYWAY signs beside each on-ramp (highway end, off to the side).
+  for (const ramp of ramps) {
+    const hwy = ramp.points[ramp.points.length - 1];
+    const prev = ramp.points[ramp.points.length - 2];
+    const dx = hwy[0] - prev[0];
+    const dz = hwy[1] - prev[1];
+    const len = Math.hypot(dx, dz) || 1;
+    const nx = -dz / len;
+    const nz = dx / len;
+    const sx = hwy[0] + nx * 16;
+    const sz = hwy[1] + nz * 16;
+    const y0 = terrainHeightAt(sx, sz);
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.14, 0.16, 4.2, 8),
+      new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.4, roughness: 0.5 }),
+    );
+    post.position.set(sx, y0 + 2.1, sz);
+    object.add(post);
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 256;
+    const g = canvas.getContext("2d")!;
+    g.fillStyle = "#0b7a3a";
+    g.fillRect(0, 0, 512, 256);
+    g.fillStyle = "#ffffff";
+    g.font = "bold 96px sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText("SKYWAY", 256, 128);
+    const board = new THREE.Mesh(
+      new THREE.PlaneGeometry(6.5, 3.2),
+      new THREE.MeshStandardMaterial({
+        map: new THREE.CanvasTexture(canvas),
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+      }),
+    );
+    board.position.set(sx, y0 + 4.4, sz);
+    board.rotation.y = Math.atan2(dx, dz);
+    object.add(board);
+    colliders.push({ kind: "circle", x: sx, z: sz, r: 0.35 });
+  }
+
   // Long gentle ramp slabs with barriers + support pillars (no tall arch walls).
   for (const ramp of ramps) {
     const rp = ramp.points;
