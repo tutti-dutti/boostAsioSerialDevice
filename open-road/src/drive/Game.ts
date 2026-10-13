@@ -112,7 +112,7 @@ export class DriveGame {
   private readonly desired = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   private readonly onFrame: (info: FrameInfo) => void;
-  /** 2-player split-screen (top = P1, bottom = P2). */
+  /** 2-player split-screen (left = P1 WASD, right = P2 Arrows). */
   private splitMode = false;
   private car2: Car = makeCar();
   private visual2: CarVisual = emptyCar();
@@ -238,7 +238,7 @@ export class DriveGame {
     return this.splitMode;
   }
 
-  /** Start top/bottom split-screen with P2's chosen garage car. */
+  /** Start left/right split-screen with P2's chosen garage car. */
   async enableSplit(p2CarId: string) {
     this.splitMode = true;
     this.ride2 = carById(p2CarId);
@@ -267,7 +267,7 @@ export class DriveGame {
     this.camera2.far = 4500;
     this.placeCar(0);
     this.placeCar2(0);
-    this.say("2 Players — P1 WASD · P2 Arrows");
+    this.say("2 Players — Left WASD · Right Arrows");
     this.resize();
   }
 
@@ -462,8 +462,10 @@ export class DriveGame {
     const h = Math.max(1, window.innerHeight);
     this.renderer.setSize(w, h);
     if (this.splitMode) {
-      this.camera.aspect = w / Math.max(1, h * 0.5);
-      this.camera2.aspect = w / Math.max(1, h * 0.5);
+      // Side-by-side halves — use half-width aspect so cars aren't stretched.
+      const halfAspect = Math.max(0.2, w * 0.5) / h;
+      this.camera.aspect = halfAspect;
+      this.camera2.aspect = halfAspect;
     } else {
       this.camera.aspect = w / h;
     }
@@ -984,13 +986,14 @@ export class DriveGame {
     const h = this.renderer.domElement.height;
     if (this.splitMode) {
       this.renderer.setScissorTest(true);
-      // Top half — Player 1
-      this.renderer.setViewport(0, h * 0.5, w, h * 0.5);
-      this.renderer.setScissor(0, h * 0.5, w, h * 0.5);
+      const half = Math.floor(w * 0.5);
+      // Left half — Player 1 (WASD)
+      this.renderer.setViewport(0, 0, half, h);
+      this.renderer.setScissor(0, 0, half, h);
       this.renderer.render(this.scene, this.camera);
-      // Bottom half — Player 2
-      this.renderer.setViewport(0, 0, w, h * 0.5);
-      this.renderer.setScissor(0, 0, w, h * 0.5);
+      // Right half — Player 2 (Arrows)
+      this.renderer.setViewport(half, 0, w - half, h);
+      this.renderer.setScissor(half, 0, w - half, h);
       this.renderer.render(this.scene, this.camera2);
       this.renderer.setScissorTest(false);
       this.renderer.setViewport(0, 0, w, h);

@@ -1,5 +1,5 @@
 /**
- * Helpers for 2-player split-screen (top / bottom viewports).
+ * Helpers for 2-player split-screen (left / right viewports).
  */
 import type { Input } from "./sim";
 

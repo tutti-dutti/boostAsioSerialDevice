@@ -162,11 +162,13 @@ h1 {
 .top {
   top: 16px;
   left: 16px;
-  right: 210px;
+  /* Leave a clear gutter so the top-right minimap never covers buttons. */
+  right: calc(180px + 40px);
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
+  z-index: 6;
 }
 
 .brand {
@@ -187,6 +189,8 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
+  max-width: 100%;
 }
 
 .top-buttons button,
@@ -211,6 +215,53 @@ h1 {
   border-radius: 16px;
   border: 3px solid rgba(255, 255, 255, 0.85);
   background: #1d4a28;
+  /* Display-only — never steal clicks from Camera / Horn / Cops / etc. */
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Split-screen: shared minimap bottom-center, above the two speedometers. */
+.hud.is-split .map {
+  top: auto;
+  left: 50%;
+  right: auto;
+  bottom: 132px;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 140px;
+  z-index: 3;
+}
+
+/* Split-screen: one full-width top row — brand left, all buttons centered & clickable. */
+.hud.is-split .top {
+  left: 12px;
+  right: 12px;
+  top: 10px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px 16px;
+  z-index: 6;
+}
+
+.hud.is-split .top > div:first-child {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  max-width: min(280px, 28vw);
+}
+
+.hud.is-split .top-buttons {
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.hud.is-split .top-buttons button {
+  padding: 8px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .toast {
@@ -249,6 +300,38 @@ h1 {
   bottom: 16px;
 }
 
+/* Side-by-side: P1 instruments on left half, P2 on right half. */
+.hud.is-split .bottom {
+  left: 16px;
+  right: auto;
+  bottom: 16px;
+  max-width: 42vw;
+}
+
+.hud.is-split .hints,
+.hud.is-split .engine,
+.hud.is-split .assist {
+  max-width: 40vw;
+}
+
+/* P1 WANTED centered in the left half (below the top button row). */
+.hud.is-split > .wanted {
+  left: 25%;
+  top: 72px;
+}
+
+/* P2 WANTED centered in the right half. */
+.hud.is-split .hud-p2 .wanted {
+  position: fixed;
+  left: 75%;
+  right: auto;
+  top: 72px;
+  bottom: auto;
+  transform: translateX(-50%);
+  margin: 0;
+  z-index: 4;
+}
+
 .play-2p {
   background: #1a3a6a !important;
   color: #fff !important;
@@ -258,9 +341,10 @@ h1 {
 .hud-p2 {
   position: absolute;
   right: 16px;
-  top: 52%;
+  bottom: 16px;
   z-index: 3;
   pointer-events: none;
+  max-width: 42vw;
 }
 
 .hud-p2 .p2-label {
@@ -526,11 +610,30 @@ h1 {
     flex-direction: column;
   }
 
+  /* 1P: park the map mid-right so it stays clear of top buttons and speedo. */
   .map {
     top: auto;
     bottom: 150px;
+    right: 12px;
     width: 120px;
     height: 120px;
+  }
+
+  .hud.is-split .map {
+    left: 50%;
+    right: auto;
+    bottom: 120px;
+    width: 110px;
+    height: 110px;
+  }
+
+  .hud.is-split .top > div:first-child {
+    position: static;
+    max-width: none;
+  }
+
+  .hud.is-split .top-buttons {
+    flex-wrap: wrap;
   }
 
   .hints {

@@ -57,7 +57,7 @@ app.innerHTML = `
     <div id="assist" class="assist">Auto · TC · ABS</div>
     <div id="wanted" class="wanted is-hidden">WANTED</div>
     <div id="track-hud" class="track-hud is-hidden"></div>
-    <p class="hints">Arrows or WASD to drive · Space slide · C camera · H horn · G garage · R reset</p>
+    <p class="hints">WASD or Arrows to drive · Space slide · C camera · H horn · G garage · R reset</p>
     <footer class="bottom">
       <div class="cluster">
         <div class="rpm"><div id="rpm-bar"></div></div>
@@ -172,6 +172,7 @@ function paintHud(info: FrameInfo) {
   } else if (onPark) {
     trackHudEl.textContent = `Lap ${info.lapTime != null ? info.lapTime.toFixed(1) + "s" : "—"} · Best ${info.bestLap != null ? info.bestLap.toFixed(1) + "s" : "—"}`;
   }
+  hud!.classList.toggle("is-split", !!info.split);
   hudP2.classList.toggle("is-hidden", !info.split || !info.p2);
   if (info.split && info.p2) {
     speedP2.textContent = String(Math.round(info.p2.mph));

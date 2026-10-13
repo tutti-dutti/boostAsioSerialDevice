@@ -103,6 +103,47 @@ function addWheels(root, track, zF, zR, tireR = 0.56, tireW = 0.4) {
   }
 }
 
+/** Clean round tires + visible rims (no spiky tread boxes). */
+function wheelRound(front, left, x, z, tireR = 0.52, tireW = 0.36) {
+  const pivot = new THREE.Group();
+  pivot.name = `wheel-${front ? "front" : "back"}-${left ? "left" : "right"}`;
+  const spin = new THREE.Group();
+  const tire = new THREE.Mesh(new THREE.CylinderGeometry(tireR, tireR, tireW, 28), rubber);
+  tire.rotation.z = Math.PI / 2;
+  // Subtle sidewall lip so the tire reads round, not a flat disc.
+  const sidewall = new THREE.Mesh(
+    new THREE.TorusGeometry(tireR * 0.82, tireR * 0.1, 10, 28),
+    rubber,
+  );
+  sidewall.rotation.y = Math.PI / 2;
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(tireR * 0.62, tireR * 0.62, tireW * 0.55, 20), chrome);
+  rim.rotation.z = Math.PI / 2;
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(tireR * 0.22, tireR * 0.22, tireW * 0.7, 16), dark);
+  hub.rotation.z = Math.PI / 2;
+  const faceX = left ? -tireW * 0.42 : tireW * 0.42;
+  const face = new THREE.Mesh(new THREE.CircleGeometry(tireR * 0.55, 20), chrome);
+  face.rotation.y = left ? Math.PI / 2 : -Math.PI / 2;
+  face.position.x = faceX;
+  spin.add(tire, sidewall, rim, hub, face);
+  for (let i = 0; i < 5; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.06, tireR * 0.5, 0.07), chrome);
+    spoke.geometry.translate(0, tireR * 0.26, 0);
+    spoke.rotation.x = (i / 5) * Math.PI * 2;
+    spoke.position.x = faceX;
+    spin.add(spoke);
+  }
+  pivot.add(spin);
+  pivot.position.set(left ? -x : x, tireR, z);
+  return pivot;
+}
+
+function addRoundWheels(root, track, zF, zR, tireR = 0.52, tireW = 0.36) {
+  for (const left of [true, false]) {
+    root.add(wheelRound(true, left, track, zF, tireR, tireW));
+    root.add(wheelRound(false, left, track + 0.02, zR, tireR, tireW));
+  }
+}
+
 /** Block letters for the FJORD grille (no real Ford mark). */
 function addFjordLetters(parent, y, z) {
   const mat = chrome;
@@ -479,7 +520,8 @@ function buildAnkylosaur() {
   }
 
   root.add(c);
-  addWheels(root, 1.12, 1.55, -1.55, 0.5, 0.34);
+  // Round tires + chrome rims — no spiky tread blobs.
+  addRoundWheels(root, 1.12, 1.55, -1.55, 0.5, 0.34);
   return finish(root, "voltra-ankylosaur.glb");
 }
 
