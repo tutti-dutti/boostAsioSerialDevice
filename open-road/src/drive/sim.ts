@@ -6,7 +6,8 @@ import {
   SPAWN,
   WORLD_HALF,
   bridgeHeightAt,
-  elevatedHeightAt,
+  carSurfaceHeight,
+  onElevatedSurface,
   inRiverWater,
   riverDistance,
 } from "./mapData";
@@ -218,9 +219,8 @@ function onPavement(x: number, z: number, roads: RoadSeg[], pad = 1.15) {
 }
 
 export function surfaceAt(x: number, z: number, roads: RoadSeg[], carY = 999): Surface {
-  // Bridge / skyway deck is dry pavement — only when the car is actually up on the deck.
-  const deck = elevatedHeightAt(x, z);
-  if (deck != null && carY > deck - 4.5) return ground("Dry", 1.55, 98);
+  // Bridge / skyway deck is dry pavement — only when the car is actually up on it.
+  if (onElevatedSurface(x, z, carY)) return ground("Dry", 1.55, 98);
 
   // Water wins over at-grade roads — lake and river are not driveable.
   const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
@@ -270,8 +270,7 @@ export function surfaceUnderCar(
     [x - fx * axle + rx * track, z - fz * axle + rz * track],
   ];
   for (const [wx, wz] of wheels) {
-    const deck = elevatedHeightAt(wx, wz);
-    if (deck != null && carY > deck - 4.5) return ground("Dry", 1.55, 98);
+    if (onElevatedSurface(wx, wz, carY)) return ground("Dry", 1.55, 98);
     if (onPavement(wx, wz, roads)) {
       const wet = patchAt(wx, wz, "Wet");
       if (wet) return wet;
@@ -715,9 +714,10 @@ function dragForce(speed: number, mass: number, roll: number, hyper = false) {
  * Returns true when the car was in the water this step.
  */
 export function resolveWater(car: Car): boolean {
-  // Only ignore water when the car is up on the bridge deck, not under it.
+  // Only ignore water when the car is up on the bridge/skyway deck, not under it.
+  if (onElevatedSurface(car.x, car.z, car.y)) return false;
   const deck = bridgeHeightAt(car.x, car.z);
-  if (deck != null && car.y > deck - 4.5) return false;
+  if (deck != null && Math.abs(carSurfaceHeight(car.x, car.z, car.y) - deck) < 0.75) return false;
 
   const lakeDx = car.x - LAKE.x;
   const lakeDz = car.z - LAKE.z;

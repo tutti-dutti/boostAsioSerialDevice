@@ -696,33 +696,47 @@ export function terrainHeightAt(x: number, z: number): number {
   return h;
 }
 
-/**
- * Bridge deck / ramp height if (x,z) is on the bridge footprint, else null.
- * Note: the same xz under the span also matches — callers that place cars must
- * use car vertical state so vehicles under the deck stay on the ground.
- */
-export function bridgeHeightAt(x: number, z: number): number | null {
-  if (!BRIDGE_SAMPLES.length) return null;
+/** Hit on an elevated driveable surface (bridge or skyway). */
+export type ElevHit = { h: number; d: number; lift: number };
+
+function nearestElevSample(samples: BridgeSample[], x: number, z: number): ElevHit | null {
+  if (!samples.length) return null;
   let bestD = 1e9;
   let bestH = 0;
-  for (const s of BRIDGE_SAMPLES) {
+  let bestLift = 0;
+  for (const s of samples) {
     const d = Math.hypot(x - s.x, z - s.z);
     if (d < bestD) {
       bestD = d;
       bestH = s.h;
+      bestLift = s.lift;
     }
   }
-  const half = BRIDGE_HALF + 1.2;
-  if (bestD > half) return null;
-  return bestH;
+  return { h: bestH, d: bestD, lift: bestLift };
+}
+
+/**
+ * Bridge deck / ramp hit if (x,z) is on the bridge footprint, else null.
+ * Note: the same xz under the span also matches — callers that place cars must
+ * use car vertical state so vehicles under the deck stay on the ground.
+ */
+export function bridgeHitAt(x: number, z: number): ElevHit | null {
+  const hit = nearestElevSample(BRIDGE_SAMPLES, x, z);
+  if (!hit || hit.d > BRIDGE_HALF + 1.2) return null;
+  return hit;
+}
+
+export function bridgeHeightAt(x: number, z: number): number | null {
+  return bridgeHitAt(x, z)?.h ?? null;
 }
 
 /** Elevated skyway deck + ramp samples (outside the highway ring). */
 export const SKYWAY_SAMPLES: BridgeSample[] = (() => {
   const { deck, ramps } = skywayPaths();
   const out: BridgeSample[] = [];
+  // Match visual deck top in worldBuild.addSkyway (center of thick slab).
   const h = SKYWAY.height + SKYWAY.deckThick * 0.5;
-  const deckPts = samplePathXZ(deck, 220);
+  const deckPts = samplePathXZ(deck, 280);
   for (let i = 0; i < deckPts.length; i++) {
     const p = deckPts[i];
     const next = deckPts[(i + 1) % deckPts.length];
@@ -732,16 +746,30 @@ export const SKYWAY_SAMPLES: BridgeSample[] = (() => {
     out.push({ x: p.x, z: p.z, h, lift: 1, tx: dx / len, tz: dz / len });
   }
   for (const ramp of ramps) {
-    const n = ramp.points.length;
-    for (let i = 0; i < n; i++) {
-      const [x, z] = ramp.points[i];
-      const t = i / Math.max(1, n - 1); // 0 = skyway end, 1 = highway
-      const u = t * t * (3 - 2 * t); // gentle smoothstep (≤~6% over rampLength)
-      const ground = rawHeight(x, z);
+    const rp = ramp.points;
+    if (rp.length < 2) continue;
+    // Arc-length samples every ~8 m so nearest-neighbor height stays smooth.
+    const dist = [0];
+    for (let i = 1; i < rp.length; i++) {
+      dist.push(dist[i - 1] + Math.hypot(rp[i][0] - rp[i - 1][0], rp[i][1] - rp[i - 1][1]));
+    }
+    const total = dist[dist.length - 1] || 1;
+    const n = Math.max(48, Math.ceil(total / 8));
+    for (let i = 0; i <= n; i++) {
+      const along = (i / n) * total;
+      let seg = 0;
+      while (seg < dist.length - 2 && dist[seg + 1] < along) seg++;
+      const span = Math.max(1e-6, dist[seg + 1] - dist[seg]);
+      const uSeg = Math.max(0, Math.min(1, (along - dist[seg]) / span));
+      const x = rp[seg][0] + (rp[seg + 1][0] - rp[seg][0]) * uSeg;
+      const z = rp[seg][1] + (rp[seg + 1][1] - rp[seg][1]) * uSeg;
+      const t = along / total; // 0 = skyway deck, 1 = highway toe
+      const u = t * t * (3 - 2 * t);
+      // Match visual ramp slabs (terrainHeightAt toes, not raw hills).
+      const ground = terrainHeightAt(x, z);
       const yh = h * (1 - u) + ground * u;
-      const next = ramp.points[Math.min(n - 1, i + 1)];
-      const dx = next[0] - x;
-      const dz = next[1] - z;
+      const dx = rp[Math.min(rp.length - 1, seg + 1)][0] - rp[seg][0];
+      const dz = rp[Math.min(rp.length - 1, seg + 1)][1] - rp[seg][1];
       const len = Math.hypot(dx, dz) || 1;
       out.push({ x, z, h: yh, lift: 1 - u, tx: dx / len, tz: dz / len });
     }
@@ -749,34 +777,46 @@ export const SKYWAY_SAMPLES: BridgeSample[] = (() => {
   return out;
 })();
 
+export function skywayHitAt(x: number, z: number): ElevHit | null {
+  const hit = nearestElevSample(SKYWAY_SAMPLES, x, z);
+  if (!hit) return null;
+  // Deck is wide; ramp toes stay near the 14 m ramp width so we don't steal the
+  // highway / bridge when a skyway on-ramp crosses their footprints.
+  const rampHalf = 7.2 + 1.0;
+  const deckHalf = SKYWAY.width * 0.5 + 1.5;
+  const half = rampHalf + hit.lift * (deckHalf - rampHalf);
+  if (hit.d > half) return null;
+  return hit;
+}
+
 export function skywayHeightAt(x: number, z: number): number | null {
-  if (!SKYWAY_SAMPLES.length) return null;
-  let bestD = 1e9;
-  let bestH = 0;
-  let bestLift = 0;
-  for (const s of SKYWAY_SAMPLES) {
-    const d = Math.hypot(x - s.x, z - s.z);
-    if (d < bestD) {
-      bestD = d;
-      bestH = s.h;
-      bestLift = s.lift;
-    }
+  return skywayHitAt(x, z)?.h ?? null;
+}
+
+/**
+ * Bridge or skyway elevated deck hit. When footprints overlap (skyway ramp
+ * crossing the river bridge), pick the nearer path — optionally biased toward
+ * the surface closest to the car's current height.
+ */
+export function elevatedHitAt(x: number, z: number, carY?: number): ElevHit | null {
+  const bridge = bridgeHitAt(x, z);
+  const sky = skywayHitAt(x, z);
+  if (!bridge) return sky;
+  if (!sky) return bridge;
+  if (Math.abs(bridge.d - sky.d) > 2.0) return bridge.d < sky.d ? bridge : sky;
+  if (carY != null) {
+    return Math.abs(bridge.h - carY) <= Math.abs(sky.h - carY) ? bridge : sky;
   }
-  // Wider footprint on the high deck; narrower on ramp toes.
-  const half = SKYWAY.width * 0.5 + 1.5 + bestLift * 2;
-  if (bestD > half) return null;
-  return bestH;
+  return bridge.d <= sky.d ? bridge : sky;
 }
 
 /** Bridge or skyway elevated deck height, if any. */
-export function elevatedHeightAt(x: number, z: number): number | null {
-  const bridge = bridgeHeightAt(x, z);
-  if (bridge != null) return bridge;
-  return skywayHeightAt(x, z);
+export function elevatedHeightAt(x: number, z: number, carY?: number): number | null {
+  return elevatedHitAt(x, z, carY)?.h ?? null;
 }
 
 export function onBridge(x: number, z: number) {
-  return bridgeHeightAt(x, z) != null;
+  return bridgeHitAt(x, z) != null;
 }
 
 /**
@@ -791,16 +831,30 @@ export function heightAt(x: number, z: number): number {
 
 /**
  * Height for a car that already has a vertical position.
- * If the car is near the deck, stick to the deck; if it is clearly under the
- * span, use the ground so trucks never float on invisible bridge height.
+ * Uses the ramp/deck when the car is on that path and either already near the
+ * surface, climbing a short step, or mounting at a near-ground ramp toe.
+ * Well under a high span → terrain, so underpass roads keep working.
  */
 export function carSurfaceHeight(x: number, z: number, carY: number): number {
   const ground = terrainHeightAt(x, z);
-  const deck = elevatedHeightAt(x, z);
-  if (deck == null) return ground;
-  // Near or above the deck → drive on the bridge/skyway. Well below → under the span.
-  if (carY > deck - 4.5) return deck;
+  const hit = elevatedHitAt(x, z, carY);
+  if (!hit) return ground;
+  const deck = hit.h;
+  // Already on / settling onto this surface.
+  if (carY >= deck - 5.5) return deck;
+  // Continuous climb along the ramp (next sample only a short step up).
+  if (deck <= carY + 3.6) return deck;
+  // Ramp toe: deck still close to grade — allow entering from the road.
+  if (deck - ground <= 3.4 && carY <= ground + 3.8) return deck;
   return ground;
+}
+
+/** True when the car is driving on an elevated ramp/deck (not under it). */
+export function onElevatedSurface(x: number, z: number, carY: number): boolean {
+  const ground = terrainHeightAt(x, z);
+  const hit = elevatedHitAt(x, z, carY);
+  if (!hit) return false;
+  return Math.abs(carSurfaceHeight(x, z, carY) - hit.h) < 0.75 && hit.h > ground + 0.35;
 }
 
 /** Nearest road half-width + distance at (x,z). Used to place signs off the pavement. */

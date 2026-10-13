@@ -373,8 +373,8 @@ export class GameFeatures {
 
   speedLimitAt(x: number, z: number, onHighway: boolean, carY = 0): number {
     // NEXT #29: city 130 / roads 150 / highway 195 / skyway 210
-    const deck = elevatedHeightAt(x, z);
-    if (deck != null && carY > deck - 4.5 && Math.hypot(x, z) > SKYWAY.radius - 80) return 210;
+    const deck = elevatedHeightAt(x, z, carY);
+    if (deck != null && carY > deck - 5.5 && Math.hypot(x, z) > SKYWAY.radius - 80) return 210;
     if (Math.hypot(x, z) > SKYWAY.radius - 40) return 210;
     if (onHighway) return 195;
     if (Math.hypot(x, z) < 320) return 130;
@@ -383,7 +383,7 @@ export class GameFeatures {
 
   /** Hide under bridges/skyway, in forests, or tight against buildings. */
   private inCover(x: number, z: number, y: number): boolean {
-    const deck = elevatedHeightAt(x, z);
+    const deck = elevatedHeightAt(x, z, y);
     if (deck != null && y < deck - 3) return true;
     for (const f of FORESTS) {
       if (Math.hypot(x - f.x, z - f.z) < f.r * 0.9) return true;
