@@ -88,13 +88,16 @@ for (const s of [-1, 1]) {
 c.add(box(0.9, 0.35, 0.55, dark, -0.35, 0.95, 0.5)); // seats
 c.add(box(0.9, 0.35, 0.55, dark, 0.35, 0.95, 0.5));
 
-// Slotted Jeep grille
+// Slotted Jeep grille + round headlights
 c.add(box(1.6, 0.55, 0.12, dark, 0, 0.85, 2.15));
 for (let i = -3; i <= 3; i++) {
   c.add(box(0.08, 0.45, 0.06, chrome, i * 0.18, 0.85, 2.22));
 }
 for (const s of [-1, 1]) {
-  c.add(box(0.35, 0.28, 0.12, head, s * 0.85, 0.9, 2.2));
+  const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.1, 16), head);
+  lamp.rotation.x = Math.PI / 2;
+  lamp.position.set(s * 0.85, 0.9, 2.22);
+  c.add(lamp);
   c.add(box(0.15, 0.12, 0.25, dark, s * 1.1, 1.2, 1.2));
   c.add(box(0.32, 0.28, 0.7, dark, s * 1.1, 0.75, 1.5)); // flares
   c.add(box(0.32, 0.28, 0.7, dark, s * 1.1, 0.75, -1.4));
