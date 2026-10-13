@@ -1,0 +1,646 @@
+:root {
+  color: #f7f4ef;
+  font-family: "Nunito", system-ui, sans-serif;
+  background: #102033;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body,
+#app,
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+#view {
+  display: block;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+.home {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 214, 150, 0.55), transparent 42%),
+    linear-gradient(180deg, #f7c48a 0%, #ef8d62 42%, #2f6a3a 100%);
+  color: #1c2430;
+}
+
+.eyebrow {
+  margin: 0;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+h1 {
+  margin: 0;
+  font-family: "Saira", "Nunito", sans-serif;
+  font-size: clamp(56px, 10vw, 104px);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+}
+
+.lede,
+.note {
+  margin: 0;
+  max-width: 460px;
+  font-size: 18px;
+}
+
+.credits {
+  margin: 4px 0 0;
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: rgba(28, 36, 48, 0.78);
+}
+
+.play {
+  margin-top: 8px;
+  min-width: 220px;
+  padding: 16px 36px;
+  border-radius: 999px;
+  background: #e10600;
+  color: white;
+  font-family: "Saira", sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  box-shadow: 0 10px 0 #8d120c;
+}
+
+.play:active {
+  transform: translateY(2px);
+  box-shadow: 0 8px 0 #8d120c;
+}
+
+.tips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tips li {
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 800;
+}
+
+.assists {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 640px;
+}
+
+.assists button {
+  background: white;
+  color: #1c2430;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 800;
+}
+
+.hud {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.hud button {
+  pointer-events: auto;
+}
+
+.top,
+.bottom,
+.touch,
+.map,
+.engine,
+.toast {
+  position: absolute;
+}
+
+.top {
+  top: 16px;
+  left: 16px;
+  /* Leave a clear gutter so the top-right minimap never covers buttons. */
+  right: calc(180px + 40px);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  z-index: 6;
+}
+
+.brand {
+  font-family: "Saira", sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.sub,
+.hints,
+.engine,
+.unit {
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+.top-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+.top-buttons button,
+.touch button {
+  background: rgba(12, 16, 24, 0.72);
+  color: white;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-weight: 800;
+}
+
+#garage-btn {
+  background: #e10600;
+  color: white;
+}
+
+.map {
+  top: 16px;
+  right: 16px;
+  width: 180px;
+  height: 180px;
+  border-radius: 16px;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  background: #1d4a28;
+  /* Display-only — never steal clicks from Camera / Horn / Cops / etc. */
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Split-screen: shared minimap bottom-center, above the two speedometers. */
+.hud.is-split .map {
+  top: auto;
+  left: 50%;
+  right: auto;
+  bottom: 132px;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 140px;
+  z-index: 3;
+}
+
+/* Split-screen: one full-width top row — brand left, all buttons centered & clickable. */
+.hud.is-split .top {
+  left: 12px;
+  right: 12px;
+  top: 10px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px 16px;
+  z-index: 6;
+}
+
+.hud.is-split .top > div:first-child {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  max-width: min(280px, 28vw);
+}
+
+.hud.is-split .top-buttons {
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.hud.is-split .top-buttons button {
+  padding: 8px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.toast {
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  background: rgba(12, 16, 24, 0.8);
+  color: white;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 800;
+  opacity: 0;
+}
+
+.toast.show {
+  opacity: 1;
+}
+
+.engine,
+.assist {
+  left: 16px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.engine {
+  bottom: 118px;
+}
+
+.assist {
+  bottom: 96px;
+}
+
+.bottom {
+  right: 16px;
+  bottom: 16px;
+}
+
+/* Side-by-side: P1 instruments on left half, P2 on right half. */
+.hud.is-split .bottom {
+  left: 16px;
+  right: auto;
+  bottom: 16px;
+  max-width: 42vw;
+}
+
+.hud.is-split .hints,
+.hud.is-split .engine,
+.hud.is-split .assist {
+  max-width: 40vw;
+}
+
+/* P1 WANTED centered in the left half (below the top button row). */
+.hud.is-split > .wanted {
+  left: 25%;
+  top: 72px;
+}
+
+/* P2 WANTED centered in the right half. */
+.hud.is-split .hud-p2 .wanted {
+  position: fixed;
+  left: 75%;
+  right: auto;
+  top: 72px;
+  bottom: auto;
+  transform: translateX(-50%);
+  margin: 0;
+  z-index: 4;
+}
+
+.play-2p {
+  background: #1a3a6a !important;
+  color: #fff !important;
+  margin-top: 4px;
+}
+
+.hud-p2 {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 3;
+  pointer-events: none;
+  max-width: 42vw;
+}
+
+.hud-p2 .p2-label {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+  color: #ff8800;
+  text-shadow: 0 1px 2px #000;
+}
+
+.pause-2p {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(8, 12, 20, 0.72);
+}
+
+.pause-2p h2 {
+  margin: 0;
+  font-family: "Saira", "Nunito", sans-serif;
+  font-size: 42px;
+}
+
+.pause-2p button {
+  min-width: 220px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: #f4f4f4;
+  color: #111;
+  font-weight: 800;
+}
+
+.pause-2p #back-1p {
+  background: #e10600;
+  color: #fff;
+}
+
+.hints {
+  position: absolute;
+  left: 16px;
+  bottom: 20px;
+  margin: 0;
+  max-width: 46vw;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cluster {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  min-width: 210px;
+  padding: 10px 12px 12px;
+  border-radius: 16px;
+  background: rgba(10, 14, 20, 0.72);
+}
+
+.rpm {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+#rpm-bar {
+  height: 100%;
+  width: 0;
+  background: #f4f4f4;
+}
+
+#rpm-bar.hot {
+  background: #ff3b30;
+}
+
+.speed {
+  font-family: "Saira", sans-serif;
+  font-size: 64px;
+  line-height: 0.85;
+  font-weight: 700;
+}
+
+.unit {
+  align-self: end;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.gear {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #e10600;
+  font-family: "Saira", sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.touch {
+  display: none;
+  left: 16px;
+  bottom: 16px;
+  gap: 8px;
+}
+
+@media (pointer: coarse) {
+  .touch {
+    display: flex;
+  }
+}
+
+.touch button {
+  min-width: 72px;
+  min-height: 54px;
+}
+
+.garage {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(6, 10, 16, 0.62);
+}
+
+.garage-panel {
+  width: min(520px, 100%);
+  max-height: min(78vh, 680px);
+  overflow: auto;
+  padding: 16px;
+  border-radius: 20px;
+  background: #172033;
+  color: white;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+
+.garage-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.garage-head h2 {
+  margin: 0;
+  font-family: "Saira", sans-serif;
+  font-size: 36px;
+}
+
+.garage-head p {
+  margin: 4px 0 0;
+  color: #d5dbe6;
+}
+
+.garage-head button,
+.garage-list button {
+  font: inherit;
+  color: white;
+  border: 0;
+  cursor: pointer;
+}
+
+.garage-head button {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-weight: 800;
+}
+
+.garage-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.garage-list h3 {
+  margin: 10px 0 0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffcc33;
+}
+
+.garage-list button {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.garage-list button span {
+  color: #c5cedd;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.garage-list button.is-current {
+  outline: 3px solid #ffcc33;
+}
+
+.wanted {
+  position: absolute;
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 10px;
+  background: rgba(160, 0, 30, 0.85);
+  color: #fff;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  font-size: 18px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.track-hud {
+  position: absolute;
+  top: 140px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 10px;
+  background: rgba(10, 16, 28, 0.72);
+  color: #f0f4ff;
+  font-weight: 700;
+  font-size: 14px;
+  z-index: 4;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.limit {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #ffcc33;
+  margin-top: 2px;
+}
+
+@media (max-width: 800px) {
+  .top {
+    right: 16px;
+    flex-direction: column;
+  }
+
+  /* 1P: park the map mid-right so it stays clear of top buttons and speedo. */
+  .map {
+    top: auto;
+    bottom: 150px;
+    right: 12px;
+    width: 120px;
+    height: 120px;
+  }
+
+  .hud.is-split .map {
+    left: 50%;
+    right: auto;
+    bottom: 120px;
+    width: 110px;
+    height: 110px;
+  }
+
+  .hud.is-split .top > div:first-child {
+    position: static;
+    max-width: none;
+  }
+
+  .hud.is-split .top-buttons {
+    flex-wrap: wrap;
+  }
+
+  .hints {
+    display: none;
+  }
+
+  .engine {
+    display: none;
+  }
+}
