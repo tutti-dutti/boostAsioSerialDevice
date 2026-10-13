@@ -3,9 +3,9 @@
  * mud-park laps, restaurants, car wash, traffic, cops, speed limits.
  */
 import * as THREE from "three";
-import { SPAWN, heightAt } from "./mapData";
+import { SPAWN, elevatedHeightAt, heightAt } from "./mapData";
 import { LANDMARKS, SPEED_TRACK, SKYWAY } from "./mapZones";
-import type { Car } from "./sim";
+import type { Car, Tune } from "./sim";
 
 const DAY_LEN_SEC = 20 * 60; // 20-minute day
 const COP_COUNT = 5;
@@ -324,11 +324,14 @@ export class GameFeatures {
     this.timeOfDay = map[preset] ?? 0.45;
   }
 
-  speedLimitAt(x: number, z: number, onHighway: boolean): number {
-    if (Math.hypot(x, z) > SKYWAY.radius - 40) return 65;
-    if (onHighway) return 65;
-    if (Math.hypot(x, z) < 320) return 30;
-    return 45;
+  speedLimitAt(x: number, z: number, onHighway: boolean, carY = 0): number {
+    // Skyway deck (elevated ring) — 160 mph.
+    const deck = elevatedHeightAt(x, z);
+    if (deck != null && carY > deck - 4.5 && Math.hypot(x, z) > SKYWAY.radius - 80) return 160;
+    if (Math.hypot(x, z) > SKYWAY.radius - 40) return 160;
+    if (onHighway) return 145;
+    if (Math.hypot(x, z) < 320) return 80; // city
+    return 100; // regular roads
   }
 
   onSpeedTrack(x: number, z: number) {
@@ -338,12 +341,18 @@ export class GameFeatures {
   update(
     dt: number,
     car: Car,
-    _tune: unknown,
+    tune: Tune | unknown,
     mph: number,
     surface: string,
     onHighway: boolean,
     say: (t: string) => void,
   ): FeatureHud {
+    const playerTopMph =
+      tune && typeof tune === "object" && tune !== null && "top" in tune && typeof (tune as Tune).top === "number"
+        ? (tune as Tune).top * 2.23694
+        : 140;
+    const copTopMs = (playerTopMph * 0.9) / 2.23694; // ~90% of player top
+    const copAccel = 9.5; // m/s² — a bit slower than sports-car shove
     if (!this.timePaused) this.timeOfDay = (this.timeOfDay + dt / DAY_LEN_SEC) % 1;
     this.applyLighting(car);
 
@@ -416,6 +425,7 @@ export class GameFeatures {
     }
 
     const night = this.nightFactor();
+    let hitTraffic = false;
     for (const t of this.traffic) {
       t.yaw += (t.speed / 820) * dt;
       t.x = Math.cos(t.yaw - Math.PI / 2) * 820;
@@ -426,6 +436,8 @@ export class GameFeatures {
       const d = Math.hypot(t.x - car.x, t.z - car.z);
       if (d < 18) t.speed = Math.max(12, t.speed - 20 * dt);
       else t.speed = Math.min(36, t.speed + 8 * dt);
+      // Crash into another car (not a red light — there are none).
+      if (d < 3.6 && Math.abs(car.speed) > 4) hitTraffic = true;
     }
 
     let anyChase = false;
@@ -435,17 +447,23 @@ export class GameFeatures {
       for (const c of this.cops) if (Math.hypot(c.x - car.x, c.z - car.z) < COP_PATROL_R) near++;
       if (this.cops.length < COP_COUNT || near < 2) this.ensureCopsNear(car.x, car.z);
 
-      const limit = this.speedLimitAt(car.x, car.z, onHighway);
-      const speeding = mph > limit + 10;
+      const limit = this.speedLimitAt(car.x, car.z, onHighway, car.y);
+      // Chase only if >15 mph over the limit, or after hitting traffic.
+      const speeding = mph > limit + 15;
+      const wantedNow = speeding || hitTraffic;
       for (const c of this.cops) {
         let d = Math.hypot(c.x - car.x, c.z - car.z);
-        // Notice within 150 m for any rule break (speeding), even off-road.
-        if (speeding && d < COP_NOTICE_R) c.chase = true;
+        if (wantedNow && d < COP_NOTICE_R) c.chase = true;
+        if (hitTraffic && d < COP_PATROL_R) c.chase = true;
         if (c.chase) {
           anyChase = true;
           const ang = Math.atan2(car.x - c.x, car.z - c.z);
           c.yaw = ang;
-          c.speed = Math.min(62, Math.max(c.speed, mph * 0.45 + 28) + 12 * dt);
+          // Cap at ~90% of the player's top; accelerate a bit slower than a sports car.
+          c.speed = Math.min(copTopMs, c.speed + copAccel * dt);
+          // Don't instantly match a fleeing hypercar — ease toward chase pace.
+          const chasePace = Math.min(copTopMs, Math.max(22, (mph * 0.9) / 2.23694));
+          if (c.speed > chasePace) c.speed += (chasePace - c.speed) * Math.min(1, 1.8 * dt);
           c.x += Math.sin(c.yaw) * c.speed * dt;
           c.z += Math.cos(c.yaw) * c.speed * dt;
           this.separateCop(c, car, dt);
@@ -515,7 +533,7 @@ export class GameFeatures {
     this.escapedFlash = Math.max(0, this.escapedFlash - dt);
 
     return {
-      speedLimit: this.speedLimitAt(car.x, car.z, onHighway),
+      speedLimit: this.speedLimitAt(car.x, car.z, onHighway, car.y),
       wanted: this.wanted,
       chase: anyChase,
       busted: this.bustedFlash > 0,

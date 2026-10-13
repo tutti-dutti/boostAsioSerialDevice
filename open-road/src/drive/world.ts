@@ -182,6 +182,70 @@ function labelTexture(text: string, stripe: string) {
   }, 512, 256);
 }
 
+function speedLimitTexture(mph: number) {
+  return canvasTex((g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    const cx = w / 2;
+    const cy = h / 2;
+    const r = Math.min(w, h) * 0.46;
+    g.fillStyle = "#ffffff";
+    g.beginPath();
+    g.arc(cx, cy, r, 0, Math.PI * 2);
+    g.fill();
+    g.lineWidth = 18;
+    g.strokeStyle = "#111111";
+    g.stroke();
+    g.fillStyle = "#111111";
+    g.font = "bold 52px sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText("SPEED", cx, cy - 70);
+    g.fillText("LIMIT", cx, cy - 28);
+    g.font = "bold 140px sans-serif";
+    g.fillText(String(mph), cx, cy + 55);
+  }, 512, 512);
+}
+
+function addSpeedLimitSign(
+  object: THREE.Group,
+  colliders: Collider[],
+  mph: number,
+  x: number,
+  z: number,
+  rotY: number,
+) {
+  let sx = x;
+  let sz = z;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const clear = nearestRoadClearance(sx, sz);
+    const need = clear.half + 3.2;
+    if (clear.d >= need) break;
+    const len = Math.hypot(sx, sz) || 1;
+    const push = need - clear.d + 0.5;
+    sx += (sx / len) * push;
+    sz += (sz / len) * push;
+  }
+  const y0 = terrainHeightAt(sx, sz);
+  const post = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.12, 3.4, 8),
+    new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.55, metalness: 0.4 }),
+  );
+  post.position.set(sx, y0 + 1.7, sz);
+  object.add(post);
+  colliders.push({ kind: "circle", x: sx, z: sz, r: 0.3 });
+  const board = new THREE.Mesh(
+    new THREE.CircleGeometry(0.85, 28),
+    new THREE.MeshStandardMaterial({
+      map: speedLimitTexture(mph),
+      roughness: 0.45,
+      side: THREE.DoubleSide,
+    }),
+  );
+  board.position.set(sx, y0 + 3.55, sz);
+  board.rotation.y = rotY;
+  object.add(board);
+}
+
 /** Catmull-Rom sample of a 2D path. */
 function samplePath(path: PathDef, samples: number): { x: number; z: number; tx: number; tz: number }[] {
   const pts = path.points;
@@ -464,6 +528,15 @@ export function createWorld(): World {
   addSign(object, baseColliders, "WET", 40, 16, -Math.PI / 2, "#7ec8ff");
   addSign(object, baseColliders, "MUD", -170, 92, 0, "#c47a3a");
   addSign(object, baseColliders, "ICE", 210, -16, -Math.PI / 2, "#d7e7f2");
+  // Posted limits: city 80 / roads 100 / highway 145 / skyway 160
+  addSpeedLimitSign(object, baseColliders, 80, -40, 20, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 80, 100, -20, Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 100, 280, 30, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 100, -250, 40, Math.PI);
+  addSpeedLimitSign(object, baseColliders, 145, 420, 40, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 145, 700, 200, facing(-100, 40));
+  addSpeedLimitSign(object, baseColliders, 160, 980, 80, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 160, -980, 40, Math.PI / 2);
   addPatches(object);
   addCrosswalks(object);
   addLamps(object, baseColliders);
