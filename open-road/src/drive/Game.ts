@@ -482,18 +482,18 @@ export class DriveGame {
 
   private step(dt: number) {
     const raw = this.readInput();
-    // Progressive wheel: ~1 s hold → full lock; taps stay small; release centers fast.
+    // Progressive wheel: turns right away; ~0.15 s → medium, ~0.3 s → full lock.
+    // Quick tap stays small. Release snaps back to straight fast.
     // Digital (±1) ramps linearly with hold time. Analog eases toward stick amount.
     const target = Math.max(-1, Math.min(1, raw.steer));
     const digital = Math.abs(target) >= 0.95;
     if (Math.abs(target) < 0.02) {
-      // Snap-back to straight — no lingering pull when keys/stick released.
-      const outRate = 4.2; // ~0.25 s from full lock to center
+      const outRate = 8.5; // ~0.12 s from full lock to center
       const step = outRate * dt;
       if (Math.abs(this.steerSmooth) <= step) this.steerSmooth = 0;
       else this.steerSmooth -= Math.sign(this.steerSmooth) * step;
     } else if (digital) {
-      const inRate = 1.05; // ~0.95 s to full lock; half-second ≈ half lock
+      const inRate = 1 / 0.3; // medium ≈ 0.15 s, full lock ≈ 0.3 s
       const step = inRate * dt;
       const want = Math.sign(target);
       if (Math.sign(this.steerSmooth) === want || Math.abs(this.steerSmooth) < 0.001) {
@@ -503,8 +503,8 @@ export class DriveGame {
         this.steerSmooth -= Math.sign(this.steerSmooth) * Math.min(step * 2.2, Math.abs(this.steerSmooth));
       }
     } else {
-      // Partial stick: follow stick smoothly without overshooting full lock instantly.
-      const k = 5.5;
+      // Partial stick: follow stick quickly so pad feel matches the faster keyboard ramp.
+      const k = 14;
       this.steerSmooth += (target - this.steerSmooth) * (1 - Math.exp(-k * dt));
     }
     if (Math.abs(this.steerSmooth) < 0.008 && Math.abs(target) < 0.02) this.steerSmooth = 0;
