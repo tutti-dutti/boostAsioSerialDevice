@@ -281,19 +281,22 @@ export function stepCar(
     gripBoost *= arcade ? 1.25 : 1.7;
   }
   const mu = clamp(surface.grip * (loose ? Math.max(0.55, tune.offroad) : 1) * gripBoost, 0.04, arcade ? 5.5 : 3.4);
-  // Turning radius in meters. Full lock is gentler (~50–55 ft / ~16 m) so
-  // keyboard and pad steering feel less coarse / twitchy.
+  // Turning circle ~35 ft curb-to-curb (~10.7 m diameter / ~5.3 m radius) at
+  // low speed so a U-turn fits a normal two-lane road. Trucks a bit wider.
   const speedAbs = Math.abs(car.speed);
+  const isTruckTurn = tune.offroad >= 1.2 || tune.mass >= 2300;
   const gripAy = (input.handbrake ? 0.45 : arcade ? 6.5 : 1.45) * mu * 9.81;
   const gripR = (speedAbs * speedAbs) / Math.max(5, gripAy);
-  const tightR = input.handbrake ? 7.5 : arcade ? 7.0 : 8.8;
+  const baseTight = arcade ? (isTruckTurn ? 5.8 : 5.2) : isTruckTurn ? 6.4 : 5.5;
+  const tightR = input.handbrake ? baseTight + 1.2 : baseTight;
   // Arcade barely widens with speed — keep sharp side-road cuts available.
   const blend = arcade ? clamp((speedAbs - 55) / 90, 0, 0.18) : clamp((speedAbs - 4) / 22, 0, 1);
   const turnR = tightR * (1 - blend) + Math.max(tightR, gripR) * blend;
   // Partial stick / smoothed keyboard steer scales lock (not just ±1).
   const steerAmt = clamp(Math.abs(input.steer), 0, 1);
   const steerSign = Math.sign(input.steer) || 0;
-  let maxSteer = arcade ? 0.58 : 0.4;
+  // Low-speed lock is generous; trucks lose a little angle vs sports cars.
+  let maxSteer = arcade ? (isTruckTurn ? 0.68 : 0.78) : isTruckTurn ? 0.52 : 0.62;
   // Sim hypercars lose lock at speed; Arcade keeps full steering angle always.
   if (!arcade && tune.hyper && speedAbs > 50) {
     maxSteer *= Math.max(0.32, 1 - (speedAbs - 50) / 140);
@@ -455,10 +458,15 @@ export function stepCar(
 
   // Heading follows the front wheels. A stopped car cannot pivot.
   // Arcade: high yaw ceiling + steer-led rate so 150+ mph 90° cuts still rotate.
+  // Low-speed term sized for a ~30–35 ft U-turn; trucks a touch wider.
   const yawCeil = arcade ? 2.55 : 1.25;
   const yawMag = rolling && !inWater
     ? arcade
-      ? Math.min(yawCeil, steerAmt * (1.15 + speedAbs * 0.014))
+      ? Math.min(
+          yawCeil,
+          // ω ≈ v/R with R~5.3 m at crawl, then rises with speed for sharp cuts.
+          steerAmt * Math.min(yawCeil, speedAbs / (isTruckTurn ? 6.0 : 5.3) + speedAbs * 0.011),
+        )
       : Math.min(yawCeil, (speedAbs * steerAmt) / Math.max(turnR, 2.2))
     : 0;
   const yawTarget = -Math.sign(car.speed || 1) * steerSign * yawMag;
