@@ -41,7 +41,10 @@ export const TRAILS: TrailDef[] = [
     grade: "easy",
     width: 7,
     grip: 0.7,
+    // Starts on the west EW-road tip so the dirt ribbon meets pavement cleanly.
     points: [
+      [-420, 0],
+      [-420, 80],
       [-420, 200],
       [-520, 320],
       [-620, 480],
@@ -55,6 +58,7 @@ export const TRAILS: TrailDef[] = [
     grade: "medium",
     width: 6,
     grip: 0.68,
+    // Ends on Pine Easy so the trails join with no grass gap.
     points: [
       [-780, 700],
       [-860, 640],
@@ -63,6 +67,7 @@ export const TRAILS: TrailDef[] = [
       [-720, 360],
       [-600, 300],
       [-480, 220],
+      [-420, 200],
     ],
   },
   {
@@ -130,8 +135,10 @@ export const TRAILS: TrailDef[] = [
     grade: "easy",
     width: 8,
     grip: 0.7,
+    // Mouth on the EW road / ring so mud-park dirt meets asphalt.
     points: [
-      [-200, -40],
+      [-200, 0],
+      [-210, -40],
       [-260, -120],
       [-300, -220],
       [-280, -320],
@@ -171,7 +178,7 @@ export const SKYWAY = {
   rampLength: 620,
 };
 
-export type LandmarkKind = "restaurant" | "carwash" | "park" | "speed" | "forest";
+export type LandmarkKind = "restaurant" | "carwash" | "park" | "speed" | "forest" | "dealership";
 
 export type Landmark = {
   id: string;
@@ -184,7 +191,18 @@ export type Landmark = {
   hz: number;
 };
 
+/** Town dealership / garage showroom (north of the west EW road). */
+export const DEALERSHIP = {
+  x: -195,
+  z: 48,
+  /** Spawn inside, facing the south doors toward the road. */
+  spawnYaw: Math.PI,
+  drivewayZ0: 28,
+  drivewayZ1: 0,
+};
+
 export const LANDMARKS: Landmark[] = [
+  { id: "garage", kind: "dealership", label: "Garage", x: DEALERSHIP.x, z: DEALERSHIP.z, hx: 18, hz: 16 },
   { id: "pizza", kind: "restaurant", label: "Pizza Shop", x: 70, z: 28, hx: 12, hz: 10 },
   { id: "pho", kind: "restaurant", label: "Phở Shop", x: 110, z: 28, hx: 12, hz: 10 },
   { id: "banhmi", kind: "restaurant", label: "Bánh Mì Shop", x: 150, z: 28, hx: 12, hz: 10 },

@@ -25,6 +25,7 @@ import type { Collider, RoadSeg } from "./sim";
 import {
   addCarWash,
   addCityBlocks,
+  addDealership,
   addGiantForests,
   addMudPark,
   addRestaurants,
@@ -552,6 +553,7 @@ export function createWorld(): World {
   addCityBlocks(object, baseColliders);
   addSkyway(object, baseColliders);
   addRestaurants(object, baseColliders);
+  addDealership(object, baseColliders);
   addCarWash(object, baseColliders);
 
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2.4, 6);

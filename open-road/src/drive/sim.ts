@@ -3,6 +3,7 @@ import {
   LAKE,
   PATCHES,
   RIVER,
+  SPAWN,
   WORLD_HALF,
   bridgeHeightAt,
   elevatedHeightAt,
@@ -140,12 +141,12 @@ const DOWNS = [11, 22, 34, 47, 58];
 const GEAR_POWER = [1, 0.92, 0.8, 0.68, 0.56, 0.46];
 export function makeCar(): Car {
   return {
-    x: -70,
-    z: 4,
+    x: SPAWN.x,
+    z: SPAWN.z,
     y: 1.2,
     vy: 0,
     airTime: 0,
-    yaw: Math.PI / 2,
+    yaw: SPAWN.yaw,
     yawRate: 0,
     speed: 0,
     lat: 0,
@@ -195,16 +196,7 @@ function ground(name: string, grip: number, max: number): Surface {
   return { name, grip, max, roll: ROLL[name] ?? 0.02 };
 }
 
-export function surfaceAt(x: number, z: number, roads: RoadSeg[], carY = 999): Surface {
-  // Bridge / skyway deck is dry pavement — only when the car is actually up on the deck.
-  const deck = elevatedHeightAt(x, z);
-  if (deck != null && carY > deck - 4.5) return ground("Dry", 1.55, 98);
-
-  // Water wins over at-grade roads — lake and river are not driveable.
-  const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
-  if (ld < LAKE.r) return ground("Water", 0.04, 3);
-  if (inRiverWater(x, z)) return ground("Water", 0.04, 3);
-
+function nearestRoad(x: number, z: number, roads: RoadSeg[]) {
   let best = Infinity;
   let grip = 1;
   let half = 0;
@@ -216,6 +208,26 @@ export function surfaceAt(x: number, z: number, roads: RoadSeg[], carY = 999): S
       half = s.half;
     }
   }
+  return { best, grip, half };
+}
+
+/** True when a point sits on (or very near) paved asphalt — not dirt trails. */
+function onPavement(x: number, z: number, roads: RoadSeg[], pad = 1.15) {
+  const { best, grip, half } = nearestRoad(x, z, roads);
+  return grip >= 0.85 && best <= half + pad;
+}
+
+export function surfaceAt(x: number, z: number, roads: RoadSeg[], carY = 999): Surface {
+  // Bridge / skyway deck is dry pavement — only when the car is actually up on the deck.
+  const deck = elevatedHeightAt(x, z);
+  if (deck != null && carY > deck - 4.5) return ground("Dry", 1.55, 98);
+
+  // Water wins over at-grade roads — lake and river are not driveable.
+  const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
+  if (ld < LAKE.r) return ground("Water", 0.04, 3);
+  if (inRiverWater(x, z)) return ground("Water", 0.04, 3);
+
+  const { best, grip, half } = nearestRoad(x, z, roads);
   if (best <= half + 0.4) {
     if (grip < 0.85) return ground("Dirt", 0.7, 50);
     const wet = patchAt(x, z, "Wet");
@@ -232,6 +244,43 @@ export function surfaceAt(x: number, z: number, roads: RoadSeg[], carY = 999): S
   if (river.d >= RIVER.halfWidth && river.d < river.bank) return ground("Sand", 0.5, 28);
   // Grass is a bit less sticky than pavement, but still fast.
   return ground("Grass", 0.92, 72);
+}
+
+/**
+ * Per-wheel surface: if any wheel is on/near pavement, use road grip/speed
+ * so trail mouths never yank the car onto dirt while still on asphalt.
+ */
+export function surfaceUnderCar(
+  x: number,
+  z: number,
+  yaw: number,
+  roads: RoadSeg[],
+  carY = 999,
+  axle = 1.35,
+  track = 0.85,
+): Surface {
+  const fx = Math.sin(yaw);
+  const fz = Math.cos(yaw);
+  const rx = Math.cos(yaw);
+  const rz = -Math.sin(yaw);
+  const wheels: [number, number][] = [
+    [x + fx * axle - rx * track, z + fz * axle - rz * track],
+    [x + fx * axle + rx * track, z + fz * axle + rz * track],
+    [x - fx * axle - rx * track, z - fz * axle - rz * track],
+    [x - fx * axle + rx * track, z - fz * axle + rz * track],
+  ];
+  for (const [wx, wz] of wheels) {
+    const deck = elevatedHeightAt(wx, wz);
+    if (deck != null && carY > deck - 4.5) return ground("Dry", 1.55, 98);
+    if (onPavement(wx, wz, roads)) {
+      const wet = patchAt(wx, wz, "Wet");
+      if (wet) return wet;
+      return ground("Dry", 1.55, 98);
+    }
+  }
+  // Also treat the body center — covers straddling the edge.
+  if (onPavement(x, z, roads)) return ground("Dry", 1.55, 98);
+  return surfaceAt(x, z, roads, carY);
 }
 
 function patchAt(x: number, z: number, name: string): Surface | null {

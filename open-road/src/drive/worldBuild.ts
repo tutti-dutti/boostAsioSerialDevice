@@ -13,6 +13,7 @@ import {
   type PathDef,
 } from "./mapData";
 import {
+  DEALERSHIP,
   FORESTS,
   LANDMARKS,
   MUD_PARK,
@@ -651,6 +652,120 @@ export function addRestaurants(object: THREE.Group, colliders: Collider[]) {
     lantern.position.set(lx, heightAt(lx, lz) + 3.2, lz);
     object.add(lantern);
   }
+}
+
+/** JOB 8b — car dealership / garage showroom with driveway onto the EW road. */
+export function addDealership(object: THREE.Group, colliders: Collider[]) {
+  const dx = DEALERSHIP.x;
+  const dz = DEALERSHIP.z;
+  const y0 = terrainHeightAt(dx, dz);
+  const glass = new THREE.MeshStandardMaterial({
+    color: 0xa8d4ee,
+    roughness: 0.12,
+    metalness: 0.35,
+    transparent: true,
+    opacity: 0.55,
+  });
+  const frame = new THREE.MeshStandardMaterial({ color: 0xd8dce0, roughness: 0.45, metalness: 0.55 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1a1e24, roughness: 0.7 });
+  const asphalt = new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.92 });
+
+  // Floor pad inside showroom
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(22, 0.25, 16), frame);
+  floor.position.set(dx, y0 + 0.12, dz);
+  object.add(floor);
+
+  // Glass walls (open south for doors)
+  const wallH = 6.5;
+  for (const [wx, wz, ww, wd] of [
+    [dx, dz + 7.5, 22, 0.35], // north
+    [dx - 10.8, dz, 0.35, 15], // west
+    [dx + 10.8, dz, 0.35, 15], // east
+  ] as const) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(ww, wallH, wd), glass);
+    wall.position.set(wx, y0 + wallH / 2, wz);
+    object.add(wall);
+  }
+  // South door pillars (gap in the middle to drive out)
+  for (const side of [-1, 1]) {
+    const pillar = new THREE.Mesh(new THREE.BoxGeometry(5.5, wallH, 0.4), glass);
+    pillar.position.set(dx + side * 7.5, y0 + wallH / 2, dz - 7.5);
+    object.add(pillar);
+    colliders.push({ kind: "box", x: dx + side * 7.5, z: dz - 7.5, hx: 2.8, hz: 0.35 });
+  }
+  colliders.push({ kind: "box", x: dx, z: dz + 7.5, hx: 11, hz: 0.4 });
+  colliders.push({ kind: "box", x: dx - 10.8, z: dz, hx: 0.4, hz: 7.5 });
+  colliders.push({ kind: "box", x: dx + 10.8, z: dz, hx: 0.4, hz: 7.5 });
+
+  // Roof + GARAGE sign
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(24, 0.45, 18), frame);
+  roof.position.set(dx, y0 + wallH + 0.2, dz);
+  object.add(roof);
+  const signCanvas = document.createElement("canvas");
+  signCanvas.width = 512;
+  signCanvas.height = 128;
+  const sg = signCanvas.getContext("2d")!;
+  sg.fillStyle = "#ffcc33";
+  sg.fillRect(0, 0, 512, 128);
+  sg.fillStyle = "#111111";
+  sg.font = "bold 72px sans-serif";
+  sg.textAlign = "center";
+  sg.textBaseline = "middle";
+  sg.fillText("GARAGE", 256, 68);
+  const signTex = new THREE.CanvasTexture(signCanvas);
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(12, 2.2),
+    new THREE.MeshStandardMaterial({
+      map: signTex,
+      emissive: 0xaa7700,
+      emissiveIntensity: 0.35,
+      roughness: 0.45,
+      side: THREE.DoubleSide,
+    }),
+  );
+  sign.position.set(dx, y0 + wallH + 1.4, dz - 2.2);
+  object.add(sign);
+
+  // Display cars (simple colored bodies behind glass)
+  const display = [
+    { x: -6, z: 2, c: 0xff3355 },
+    { x: 0, z: 3, c: 0x4488cc },
+    { x: 6, z: 2, c: 0xf2c14e },
+  ];
+  for (const d of display) {
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(1.7, 0.55, 3.4),
+      new THREE.MeshStandardMaterial({ color: d.c, roughness: 0.4, metalness: 0.35 }),
+    );
+    body.position.set(dx + d.x, y0 + 0.55, dz + d.z);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.45, 1.5), dark);
+    cabin.position.set(dx + d.x, y0 + 1.0, dz + d.z - 0.1);
+    object.add(body, cabin);
+  }
+
+  // Flags out front
+  for (const side of [-1, 1]) {
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.1, 7, 8),
+      new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.5, roughness: 0.4 }),
+    );
+    const fx = dx + side * 14;
+    const fz = dz - 10;
+    pole.position.set(fx, y0 + 3.5, fz);
+    const flag = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 1.2, 0.08),
+      new THREE.MeshStandardMaterial({ color: side < 0 ? 0xff3355 : 0x3366ff, roughness: 0.55 }),
+    );
+    flag.position.set(fx + side * 1.1, y0 + 6.2, fz);
+    object.add(pole, flag);
+    colliders.push({ kind: "circle", x: fx, z: fz, r: 0.25 });
+  }
+
+  // Driveway apron onto the main EW road
+  const driveLen = DEALERSHIP.drivewayZ0 - DEALERSHIP.drivewayZ1 + 4;
+  const drive = new THREE.Mesh(new THREE.BoxGeometry(10, 0.18, driveLen), asphalt);
+  drive.position.set(dx, y0 + SURFACE_LIFT + 0.04, (DEALERSHIP.drivewayZ0 + DEALERSHIP.drivewayZ1) / 2);
+  object.add(drive);
 }
 
 /** JOB 8 — car wash building. */

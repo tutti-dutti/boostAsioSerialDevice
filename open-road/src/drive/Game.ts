@@ -14,7 +14,7 @@ import {
   resolveCollisions,
   resolveWater,
   stepCar,
-  surfaceAt,
+  surfaceUnderCar,
   type Car,
   type Input,
   type Setup,
@@ -509,7 +509,7 @@ export class DriveGame {
     }
     if (Math.abs(this.steerSmooth) < 0.008 && Math.abs(target) < 0.02) this.steerSmooth = 0;
     const input = { ...raw, steer: this.steerSmooth };
-    const surface = surfaceAt(this.car.x, this.car.z, this.world.roads, this.car.y);
+    const surface = surfaceUnderCar(this.car.x, this.car.z, this.car.yaw, this.world.roads, this.car.y);
     const { skid, pitch, roll, wheels, wheel } = stepCar(this.car, input, surface, dt, this.tune, this.setup);
     const wet = resolveWater(this.car);
     if (wet && !this.inWater) this.say("You can't drive on the water");

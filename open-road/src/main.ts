@@ -1,7 +1,7 @@
 import "./style.css";
 import { GARAGE } from "./drive/garage";
 import { DriveGame, type FrameInfo } from "./drive/Game";
-import { BRIDGE_SAMPLES, EXTRA_PATHS, LAKE, RIVER, ROADS, SPAWN } from "./drive/mapData";
+import { BRIDGE_SAMPLES, EXTRA_PATHS, LAKE, RIVER, ROADS } from "./drive/mapData";
 import { FORESTS, LANDMARKS, MUD_PARK, SPEED_TRACK, SKYWAY } from "./drive/mapZones";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -248,6 +248,17 @@ function paintMap(info: FrameInfo) {
     } else if (lm.kind === "carwash") {
       mapCtx.fillStyle = "#66d0ff";
       mapCtx.fillRect(X(lm.x) - 3, Y(lm.z) - 3, 6, 6);
+    } else if (lm.kind === "dealership") {
+      // Car icon for the garage / dealership
+      mapCtx.fillStyle = "#ffcc33";
+      mapCtx.beginPath();
+      mapCtx.moveTo(X(lm.x), Y(lm.z) + 5);
+      mapCtx.lineTo(X(lm.x) + 4, Y(lm.z) - 2);
+      mapCtx.lineTo(X(lm.x) - 4, Y(lm.z) - 2);
+      mapCtx.closePath();
+      mapCtx.fill();
+      mapCtx.fillStyle = "#222222";
+      mapCtx.fillRect(X(lm.x) - 3.5, Y(lm.z) - 1, 7, 3);
     }
   }
   // Cops
@@ -257,8 +268,6 @@ function paintMap(info: FrameInfo) {
     mapCtx.arc(X(c.x), Y(c.z), c.chase ? 3.5 : 2.5, 0, Math.PI * 2);
     mapCtx.fill();
   }
-  mapCtx.fillStyle = "#ffe08a";
-  mapCtx.fillRect(X(SPAWN.x) - 2, Y(SPAWN.z) - 2, 4, 4);
   mapCtx.save();
   mapCtx.translate(X(info.x), Y(info.z));
   mapCtx.rotate(-info.yaw);

@@ -11,7 +11,8 @@ export const INNER_RIM = 1050;
 export const SURFACE_LIFT = 0.1;
 export const LAKE = { x: 320, z: -300, r: 48 };
 /** Clear straight stretch west of town — away from crosswalks / intersections. */
-export const SPAWN = { x: -180, z: 0, yaw: -Math.PI / 2 };
+/** Inside the dealership showroom, facing the front doors / driveway. */
+export const SPAWN = { x: -195, z: 52, yaw: Math.PI };
 
 /**
  * Wide river crossing the northeast highway arc.
@@ -257,8 +258,21 @@ export const BRIDGE_UNDERPASS: PathDef = {
 /** Trail + speed-track + skyway-ramp paths for ribbons / physics.
  * Skyway deck is elevated (see SKYWAY_SAMPLES) — ramps only get at-grade ribbons;
  * the raised deck/ramp meshes live in worldBuild.addSkyway. */
+/** Dealership driveway — paved apron from showroom doors onto the EW road. */
+export const DEALER_DRIVE: PathDef = {
+  points: [
+    [-195, 40],
+    [-195, 20],
+    [-195, 0],
+  ],
+  width: 10,
+  grip: 1,
+  atGrade: true,
+};
+
 export const EXTRA_PATHS: PathDef[] = [
   BRIDGE_UNDERPASS,
+  DEALER_DRIVE,
   // Dirt trails stay at grade even when they pass under the skyway footprint.
   ...TRAILS.map(({ points, width, grip, closed, highway }) => ({
     points,
