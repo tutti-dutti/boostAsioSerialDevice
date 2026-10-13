@@ -62,7 +62,7 @@ app.innerHTML = `
         <div class="rpm"><div id="rpm-bar"></div></div>
         <div id="speed" class="speed">0</div>
         <div class="unit">MPH</div>
-        <div id="limit" class="limit">LIM 100</div>
+        <div id="limit" class="limit">LIM 150</div>
         <div id="gear" class="gear">N</div>
       </div>
     </footer>

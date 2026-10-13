@@ -3,18 +3,30 @@
  * mud-park laps, restaurants, car wash, traffic, cops, speed limits.
  */
 import * as THREE from "three";
-import { SPAWN, elevatedHeightAt, heightAt } from "./mapData";
-import { LANDMARKS, SPEED_TRACK, SKYWAY } from "./mapZones";
-import type { Car, Tune } from "./sim";
+import { ROADS, SPAWN, elevatedHeightAt, heightAt } from "./mapData";
+import { FORESTS, LANDMARKS, SPEED_TRACK, SKYWAY } from "./mapZones";
+import { surfaceAt, type Car, type RoadSeg, type Tune } from "./sim";
 
 const DAY_LEN_SEC = 20 * 60; // 20-minute day
 const COP_COUNT = 5;
 const COP_PATROL_R = 500;
 const COP_NOTICE_R = 150;
+const COP_ESCAPE_DIST = 300;
+const COP_LOS_ESCAPE_SEC = 10;
+const COP_STAR_DROP_SEC = 15;
 /** Keep cops off the player's body — bump OK, overlap never. */
 const COP_MIN_SEP = 4.5;
 const COP_SPAWN_MIN = 110;
 const MAX_STREET_LIGHTS = 6;
+
+const COP_ROADS: RoadSeg[] = ROADS.map((r) => ({
+  x1: r.x1,
+  z1: r.z1,
+  x2: r.x2,
+  z2: r.z2,
+  half: r.width / 2,
+  grip: r.grip,
+}));
 
 export type TimePreset = "morning" | "noon" | "sunset" | "night" | "pause";
 
@@ -54,9 +66,15 @@ export class GameFeatures {
   wanted = 0;
   chaseTimer = 0;
   escapeTimer = 0;
+  /** Seconds with no cop line-of-sight while wanted. */
+  losHiddenTimer = 0;
+  /** Seconds without LOS toward the next star drop. */
+  starDropTimer = 0;
   stoppedNearCop = 0;
   bustedFlash = 0;
   escapedFlash = 0;
+  /** Brief flash of WANTED stars before ESCAPED clears. */
+  escapePending = 0;
   lapStart: number | null = null;
   lapTime: number | null = null;
   bestLap: number | null = null;
@@ -240,15 +258,44 @@ export class GameFeatures {
     this.spawnCopsNear(SPAWN.x, SPAWN.z);
   }
 
+  /** Full 3D cruiser — never a flat blue panel. */
   private makeCop(x: number, z: number, yaw: number, patrolA: number): Cop {
-    const { mesh } = this.carMesh(0x2244aa);
+    const mesh = new THREE.Group();
+    const white = new THREE.MeshStandardMaterial({ color: 0xf2f4f8, roughness: 0.45, metalness: 0.15 });
+    const blue = new THREE.MeshStandardMaterial({ color: 0x1a3a8a, roughness: 0.5, metalness: 0.2 });
+    const black = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.85 });
+    const glass = new THREE.MeshStandardMaterial({
+      color: 0x223344,
+      roughness: 0.2,
+      metalness: 0.3,
+      transparent: true,
+      opacity: 0.65,
+    });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.55, 4.2), white);
+    body.position.y = 0.55;
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.22, 4.22), blue);
+    stripe.position.y = 0.62;
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 1.8), white);
+    cabin.position.set(0, 1.05, -0.15);
+    const win = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.4, 1.55), glass);
+    win.position.set(0, 1.15, -0.1);
+    mesh.add(body, stripe, cabin, win);
+    for (const sx of [-1, 1]) {
+      for (const sz of [1.25, -1.25]) {
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.28, 12), black);
+        tire.rotation.z = Math.PI / 2;
+        tire.position.set(sx * 0.85, 0.32, sz);
+        mesh.add(tire);
+      }
+    }
     const bar = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 0.2, 0.4),
+      new THREE.BoxGeometry(1.35, 0.22, 0.45),
       new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xff0044, emissiveIntensity: 1.4 }),
     );
-    bar.position.y = 1.05;
+    bar.position.set(0, 1.45, -0.1);
     mesh.add(bar);
-    mesh.position.set(x, heightAt(x, z) + 0.2, z);
+    mesh.position.set(x, heightAt(x, z) + 0.02, z);
+    mesh.rotation.y = yaw;
     this.copRoot.add(mesh);
     return { x, z, yaw, speed: 30, mesh, chase: false, bar, patrolA };
   }
@@ -325,13 +372,57 @@ export class GameFeatures {
   }
 
   speedLimitAt(x: number, z: number, onHighway: boolean, carY = 0): number {
-    // Skyway deck (elevated ring) — 160 mph.
+    // NEXT #29: city 130 / roads 150 / highway 195 / skyway 210
     const deck = elevatedHeightAt(x, z);
-    if (deck != null && carY > deck - 4.5 && Math.hypot(x, z) > SKYWAY.radius - 80) return 160;
-    if (Math.hypot(x, z) > SKYWAY.radius - 40) return 160;
-    if (onHighway) return 145;
-    if (Math.hypot(x, z) < 320) return 80; // city
-    return 100; // regular roads
+    if (deck != null && carY > deck - 4.5 && Math.hypot(x, z) > SKYWAY.radius - 80) return 210;
+    if (Math.hypot(x, z) > SKYWAY.radius - 40) return 210;
+    if (onHighway) return 195;
+    if (Math.hypot(x, z) < 320) return 130;
+    return 150;
+  }
+
+  /** Hide under bridges/skyway, in forests, or tight against buildings. */
+  private inCover(x: number, z: number, y: number): boolean {
+    const deck = elevatedHeightAt(x, z);
+    if (deck != null && y < deck - 3) return true;
+    for (const f of FORESTS) {
+      if (Math.hypot(x - f.x, z - f.z) < f.r * 0.9) return true;
+    }
+    for (const lm of LANDMARKS) {
+      if (Math.abs(x - lm.x) < lm.hx + 6 && Math.abs(z - lm.z) < lm.hz + 6) return true;
+    }
+    return false;
+  }
+
+  private canSeePlayer(c: Cop, car: Car): boolean {
+    const d = Math.hypot(c.x - car.x, c.z - car.z);
+    if (d > COP_ESCAPE_DIST) return false;
+    const playerCover = this.inCover(car.x, car.z, car.y);
+    const copCover = this.inCover(c.x, c.z, heightAt(c.x, c.z) + 0.5);
+    if (playerCover && !copCover) return false;
+    return true;
+  }
+
+  private maxChasers(): number {
+    const w = Math.floor(this.wanted);
+    if (w >= 5) return 3;
+    if (w >= 3) return 2;
+    if (w >= 1) return 1;
+    return 1; // first notice still gets one unit
+  }
+
+  private clearChase(say: (t: string) => void, escaped: boolean) {
+    for (const c of this.cops) c.chase = false;
+    this.stopSiren();
+    this.losHiddenTimer = 0;
+    this.starDropTimer = 0;
+    this.chaseTimer = 0;
+    if (escaped) {
+      this.wanted = 0;
+      this.escapedFlash = 2.2;
+      this.escapePending = 0;
+      say("ESCAPED");
+    }
   }
 
   onSpeedTrack(x: number, z: number) {
@@ -442,27 +533,58 @@ export class GameFeatures {
 
     let anyChase = false;
     if (this.copsOn) {
-      // Keep a few cops near the player on patrol (never wipe mid-chase).
       let near = 0;
       for (const c of this.cops) if (Math.hypot(c.x - car.x, c.z - car.z) < COP_PATROL_R) near++;
       if (this.cops.length < COP_COUNT || near < 2) this.ensureCopsNear(car.x, car.z);
 
       const limit = this.speedLimitAt(car.x, car.z, onHighway, car.y);
-      // Chase only if >15 mph over the limit, or after hitting traffic.
       const speeding = mph > limit + 15;
       const wantedNow = speeding || hitTraffic;
+      const maxChase = this.maxChasers();
+      let chaseCount = this.cops.filter((c) => c.chase).length;
+
+      // Recruit nearest idle cops up to the star cap.
+      if (wantedNow) {
+        const candidates = this.cops
+          .filter((c) => !c.chase)
+          .map((c) => ({ c, d: Math.hypot(c.x - car.x, c.z - car.z) }))
+          .filter(({ d }) => d < (hitTraffic ? COP_PATROL_R : COP_NOTICE_R))
+          .sort((a, b) => a.d - b.d);
+        for (const { c } of candidates) {
+          if (chaseCount >= maxChase) break;
+          c.chase = true;
+          chaseCount++;
+          if (this.wanted < 1) this.wanted = 1;
+        }
+      }
+      // Drop excess chasers (keep closest).
+      if (chaseCount > maxChase) {
+        const ranked = this.cops
+          .filter((c) => c.chase)
+          .map((c) => ({ c, d: Math.hypot(c.x - car.x, c.z - car.z) }))
+          .sort((a, b) => a.d - b.d);
+        for (let i = maxChase; i < ranked.length; i++) ranked[i].c.chase = false;
+      }
+
+      let anySee = false;
+      let nearestChase = Infinity;
       for (const c of this.cops) {
         let d = Math.hypot(c.x - car.x, c.z - car.z);
-        if (wantedNow && d < COP_NOTICE_R) c.chase = true;
-        if (hitTraffic && d < COP_PATROL_R) c.chase = true;
         if (c.chase) {
           anyChase = true;
+          nearestChase = Math.min(nearestChase, d);
+          if (this.canSeePlayer(c, car)) anySee = true;
           const ang = Math.atan2(car.x - c.x, car.z - c.z);
+          // Slow on sharp turns (big heading change).
+          const turn = Math.abs(((ang - c.yaw + Math.PI) % (Math.PI * 2)) - Math.PI);
           c.yaw = ang;
-          // Cap at ~90% of the player's top; accelerate a bit slower than a sports car.
-          c.speed = Math.min(copTopMs, c.speed + copAccel * dt);
-          // Don't instantly match a fleeing hypercar — ease toward chase pace.
-          const chasePace = Math.min(copTopMs, Math.max(22, (mph * 0.9) / 2.23694));
+          const surf = surfaceAt(c.x, c.z, COP_ROADS, heightAt(c.x, c.z) + 0.5);
+          let top = copTopMs;
+          if (surf.name === "Grass") top *= 0.72;
+          else if (surf.name === "Dirt" || surf.name === "Mud" || surf.name === "Sand") top *= 0.62;
+          if (turn > 0.45) top *= 0.7;
+          c.speed = Math.min(top, c.speed + copAccel * (surf.name === "Dry" || surf.name === "Wet" ? 1 : 0.55) * dt);
+          const chasePace = Math.min(top, Math.max(18, (mph * 0.9) / 2.23694));
           if (c.speed > chasePace) c.speed += (chasePace - c.speed) * Math.min(1, 1.8 * dt);
           c.x += Math.sin(c.yaw) * c.speed * dt;
           c.z += Math.cos(c.yaw) * c.speed * dt;
@@ -471,18 +593,15 @@ export class GameFeatures {
           if (d < 10 && Math.abs(car.speed) < 2) this.stoppedNearCop += dt;
           else this.stoppedNearCop = Math.max(0, this.stoppedNearCop - dt);
         } else {
-          // Patrol roads near the player (can leave the ring).
           c.patrolA += 0.22 * dt;
           const pr = 180 + (c.patrolA % 3) * 90;
           const tx = car.x + Math.cos(c.patrolA) * pr;
           const tz = car.z + Math.sin(c.patrolA) * pr;
-          const ang = Math.atan2(tx - c.x, tz - c.z);
-          c.yaw = ang;
+          c.yaw = Math.atan2(tx - c.x, tz - c.z);
           c.speed = 28;
           c.x += Math.sin(c.yaw) * c.speed * dt;
           c.z += Math.cos(c.yaw) * c.speed * dt;
           this.separateCop(c, car, dt);
-          // Soft leash within ~500 m of player — teleport only if still ≥ spawn min.
           const pd = Math.hypot(c.x - car.x, c.z - car.z);
           if (pd > COP_PATROL_R) {
             const leash = Math.max(COP_SPAWN_MIN, COP_PATROL_R - 40);
@@ -490,8 +609,10 @@ export class GameFeatures {
             c.z = car.z + ((c.z - car.z) / pd) * leash;
           }
         }
-        c.mesh.position.set(c.x, heightAt(c.x, c.z) + 0.2, c.z);
+        // Sit on terrain — mesh origin is ground level (wheels at y≈0.32).
+        c.mesh.position.set(c.x, heightAt(c.x, c.z), c.z);
         c.mesh.rotation.y = c.yaw;
+        c.mesh.scale.set(1, 1, 1);
         const mat = c.bar.material as THREE.MeshStandardMaterial;
         if (c.chase) {
           mat.emissive.set(Math.sin(performance.now() * 0.025) > 0 ? 0xff0044 : 0x0044ff);
@@ -501,28 +622,42 @@ export class GameFeatures {
           mat.emissiveIntensity = 0.4;
         }
       }
-      if (anyChase) {
-        this.wanted = Math.min(5, Math.max(1, this.wanted + dt * 0.2));
-        this.chaseTimer += dt;
-        this.escapeTimer = 0;
-        this.startSiren();
-      } else {
-        this.stopSiren();
-        if (this.wanted > 0) {
-          this.escapeTimer += dt;
-          if (this.escapeTimer > 15) {
-            this.wanted = 0;
-            this.escapedFlash = 2;
-            say("ESCAPED");
+
+      if (this.escapePending > 0) {
+        this.escapePending -= dt;
+        if (this.escapePending <= 0) this.clearChase(say, true);
+      } else if (anyChase || this.wanted > 0) {
+        if (anySee) {
+          this.wanted = Math.min(5, Math.max(1, this.wanted + dt * 0.18));
+          this.chaseTimer += dt;
+          this.losHiddenTimer = 0;
+          this.starDropTimer = 0;
+          this.startSiren();
+        } else if (this.wanted > 0) {
+          this.losHiddenTimer += dt;
+          this.starDropTimer += dt;
+          if (this.starDropTimer >= COP_STAR_DROP_SEC) {
+            this.wanted = Math.max(0, Math.floor(this.wanted) - 1);
+            this.starDropTimer = 0;
+            if (this.wanted <= 0) {
+              this.escapePending = 0.85; // WANTED flash, then ESCAPED
+              say("WANTED");
+            }
+          }
+          if (nearestChase > COP_ESCAPE_DIST || this.losHiddenTimer >= COP_LOS_ESCAPE_SEC) {
+            this.escapePending = 0.85;
+            say("WANTED");
           }
         }
+      } else {
+        this.stopSiren();
       }
+
       if (this.stoppedNearCop > 3) {
         this.bustedFlash = 2.5;
         this.wanted = 0;
         this.stoppedNearCop = 0;
-        for (const c of this.cops) c.chase = false;
-        this.stopSiren();
+        this.clearChase(say, false);
         car.x = SPAWN.x;
         car.z = SPAWN.z;
         car.yaw = SPAWN.yaw;

@@ -14,6 +14,7 @@ import {
   SPAWN,
   SURFACE_LIFT,
   WORLD_HALF,
+  elevatedHeightAt,
   heightAt,
   inRiverWater,
   nearestRoadClearance,
@@ -529,15 +530,15 @@ export function createWorld(): World {
   addSign(object, baseColliders, "WET", 40, 16, -Math.PI / 2, "#7ec8ff");
   addSign(object, baseColliders, "MUD", -170, 92, 0, "#c47a3a");
   addSign(object, baseColliders, "ICE", 210, -16, -Math.PI / 2, "#d7e7f2");
-  // Posted limits: city 80 / roads 100 / highway 145 / skyway 160
-  addSpeedLimitSign(object, baseColliders, 80, -40, 20, -Math.PI / 2);
-  addSpeedLimitSign(object, baseColliders, 80, 100, -20, Math.PI / 2);
-  addSpeedLimitSign(object, baseColliders, 100, 280, 30, -Math.PI / 2);
-  addSpeedLimitSign(object, baseColliders, 100, -250, 40, Math.PI);
-  addSpeedLimitSign(object, baseColliders, 145, 420, 40, -Math.PI / 2);
-  addSpeedLimitSign(object, baseColliders, 145, 700, 200, facing(-100, 40));
-  addSpeedLimitSign(object, baseColliders, 160, 980, 80, -Math.PI / 2);
-  addSpeedLimitSign(object, baseColliders, 160, -980, 40, Math.PI / 2);
+  // Posted limits: city 130 / roads 150 / highway 195 / skyway 210
+  addSpeedLimitSign(object, baseColliders, 130, -40, 20, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 130, 100, -20, Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 150, 280, 30, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 150, -250, 40, Math.PI);
+  addSpeedLimitSign(object, baseColliders, 195, 420, 40, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 195, 700, 200, facing(-100, 40));
+  addSpeedLimitSign(object, baseColliders, 210, 980, 80, -Math.PI / 2);
+  addSpeedLimitSign(object, baseColliders, 210, -980, 40, Math.PI / 2);
   addPatches(object);
   addCrosswalks(object);
   addLamps(object, baseColliders);
@@ -587,7 +588,9 @@ export function createWorld(): World {
       if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 22) continue;
       if (riverDistance(x, z).d < RIVER.halfWidth + RIVER.bankExtra + 6) continue;
       if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 22) continue;
-      if (nearRoad(x, z, 7)) continue;
+      if (nearRoad(x, z, 5)) continue; // ≥5 m from road edge
+      // Never decorate onto elevated deck footprints.
+      if (elevatedHeightAt(x, z) != null) continue;
       let blocked = false;
       for (const b of BUILDINGS) {
         if (Math.abs(x - b.x) < b.w / 2 + 4 && Math.abs(z - b.z) < b.d / 2 + 4) {
@@ -612,7 +615,7 @@ export function createWorld(): World {
       const tops = new THREE.InstancedMesh(topGeo, topMat, trees.length);
       const dummy = new THREE.Object3D();
       trees.forEach((p, i) => {
-        const y = heightAt(p.x, p.z);
+        const y = terrainHeightAt(p.x, p.z);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(p.s, p.s, p.s);
         dummy.position.set(p.x, y + 1.2 * p.s, p.z);
@@ -638,7 +641,7 @@ export function createWorld(): World {
         const scale = boulder ? p.s * 1.7 : p.s * 0.7;
         dummy.scale.set(scale, scale * (boulder ? 0.95 : 0.5), scale);
         dummy.rotation.set(rand() * 1.2, rand() * 6, rand() * 0.4);
-        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.28 * scale, p.z);
+        dummy.position.set(p.x, terrainHeightAt(p.x, p.z) + 0.28 * scale, p.z);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
         local.push({
@@ -657,7 +660,7 @@ export function createWorld(): World {
       bushes.forEach((p, i) => {
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(p.s * 1.2, p.s * 0.8, p.s * 1.2);
-        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.35 * p.s, p.z);
+        dummy.position.set(p.x, terrainHeightAt(p.x, p.z) + 0.35 * p.s, p.z);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
         local.push({ kind: "circle", x: p.x, z: p.z, r: 0.55 * p.s, soft: "shrub" });

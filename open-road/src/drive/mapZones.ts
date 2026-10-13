@@ -20,11 +20,13 @@ export type ForestZone = {
   density: number;
 };
 
-/** Three dense forests in map corners, outside the highway loop / town. */
+/** Dense forests — corners plus a giant pine plain east of town. */
 export const FORESTS: ForestZone[] = [
   { id: "pine-northwest", x: -780, z: 720, r: 220, density: 1 },
   { id: "leafy-southeast", x: 760, z: -740, r: 210, density: 1 },
   { id: "mixed-southwest", x: -740, z: -760, r: 200, density: 0.95 },
+  // Giant pine plain (open grass → packed pines + trails + clearing).
+  { id: "pine-east-plain", x: 520, z: 380, r: 280, density: 1.35 },
 ];
 
 export type TrailGrade = "easy" | "medium" | "hard";
@@ -144,6 +146,35 @@ export const TRAILS: TrailDef[] = [
       [-280, -320],
       [-220, -380],
     ],
+  },
+  {
+    name: "East Pine Trail",
+    grade: "easy",
+    width: 7,
+    grip: 0.7,
+    points: [
+      [280, 200],
+      [360, 280],
+      [480, 360],
+      [520, 380],
+      [600, 400],
+      [720, 420],
+    ],
+  },
+  {
+    name: "East Pine Loop",
+    grade: "medium",
+    width: 6,
+    grip: 0.68,
+    points: [
+      [520, 380],
+      [560, 320],
+      [600, 360],
+      [560, 440],
+      [500, 420],
+      [520, 380],
+    ],
+    closed: true,
   },
 ];
 

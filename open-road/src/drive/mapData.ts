@@ -496,8 +496,8 @@ const ROAD_SAMPLES: RoadSample[] = (() => {
     const pts = samplePathXZ(path, n);
     if (pts.length < 2) return;
     const raw = pts.map((p) => rawHeight(p.x, p.z));
-    // ~80–120 m window so hills become one long slope, not waves.
-    const win = path.highway ? 18 : path.closed ? 14 : 12;
+    // Very wide window so the highway is long gentle grades — no waves/ledges.
+    const win = path.highway ? 28 : path.closed ? 16 : 14;
     const smooth = smoothSeries(raw, win, Boolean(path.closed));
     const half = path.width * 0.5;
     const shoulder = half + (path.highway ? 18 : 14);

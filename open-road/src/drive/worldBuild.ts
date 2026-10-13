@@ -73,14 +73,21 @@ export function addGiantForests(object: THREE.Group, colliders: Collider[]) {
       const x = forest.x + Math.cos(a) * d;
       const z = forest.z + Math.sin(a) * d;
       if (Math.abs(x) > WORLD_HALF - 40 || Math.abs(z) > WORLD_HALF - 40) continue;
-      if (!clearOfRoads(x, z, 8)) continue;
+      // Keep trees ≥5 m from any road edge; never on elevated decks.
+      if (!clearOfRoads(x, z, 5)) continue;
+      if (Math.hypot(x, z) > SKYWAY.radius - 60 && Math.hypot(x, z) < SKYWAY.radius + 40) continue;
       spots.push({ x, z, s: 0.75 + rand() * 1.1, kind: Math.floor(rand() * 10) });
     }
 
-    const pines = spots.filter((s) => s.kind < 4);
-    const leafy = spots.filter((s) => s.kind >= 4 && s.kind < 7);
-    const bushes = spots.filter((s) => s.kind === 7);
-    const rocks = spots.filter((s) => s.kind === 8);
+    // East pine plain: mostly tall pines + a clearing in the middle.
+    const pineBias = forest.id === "pine-east-plain";
+    const pines = spots.filter((s) => {
+      if (pineBias && Math.hypot(s.x - forest.x, s.z - forest.z) < 38) return false; // clearing
+      return pineBias ? s.kind < 7 : s.kind < 4;
+    });
+    const leafy = pineBias ? [] : spots.filter((s) => s.kind >= 4 && s.kind < 7);
+    const bushes = spots.filter((s) => s.kind === 7 || (pineBias && s.kind === 8));
+    const rocks = spots.filter((s) => (!pineBias && s.kind === 8) || (pineBias && s.kind === 9 && s.s > 1));
     const logs = spots.filter((s) => s.kind === 9);
     const dummy = new THREE.Object3D();
 
@@ -89,7 +96,7 @@ export function addGiantForests(object: THREE.Group, colliders: Collider[]) {
       const tops = new THREE.InstancedMesh(pineGeo, pineMat, pines.length);
       const tops2 = new THREE.InstancedMesh(pine2Geo, pineMat, pines.length);
       pines.forEach((p, i) => {
-        const y = heightAt(p.x, p.z);
+        const y = terrainHeightAt(p.x, p.z);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(p.s, p.s * 1.15, p.s);
         dummy.position.set(p.x, y + 1.6 * p.s, p.z);
@@ -110,7 +117,7 @@ export function addGiantForests(object: THREE.Group, colliders: Collider[]) {
       const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, leafy.length);
       const crowns = new THREE.InstancedMesh(leafGeo, leafMat, leafy.length);
       leafy.forEach((p, i) => {
-        const y = heightAt(p.x, p.z);
+        const y = terrainHeightAt(p.x, p.z);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(p.s * 0.9, p.s, p.s * 0.9);
         dummy.position.set(p.x, y + 1.5 * p.s, p.z);
@@ -129,7 +136,7 @@ export function addGiantForests(object: THREE.Group, colliders: Collider[]) {
       bushes.forEach((p, i) => {
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(p.s * 1.2, p.s * 0.8, p.s * 1.2);
-        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.4 * p.s, p.z);
+        dummy.position.set(p.x, terrainHeightAt(p.x, p.z) + 0.4 * p.s, p.z);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
         colliders.push({ kind: "circle", x: p.x, z: p.z, r: 0.55 * p.s, soft: "shrub" });
@@ -143,7 +150,7 @@ export function addGiantForests(object: THREE.Group, colliders: Collider[]) {
         const scale = big ? p.s * 1.8 : p.s * 0.85;
         dummy.scale.set(scale, scale * (big ? 0.85 : 0.6), scale);
         dummy.rotation.set(rand() * 1.2, rand() * 6, rand() * 0.5);
-        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.35 * scale, p.z);
+        dummy.position.set(p.x, terrainHeightAt(p.x, p.z) + 0.35 * scale, p.z);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
         colliders.push({
@@ -161,13 +168,14 @@ export function addGiantForests(object: THREE.Group, colliders: Collider[]) {
       logs.forEach((p, i) => {
         dummy.scale.set(p.s, p.s, p.s);
         dummy.rotation.set(0, rand() * Math.PI, Math.PI / 2);
-        dummy.position.set(p.x, heightAt(p.x, p.z) + 0.28 * p.s, p.z);
+        dummy.position.set(p.x, terrainHeightAt(p.x, p.z) + 0.28 * p.s, p.z);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
         colliders.push({ kind: "circle", x: p.x, z: p.z, r: 0.7 * p.s, soft: "solid" });
       });
       object.add(mesh);
     }
+
   }
 }
 
@@ -447,7 +455,8 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
   // Long gentle ramp slabs with barriers + support pillars (no tall arch walls).
   for (const ramp of ramps) {
     const rp = ramp.points;
-    for (let i = 0; i < rp.length - 1; i++) {
+    // Skip the last highway-toe segment so a thick slab never sits at car height on the road.
+    for (let i = 0; i < rp.length - 2; i++) {
       const [x1, z1] = rp[i];
       const [x2, z2] = rp[i + 1];
       const t0 = i / (rp.length - 1);
@@ -455,8 +464,8 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
       // Smoothstep grade ≤ ~6% over rampLength.
       const s0 = t0 * t0 * (3 - 2 * t0);
       const s1 = t1 * t1 * (3 - 2 * t1);
-      const g0 = heightAt(x1, z1);
-      const g1 = heightAt(x2, z2);
+      const g0 = terrainHeightAt(x1, z1);
+      const g1 = terrainHeightAt(x2, z2);
       const y0 = deckTop * (1 - s0) + g0 * s0;
       const y1 = deckTop * (1 - s1) + g1 * s1;
       const mx = (x1 + x2) * 0.5;
@@ -465,8 +474,10 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
       const seg = Math.hypot(x2 - x1, z2 - z1);
       const yaw = Math.atan2(x2 - x1, z2 - z1);
       const pitch = Math.atan2(y1 - y0, seg);
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(ramp.width, 1.2, seg + 0.6), asphalt);
-      slab.position.set(mx, my, mz);
+      const thick = 1.0;
+      // Top of slab ≈ drive height (my); never hang a low slab across a road.
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(ramp.width, thick, seg + 0.6), asphalt);
+      slab.position.set(mx, my - thick * 0.45, mz);
       slab.rotation.order = "YXZ";
       slab.rotation.y = yaw;
       slab.rotation.x = -pitch;

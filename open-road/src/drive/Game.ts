@@ -705,6 +705,28 @@ export class DriveGame {
     // Keep the camera above the terrain and out of the car.
     const floor = heightAt(this.desired.x, this.desired.z) + SURFACE_LIFT + 2.4;
     this.desired.y = Math.max(this.desired.y, floor, carY + (this.camMode === "free" ? 0.5 : 1.2));
+    // If trees/buildings sit between chase cam and car, pull the camera closer.
+    if (this.camMode === "chase") {
+      const fx = Math.sin(this.car.yaw);
+      const fz = Math.cos(this.car.yaw);
+      let dist = 13.5;
+      for (let t = 0.25; t < 0.95; t += 0.12) {
+        const x = this.car.x - fx * dist * t;
+        const z = this.car.z - fz * dist * t;
+        const yLine = carY + 5.2 * (1 - t) + (carY + 1.1) * t;
+        // Tall prop near the sight line (trees ~4–6 m).
+        for (const c of this.world.colliders) {
+          if (c.kind !== "circle" || c.soft === "shrub") continue;
+          const d = Math.hypot(c.x - x, c.z - z);
+          if (d < c.r + 1.8 && yLine < carY + 7) {
+            dist = Math.max(5.5, dist * t * 0.92);
+            break;
+          }
+        }
+      }
+      this.desired.set(this.car.x - fx * dist, carY + 3.8 + dist * 0.1, this.car.z - fz * dist);
+      this.desired.y = Math.max(this.desired.y, heightAt(this.desired.x, this.desired.z) + SURFACE_LIFT + 2.4);
+    }
     if (this.snap) {
       this.camera.position.copy(this.desired);
       this.snap = false;
