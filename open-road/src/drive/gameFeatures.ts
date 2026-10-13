@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { ROADS, SPAWN, elevatedHeightAt, heightAt } from "./mapData";
 import { FORESTS, LANDMARKS, SPEED_TRACK, SKYWAY } from "./mapZones";
 import { surfaceAt, type Car, type RoadSeg, type Tune } from "./sim";
+import { TrafficSystem } from "./traffic";
 
 const DAY_LEN_SEC = 20 * 60; // 20-minute day
 const COP_COUNT = 5;
@@ -112,9 +113,12 @@ export class GameFeatures {
   zeroSixtyT = 0;
   zeroSixtyArmed = false;
   lastRestaurant = "";
-  traffic: { x: number; z: number; yaw: number; speed: number; mesh: THREE.Group; glow: THREE.Group }[] = [];
+  trafficSys = new TrafficSystem();
+  /** @deprecated prefer trafficSys — kept for any leftover reads */
+  get traffic() {
+    return this.trafficSys.cars;
+  }
   cops: Cop[] = [];
-  private trafficRoot = new THREE.Group();
   private copRoot = new THREE.Group();
   private hemi: THREE.HemisphereLight | null = null;
   private sun: THREE.DirectionalLight | null = null;
@@ -135,13 +139,14 @@ export class GameFeatures {
     this.scene = scene;
     this.hemi = hemi;
     this.sun = sun;
-    scene.add(this.trafficRoot, this.copRoot);
+    scene.add(this.trafficSys.root, this.copRoot);
     this.buildStars();
     this.buildMoon();
     this.buildHeadlights();
     this.buildStreetPool();
     this.collectNightProps(scene);
-    this.spawnTraffic();
+    this.trafficSys.addSignalMeshes(scene);
+    this.trafficSys.seedNear(SPAWN.x, SPAWN.z);
   }
 
   /** Call each frame with the player car root for headlight aim + night glow. */
@@ -232,44 +237,6 @@ export class GameFeatures {
 
   registerWindowMaterial(mat: THREE.MeshStandardMaterial) {
     this.windowMats.push(mat);
-  }
-
-  private carMesh(color: number) {
-    const g = new THREE.Group();
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(1.8, 0.7, 4.0),
-      new THREE.MeshStandardMaterial({ color, roughness: 0.55 }),
-    );
-    body.position.y = 0.55;
-    g.add(body);
-    const glow = new THREE.Group();
-    const headMat = new THREE.MeshBasicMaterial({ color: 0xfff2c8 });
-    const tailMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
-    for (const s of [-1, 1]) {
-      const h = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.12, 0.08), headMat);
-      h.position.set(s * 0.55, 0.45, 2.05);
-      glow.add(h);
-      const t = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.06), tailMat);
-      t.position.set(s * 0.55, 0.48, -2.05);
-      glow.add(t);
-    }
-    glow.visible = false;
-    g.add(glow);
-    return { mesh: g, glow };
-  }
-
-  private spawnTraffic() {
-    const colors = [0x4488cc, 0xcc4444, 0xdddddd, 0x33aa66, 0xffaa33];
-    for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * Math.PI * 2;
-      const r = 820;
-      const x = Math.cos(a) * r;
-      const z = Math.sin(a) * r;
-      const { mesh, glow } = this.carMesh(colors[i % colors.length]);
-      mesh.position.set(x, heightAt(x, z) + 0.2, z);
-      this.trafficRoot.add(mesh);
-      this.traffic.push({ x, z, yaw: a + Math.PI / 2, speed: 28 + (i % 5) * 2, mesh, glow });
-    }
   }
 
   setCops(on: boolean) {
@@ -496,6 +463,7 @@ export class GameFeatures {
     surface: string,
     onHighway: boolean,
     say: (t: string) => void,
+    nearPlayers?: { x: number; z: number; yaw: number; speed: number; y: number }[],
   ): FeatureHud {
     const playerTopMph =
       tune && typeof tune === "object" && tune !== null && "top" in tune && typeof (tune as Tune).top === "number"
@@ -575,20 +543,13 @@ export class GameFeatures {
     }
 
     const night = this.nightFactor();
-    let hitTraffic = false;
-    for (const t of this.traffic) {
-      t.yaw += (t.speed / 820) * dt;
-      t.x = Math.cos(t.yaw - Math.PI / 2) * 820;
-      t.z = Math.sin(t.yaw - Math.PI / 2) * 820;
-      t.mesh.position.set(t.x, heightAt(t.x, t.z) + 0.2, t.z);
-      t.mesh.rotation.y = t.yaw;
-      t.glow.visible = night > 0.35;
-      const d = Math.hypot(t.x - car.x, t.z - car.z);
-      if (d < 18) t.speed = Math.max(12, t.speed - 20 * dt);
-      else t.speed = Math.min(36, t.speed + 8 * dt);
-      // Crash into traffic (red lights do NOT start a chase).
-      if (d < 3.6 && Math.abs(car.speed) > 4) hitTraffic = true;
-    }
+    const trafficFocus = [
+      { x: car.x, z: car.z, yaw: car.yaw, speed: car.speed, y: car.y },
+      ...(nearPlayers ?? []),
+    ];
+    this.trafficSys.update(dt, trafficFocus, night);
+    // Crash into traffic starts a chase when cops are ON (red lights do not).
+    const hitTraffic = this.trafficSys.collidePlayer(car);
 
     const limit = this.speedLimitAt(car.x, car.z, onHighway, car.y);
     const anyChase = this.tickPlayerCops(0, dt, car, mph, playerTopMph, copTopMs, copAccel, limit, hitTraffic, say);
@@ -817,10 +778,7 @@ export class GameFeatures {
         : 140;
     const copTopMs = (playerTopMph * 0.9) / 2.23694;
     const limit = this.speedLimitAt(car.x, car.z, onHighway, car.y);
-    let hitTraffic = false;
-    for (const t of this.traffic) {
-      if (Math.hypot(t.x - car.x, t.z - car.z) < 3.6 && Math.abs(car.speed) > 4) hitTraffic = true;
-    }
+    const hitTraffic = this.trafficSys.collidePlayer(car);
     const chase = this.tickPlayerCops(1, dt, car, mph, playerTopMph, copTopMs, 9.5, limit, hitTraffic, say);
     const h = this.heat[1];
     return {
@@ -996,6 +954,10 @@ export class GameFeatures {
 
   copDots() {
     return this.cops.map((c) => ({ x: c.x, z: c.z, chase: c.chase }));
+  }
+
+  trafficDots() {
+    return this.trafficSys.dots();
   }
 
   applyDirt(root: THREE.Object3D) {

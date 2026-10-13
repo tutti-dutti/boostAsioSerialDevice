@@ -175,6 +175,10 @@ export class DriveGame {
     return this.features.copDots();
   }
 
+  trafficDots() {
+    return this.features.trafficDots();
+  }
+
   setTimePreset(preset: TimePreset) {
     this.features.setTimePreset(preset);
     this.say(`Time: ${this.features.timeLabel()}`);
@@ -643,7 +647,20 @@ export class DriveGame {
 
     const mph = Math.abs(this.car.speed) * 2.23694;
     const onHighway = surface.name === "Dry" && Math.hypot(this.car.x, this.car.z) > 500;
-    const feat = this.features.update(dt, this.car, this.tune, mph, surface.name, onHighway, (t) => this.say(t));
+    const nearP2 =
+      this.splitMode
+        ? [{ x: this.car2.x, z: this.car2.z, yaw: this.car2.yaw, speed: this.car2.speed, y: this.car2.y }]
+        : undefined;
+    const feat = this.features.update(
+      dt,
+      this.car,
+      this.tune,
+      mph,
+      surface.name,
+      onHighway,
+      (t) => this.say(t),
+      nearP2,
+    );
     this.features.applyDirt(this.visual.root);
 
     this.placeCar(dt);

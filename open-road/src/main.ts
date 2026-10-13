@@ -305,7 +305,13 @@ function paintMap(info: FrameInfo) {
       mapCtx.fillRect(X(lm.x) - 3.5, Y(lm.z) - 1, 7, 3);
     }
   }
-  // Cops
+  // Traffic (gray) then cops
+  for (const t of game.trafficDots()) {
+    mapCtx.fillStyle = "#9aa0a8";
+    mapCtx.beginPath();
+    mapCtx.arc(X(t.x), Y(t.z), 2, 0, Math.PI * 2);
+    mapCtx.fill();
+  }
   for (const c of game.copDots()) {
     mapCtx.fillStyle = c.chase ? (Math.sin(performance.now() * 0.02) > 0 ? "#ff0044" : "#0044ff") : "#3355aa";
     mapCtx.beginPath();
