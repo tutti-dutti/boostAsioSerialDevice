@@ -103,6 +103,8 @@ export class DriveGame {
   private lastThrottle = 0;
   /** Per-wheel ground height deltas used for long-travel wheel well motion. */
   private wheelGround: [number, number, number, number] = [0, 0, 0, 0];
+  /** Smoothed steer so keyboard A/D is not instant full lock. */
+  private steerSmooth = 0;
   private features = new GameFeatures();
   private readonly desired = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
@@ -262,6 +264,7 @@ export class DriveGame {
     this.snap = true;
     this.launchShake = 0;
     this.lastThrottle = 0;
+    this.steerSmooth = 0;
     this.say("Back to the start");
   }
 
@@ -436,7 +439,12 @@ export class DriveGame {
   };
 
   private step(dt: number) {
-    const input = this.readInput();
+    const raw = this.readInput();
+    // Ease keyboard/touch steer in and out (~0.18s to full lock) so turns aren't binary.
+    const steerK = Math.abs(raw.steer) > Math.abs(this.steerSmooth) ? 9 : 12;
+    this.steerSmooth += (raw.steer - this.steerSmooth) * (1 - Math.exp(-steerK * dt));
+    if (Math.abs(this.steerSmooth) < 0.01 && raw.steer === 0) this.steerSmooth = 0;
+    const input = { ...raw, steer: this.steerSmooth };
     const surface = surfaceAt(this.car.x, this.car.z, this.world.roads, this.car.y);
     const { skid, pitch, roll, wheels, wheel } = stepCar(this.car, input, surface, dt, this.tune, this.setup);
     const wet = resolveWater(this.car);

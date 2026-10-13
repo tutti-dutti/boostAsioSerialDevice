@@ -277,19 +277,22 @@ export function stepCar(
     gripBoost *= arcade ? 1.55 : 1.7;
   }
   const mu = clamp(surface.grip * (loose ? Math.max(0.55, tune.offroad) : 1) * gripBoost, 0.04, 3.4);
-  // Turning radius in meters. Full lock U-turns in about 36–40 ft on dry road.
+  // Turning radius in meters. Full lock is gentler (~50–55 ft / ~16 m) so
+  // keyboard and pad steering feel less coarse / twitchy.
   const speedAbs = Math.abs(car.speed);
-  const gripAy = (input.handbrake ? 0.45 : arcade ? 2.4 : 1.55) * mu * 9.81;
+  const gripAy = (input.handbrake ? 0.45 : arcade ? 2.1 : 1.45) * mu * 9.81;
   const gripR = (speedAbs * speedAbs) / Math.max(5, gripAy);
-  const tightR = input.handbrake ? 6.0 : 5.2;
-  const blend = arcade ? clamp((speedAbs - 18) / 40, 0, 0.45) : clamp((speedAbs - 4) / 20, 0, 1);
+  const tightR = input.handbrake ? 7.5 : 8.8;
+  const blend = arcade ? clamp((speedAbs - 10) / 45, 0, 0.7) : clamp((speedAbs - 4) / 22, 0, 1);
   const turnR = tightR * (1 - blend) + Math.max(tightR, gripR) * blend;
+  // Partial stick / smoothed keyboard steer scales lock (not just ±1).
+  const steerAmt = clamp(Math.abs(input.steer), 0, 1);
   const steerSign = Math.sign(input.steer) || 0;
-  let maxSteer = arcade ? 0.72 : 0.55;
+  let maxSteer = arcade ? 0.48 : 0.4;
   if (tune.hyper && speedAbs > 50) {
-    maxSteer *= Math.max(0.35, 1 - (speedAbs - 50) / 140);
+    maxSteer *= Math.max(0.32, 1 - (speedAbs - 50) / 140);
   }
-  const delta = steerSign * Math.min(maxSteer, Math.atan2(WHEELBASE, Math.max(turnR, 1.4)));
+  const delta = steerSign * steerAmt * Math.min(maxSteer, Math.atan2(WHEELBASE, Math.max(turnR, 2.2)));
 
   const longShift = clamp((mass * car.ax * cg) / WHEELBASE, -0.38 * weight, 0.38 * weight);
   const latShift = clamp((mass * car.ay * cg) / TRACK, -0.34 * weight, 0.34 * weight);
@@ -441,17 +444,18 @@ export function stepCar(
   }
 
   // Heading follows the front wheels. A stopped car cannot pivot.
-  const yawCeil = arcade ? 2.6 : 1.9;
-  const yawMag = rolling && !inWater ? Math.min(yawCeil, speedAbs / Math.max(turnR, 1.4)) : 0;
+  // Lower yaw ceiling + slower follow = finer steering, wider arcs.
+  const yawCeil = arcade ? 1.65 : 1.25;
+  const yawMag = rolling && !inWater ? Math.min(yawCeil, (speedAbs * steerAmt) / Math.max(turnR, 2.2)) : 0;
   const yawTarget = -Math.sign(car.speed || 1) * steerSign * yawMag;
   if (!rolling || inWater) {
     car.yawRate = 0;
     car.lat = 0;
     car.ay = 0;
   } else if (steerSign === 0) {
-    car.yawRate *= Math.exp(-(arcade ? 6 : 4) * dtSafe);
+    car.yawRate *= Math.exp(-(arcade ? 5 : 3.5) * dtSafe);
   } else {
-    const follow = 1 - Math.exp(-(input.handbrake ? 2.8 : arcade ? 14 : 10) * dtSafe);
+    const follow = 1 - Math.exp(-(input.handbrake ? 2.4 : arcade ? 7.5 : 6) * dtSafe);
     car.yawRate += (yawTarget - car.yawRate) * follow;
   }
   car.yawRate = clamp(car.yawRate, -yawCeil, yawCeil);
