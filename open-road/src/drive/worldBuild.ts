@@ -598,21 +598,20 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
         object.add(wall);
       }
       // Support pillars beside the ramp (not under the driving lane), never on pavement.
-      if (i % 2 === 0 && t0 < 0.72) {
-        const ground = terrainHeightAt(mx, mz);
-        const ph = my - 0.6 - ground;
-        if (ph <= 5) continue;
+      // Only when the deck is high enough that maxY stays below the drive surface.
+      if (i % 2 === 0 && t0 < 0.62) {
         for (const side of [-1, 1]) {
-          const px = mx - Math.sin(yaw) * side * (ramp.width * 0.55 + 1.2);
-          const pz = mz - Math.cos(yaw) * side * (ramp.width * 0.55 + 1.2);
+          const px = mx - Math.sin(yaw) * side * (ramp.width * 0.55 + 1.4);
+          const pz = mz - Math.cos(yaw) * side * (ramp.width * 0.55 + 1.4);
           if (!clearOfRoads(px, pz, 6)) continue;
           const g = terrainHeightAt(px, pz);
-          const pillarH = my - 0.6 - g;
-          if (pillarH <= 5) continue;
+          const pillarH = my - 0.7 - g;
+          if (pillarH <= 9 || my < g + 10) continue;
           const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, pillarH, 1.6), concrete);
           pillar.position.set(px, g + pillarH * 0.5, pz);
           object.add(pillar);
-          colliders.push({ kind: "circle", x: px, z: pz, r: 1.1, soft: "solid", maxY: my - 2 });
+          // Ignore when driving on the ramp/deck (car.y > maxY).
+          colliders.push({ kind: "circle", x: px, z: pz, r: 1.05, soft: "solid", maxY: my - 4.5 });
         }
       }
     }

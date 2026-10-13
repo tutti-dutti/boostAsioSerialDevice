@@ -841,12 +841,14 @@ function addRiverAndBridge(object: THREE.Group, colliders: Collider[]) {
           if (again.d < again.half + 14) continue;
         }
         const rr = 2.2 + (i % 3) * 0.6;
+        const gy = terrainHeightAt(x, z);
         const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rr, 0), rockBankMat);
-        rock.position.set(x, terrainHeightAt(x, z) + 0.6, z);
+        rock.position.set(x, gy + 0.6, z);
         rock.rotation.set(i * 0.2, i * 0.5, 0.1);
         rock.castShadow = true;
         object.add(rock);
-        colliders.push({ kind: "circle", x, z, r: rr * 0.95, soft: "solid" });
+        // Ground-only — skyway / bridge traffic overhead must not hit these.
+        colliders.push({ kind: "circle", x, z, r: rr * 0.95, soft: "solid", maxY: gy + rr * 2.2 + 1.5 });
       }
     }
   }
@@ -926,29 +928,30 @@ function addRiverAndBridge(object: THREE.Group, colliders: Collider[]) {
         }
       }
 
-      // Pillars from ground/water up to the deck, every 20–30 m on the high span.
+      // Pillars under the outer deck edges (not in the travel lanes), every 20–30 m.
       if (s.lift > 0.75 && dist >= nextPillar) {
         nextPillar = dist + 22 + (i % 3) * 3;
         for (const side of [-1, 1]) {
-          const px = s.x + nx * side * 8;
-          const pz = s.z + nz * side * 8;
+          // Sit under the barrier line / outside the 4+4 lanes (~±14), never mid-lane.
+          const px = s.x + nx * side * (half - 0.6);
+          const pz = s.z + nz * side * (half - 0.6);
           const ground = terrainHeightAt(px, pz);
           const bed = inRiverWater(px, pz) ? -2.6 : ground;
           const top = s.h + SURFACE_LIFT - 0.15;
           const ph = Math.max(3.5, top - bed);
-          const pillar = new THREE.Mesh(new THREE.BoxGeometry(2.8, ph, 2.8), concrete);
+          const pillar = new THREE.Mesh(new THREE.BoxGeometry(2.4, ph, 2.4), concrete);
           pillar.position.set(px, bed + ph / 2, pz);
           pillar.castShadow = true;
           pillar.receiveShadow = true;
           object.add(pillar);
-          // Solid from all sides under the deck; ignored when driving on top.
+          // Solid under the deck only; ignored when driving on top.
           colliders.push({
             kind: "box",
             x: px,
             z: pz,
-            hx: 1.4,
-            hz: 1.4,
-            maxY: top - 2.5,
+            hx: 1.2,
+            hz: 1.2,
+            maxY: top - 3.2,
           });
         }
       }
