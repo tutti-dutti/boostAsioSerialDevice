@@ -258,9 +258,18 @@ export const BRIDGE_UNDERPASS: PathDef = {
  * the raised deck/ramp meshes live in worldBuild.addSkyway. */
 export const EXTRA_PATHS: PathDef[] = [
   BRIDGE_UNDERPASS,
-  ...TRAILS.map(({ points, width, grip, closed, highway }) => ({ points, width, grip, closed, highway })),
+  // Dirt trails stay at grade even when they pass under the skyway footprint.
+  ...TRAILS.map(({ points, width, grip, closed, highway }) => ({
+    points,
+    width,
+    grip,
+    closed,
+    highway,
+    atGrade: true,
+  })),
   ...speedTrackPaths(),
-  ...skywayPaths().ramps,
+  // Skyway ramp *ribbons* stay at grade; raised ramp meshes live in addSkyway.
+  ...skywayPaths().ramps.map((r) => ({ ...r, atGrade: true })),
 ];
 
 /** Flat segment list for physics / minimap (built from paths). */

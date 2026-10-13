@@ -241,22 +241,28 @@ function ribbonGeometry(path: PathDef, yLift: number) {
   const pts = samplePath(path, samples);
   if (pts.length < 2) return null;
   const half = path.width / 2;
-  // Shared height field (already intersection-unified). Avoid heavy path-local
-  // Y smoothing — that pulled crossings apart and made cars jump at seams.
-  // atGrade paths (underpass / town→highway merges) stay on terrain under decks.
+  // Shared height field (intersection-unified). atGrade stays on terrain under decks.
+  // Never blur Y across elevated↔ground jumps — that floated ribbons mid-air at
+  // skyway/bridge footprints and made overlapping paths disagree by meters.
   const ys = pts.map((p) => (path.atGrade ? terrainHeightAt(p.x, p.z) : heightAt(p.x, p.z)) + yLift);
-  if (path.closed && ys.length > 2) {
+  if (path.closed && ys.length > 2 && Math.abs(ys[0] - ys[ys.length - 1]) < 1.2) {
     const avg = (ys[0] + ys[ys.length - 1]) * 0.5;
     ys[0] = avg;
     ys[ys.length - 1] = avg;
   }
-  // One light pass only — keep continuous, don't invent new grades at junctions.
   {
     const src = ys.slice();
     for (let i = 0; i < ys.length; i++) {
       const i0 = path.closed ? (i - 1 + ys.length) % ys.length : Math.max(0, i - 1);
       const i1 = path.closed ? (i + 1) % ys.length : Math.min(ys.length - 1, i + 1);
-      ys[i] = src[i0] * 0.15 + src[i] * 0.7 + src[i1] * 0.15;
+      // Skip neighbors that jump onto a deck / cliff (keeps seams flat, not ramped).
+      const leftOk = Math.abs(src[i] - src[i0]) < 1.2;
+      const rightOk = Math.abs(src[i] - src[i1]) < 1.2;
+      if (!leftOk && !rightOk) continue;
+      const w0 = leftOk ? 0.15 : 0;
+      const w1 = rightOk ? 0.15 : 0;
+      const w = 1 - w0 - w1;
+      ys[i] = src[i0] * w0 + src[i] * w + src[i1] * w1;
     }
   }
   const pos: number[] = [];
@@ -1191,19 +1197,26 @@ function edgeStripGeometry(path: PathDef, side: 1 | -1, stripWidth: number, yLif
   // Outer edge of pavement → outward strip sitting on the ground.
   const inner = half + 0.05;
   const outer = half + stripWidth;
+  // Match ribbonGeometry: atGrade stays on terrain; never blur across deck jumps.
   const ys = pts.map((p) => {
     const nx = -p.tz * side;
     const nz = p.tx * side;
     const mx = p.x + nx * ((inner + outer) * 0.5);
     const mz = p.z + nz * ((inner + outer) * 0.5);
-    return heightAt(mx, mz) + yLift;
+    return (path.atGrade ? terrainHeightAt(mx, mz) : heightAt(mx, mz)) + yLift;
   });
-  for (let pass = 0; pass < 3; pass++) {
+  {
     const src = ys.slice();
     for (let i = 0; i < ys.length; i++) {
       const i0 = path.closed ? (i - 1 + ys.length) % ys.length : Math.max(0, i - 1);
       const i1 = path.closed ? (i + 1) % ys.length : Math.min(ys.length - 1, i + 1);
-      ys[i] = src[i0] * 0.25 + src[i] * 0.5 + src[i1] * 0.25;
+      const leftOk = Math.abs(src[i] - src[i0]) < 1.2;
+      const rightOk = Math.abs(src[i] - src[i1]) < 1.2;
+      if (!leftOk && !rightOk) continue;
+      const w0 = leftOk ? 0.15 : 0;
+      const w1 = rightOk ? 0.15 : 0;
+      const w = 1 - w0 - w1;
+      ys[i] = src[i0] * w0 + src[i] * w + src[i1] * w1;
     }
   }
   const pos: number[] = [];
