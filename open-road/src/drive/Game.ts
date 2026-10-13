@@ -137,8 +137,8 @@ export class DriveGame {
     setCarEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
     pmrem.dispose();
 
-    this.camera = new THREE.PerspectiveCamera(62, 1, 0.35, 9000);
-    this.camera2 = new THREE.PerspectiveCamera(62, 1, 0.35, 4500);
+    this.camera = new THREE.PerspectiveCamera(62, 1, 0.35, 20000);
+    this.camera2 = new THREE.PerspectiveCamera(62, 1, 0.35, 20000);
     this.resize();
 
     this.scene.background = new THREE.Color(0x8ecfff);
@@ -267,8 +267,8 @@ export class DriveGame {
     this.steerSmooth = 0;
     this.steerSmooth2 = 0;
     this.snap = true;
-    this.camera.far = 4500;
-    this.camera2.far = 4500;
+    this.camera.far = 20000;
+    this.camera2.far = 20000;
     this.placeCar(0);
     this.placeCar2(0);
     this.say("2 Players — Left WASD · Right Arrows");
@@ -279,7 +279,8 @@ export class DriveGame {
     this.splitMode = false;
     this.scene.remove(this.visual2.root);
     this.visual2 = emptyCar();
-    this.camera.far = 9000;
+    this.camera.far = 20000;
+    this.camera2.far = 20000;
     this.lastFeat2 = null;
     this.say("Back to 1 Player");
     this.resize();
@@ -824,12 +825,8 @@ export class DriveGame {
           this.car.vy = 0;
         }
         this.car.airTime = 0;
-      } else if (this.car.airTime > 2) {
-        // Stuck floating for too long — drop straight to the ground/deck.
-        this.car.y = target;
-        this.car.vy = 0;
-        this.car.airTime = 0;
       }
+      // No forced height/air-time cap — jumps fly until gravity lands them.
     } else {
       const follow = this.tune.longTravel ? 0.38 : 0.55;
       this.car.y += (target - this.car.y) * follow;
@@ -856,10 +853,11 @@ export class DriveGame {
       let height = this.freeHeight;
       if (this.keys.has("a") || this.keys.has("arrowleft")) yaw += 1.4 * dt;
       if (this.keys.has("d") || this.keys.has("arrowright")) yaw -= 1.4 * dt;
-      if (this.keys.has("w") || this.keys.has("arrowup")) dist = Math.max(4, dist - 10 * dt);
-      if (this.keys.has("s") || this.keys.has("arrowdown")) dist = Math.min(40, dist + 10 * dt);
-      if (this.keys.has("e")) height = Math.min(28, height + 8 * dt);
-      if (this.keys.has("q")) height = Math.max(1.5, height - 8 * dt);
+      // No ceiling — freecam can climb above the whole map.
+      if (this.keys.has("w") || this.keys.has("arrowup")) dist = Math.max(2, dist - 18 * dt);
+      if (this.keys.has("s") || this.keys.has("arrowdown")) dist = Math.min(8000, dist + 28 * dt);
+      if (this.keys.has("e")) height = Math.min(6000, height + 40 * dt);
+      if (this.keys.has("q")) height = Math.max(0.5, height - 40 * dt);
       this.freeYaw = yaw;
       this.freeDist = dist;
       this.freeHeight = height;

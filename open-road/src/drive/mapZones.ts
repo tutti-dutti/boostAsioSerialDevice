@@ -298,6 +298,14 @@ export function speedTrackPaths(): PathDef[] {
   return [straight, loop(x0, z, 100), loop(x1, z, 100), ramp];
 }
 
+/** Match mapData HIGHWAY ring (must stay in sync — no import, avoids cycles). */
+function highwayRingXZ(a: number): { x: number; z: number; rad: number } {
+  const hwyR = 820;
+  const bulge = 1 + 0.08 * Math.sin(a * 2);
+  const rad = hwyR * bulge;
+  return { x: Math.cos(a) * rad, z: Math.sin(a) * rad, rad };
+}
+
 /** Skyway closed loop + 4 ramps down to highway. */
 export function skywayPaths(): { deck: PathDef; ramps: PathDef[] } {
   const r = SKYWAY.radius;
@@ -314,26 +322,29 @@ export function skywayPaths(): { deck: PathDef; ramps: PathDef[] } {
     closed: true,
   };
   // Four long ramps (≥300 m path, ≤~6% grade) from highway up to skyway.
-  // Radial gap is only ~230 m, so each ramp sweeps tangentially to get length.
+  // Paths track OUTSIDE the bulged highway ring so they never cut through a lane.
   const rampLen = SKYWAY.rampLength;
   const hwyR = 820;
+  const hwyHalf = 15;
+  const rampHalf = 7;
+  /** Clear air between highway pavement edge and ramp centerline. */
+  const mergeGap = 5;
   const ramps: PathDef[] = [0, 1, 2, 3].map((i) => {
     const a0 = (i / 4) * Math.PI * 2 + 0.25;
-    // Sweep ~rampLen along a spiral between highway and skyway radii.
-    const sweep = rampLen / ((hwyR + r) * 0.5); // radians of arc ≈ length / mean R
+    const sweep = rampLen / ((hwyR + r) * 0.5);
     const pts: [number, number][] = [];
-    const steps = 24;
+    const steps = 28;
     for (let s = 0; s <= steps; s++) {
       const u = s / steps; // 0 = skyway deck, 1 = highway merge
-      const rad = r * (1 - u) + (hwyR + 14) * u;
       const ang = a0 + sweep * u;
-      // Slight outward lane offset so the ramp sits beside the highway, not on it.
-      const side = 18 * u;
-      const ox = Math.cos(ang);
-      const oz = Math.sin(ang);
-      const tx = -oz;
-      const tz = ox;
-      pts.push([ox * rad + tx * side, oz * rad + tz * side]);
+      const skyRad = r * (1 + 0.04 * Math.sin(ang * 3));
+      const hwy = highwayRingXZ(ang);
+      // Stay outside the pavement: highway edge + gap + half ramp width.
+      const minOutside = hwy.rad + hwyHalf + mergeGap + rampHalf;
+      // Blend skyway → merge; clamp so the spiral can never cross the ring.
+      const target = skyRad * (1 - u) + minOutside * u;
+      const rad = u < 0.15 ? target : Math.max(target, minOutside);
+      pts.push([Math.cos(ang) * rad, Math.sin(ang) * rad]);
     }
     return {
       points: pts,

@@ -202,17 +202,17 @@ export class GameFeatures {
       this.scene?.add(p);
       this.streetPool.push(p);
     }
-    // Known town + highway lamp positions (matches world.addLamps).
+    // Known town + highway lamp positions (matches world.addLamps after off-road push).
     for (let x = -180; x <= 180; x += 40) {
-      for (const z of [-16, 16]) {
+      for (const z of [-20, 20]) {
         this.streetLampPos.push({ x, y: heightAt(x, z) + 5.2, z });
       }
     }
     for (let i = 0; i < 28; i++) {
       const a = (i / 28) * Math.PI * 2;
       const r = 820 * (1 + 0.08 * Math.sin(a * 2));
-      const x = Math.cos(a) * (r + 18);
-      const z = Math.sin(a) * (r + 18);
+      const x = Math.cos(a) * (r + 22);
+      const z = Math.sin(a) * (r + 22);
       this.streetLampPos.push({ x, y: heightAt(x, z) + 5.2, z });
     }
   }
@@ -369,6 +369,8 @@ export class GameFeatures {
   }
 
   speedLimitAt(x: number, z: number, onHighway: boolean, carY = 0): number {
+    // Speed track is unrestricted — cops never chase here.
+    if (this.onSpeedTrack(x, z)) return 999;
     // COPS-TRAFFIC #39: city 110 / roads 130 / highway 175 / skyway 190
     const deck = elevatedHeightAt(x, z, carY);
     if (deck != null && carY > deck - 5.5 && Math.hypot(x, z) > SKYWAY.radius - 80) return 190;
@@ -597,10 +599,24 @@ export class GameFeatures {
     if (!this.copsOn) return false;
     const who = (slot + 1) as 1 | 2;
     const h = this.heat[slot];
+    const onTrack = this.onSpeedTrack(car.x, car.z);
     const over = mph - limit;
-    const speedStars = starsFromOverLimit(over);
+    // No speeding tickets on the speed track; traffic crashes still count off-track only.
+    const speedStars = onTrack || limit >= 900 ? 0 : starsFromOverLimit(over);
     if (speedStars > 0) h.wanted = Math.max(h.wanted, speedStars);
-    if (hitTraffic) h.wanted = Math.max(h.wanted, 1);
+    if (hitTraffic && !onTrack) h.wanted = Math.max(h.wanted, 1);
+    // Entering the speed track cools an active chase (no ticket zone).
+    if (onTrack && (h.wanted > 0 || this.cops.some((c) => c.chase && c.target === who))) {
+      h.wanted = 0;
+      h.escapePending = 0;
+      for (const c of this.cops) {
+        if (c.target === who) {
+          c.chase = false;
+          c.target = 0;
+        }
+      }
+      if (!this.cops.some((c) => c.chase)) this.stopSiren();
+    }
 
     const maxChase = this.maxChasersFor(h.wanted);
     let mine = this.cops.filter((c) => c.chase && c.target === who);

@@ -919,6 +919,7 @@ function addRiverAndBridge(object: THREE.Group, colliders: Collider[]) {
           cap.rotation.y = Math.atan2(s.tx, s.tz);
           object.add(cap);
           // One collider every so often, outside the lanes — no dense jitter wall.
+          // Barriers sit on the deck edge; underpass runs the center so XZ rarely overlaps.
           if (s.lift > 0.45 && Math.floor(dist / 9) % 2 === 0) {
             colliders.push({ kind: "circle", x: rx, z: rz, r: 0.4, soft: "solid" });
           }
@@ -1007,13 +1008,17 @@ function addSign(
     object.add(post);
     colliders.push({ kind: "circle", x: px, z: pz, r: 0.34 });
   }
-  const board = new THREE.Mesh(
-    new THREE.PlaneGeometry(4.6, 2.15),
-    new THREE.MeshStandardMaterial({ map: labelTexture(text, stripe), roughness: 0.55, side: THREE.DoubleSide }),
-  );
-  board.position.set(sx, y0 + 2.55, sz);
-  board.rotation.y = rotY;
-  object.add(board);
+  // Two FrontSide faces so the text reads correctly from the road (no mirrored back).
+  const map = labelTexture(text, stripe);
+  const mat = new THREE.MeshStandardMaterial({ map, roughness: 0.55, side: THREE.FrontSide });
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 2.15), mat);
+  front.position.set(sx, y0 + 2.55, sz);
+  front.rotation.y = rotY;
+  object.add(front);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 2.15), mat.clone());
+  back.position.set(sx, y0 + 2.55, sz);
+  back.rotation.y = rotY + Math.PI;
+  object.add(back);
 }
 
 function addGas(object: THREE.Group, colliders: Collider[], x: number, z: number) {
@@ -1129,17 +1134,33 @@ function addStreetlight(
     emissiveIntensity: 2.4,
     roughness: 0.25,
   });
-  // Sit on the real ground next to the road. Pole stays world-vertical (no tilt).
-  const y0 = heightAt(x, z);
+  // Pole on sidewalk / shoulder (≥1 m off asphalt); arm reaches over the lane.
+  let px = x;
+  let pz = z;
+  const len0 = Math.hypot(towardX, towardZ) || 1;
+  const awayX = -towardX / len0;
+  const awayZ = -towardZ / len0;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const clear = nearestRoadClearance(px, pz);
+    if (clear.d >= clear.half + 1.25) break;
+    px += awayX * 1.1;
+    pz += awayZ * 1.1;
+  }
+  {
+    const clear = nearestRoadClearance(px, pz);
+    if (clear.d < clear.half + 1.0) return;
+  }
+
+  const y0 = terrainHeightAt(px, pz);
   const len = Math.hypot(towardX, towardZ) || 1;
   const tx = towardX / len;
   const tz = towardZ / len;
   const yaw = Math.atan2(tx, tz);
-  const armLen = 2.5;
+  const armLen = 3.2;
   const poleH = 5.5;
 
   const rig = new THREE.Group();
-  rig.position.set(x, y0, z);
+  rig.position.set(px, y0, pz);
   // Only yaw the arm toward the road — never pitch/roll the pole.
   rig.rotation.set(0, yaw, 0);
 
@@ -1168,7 +1189,7 @@ function addStreetlight(
   head.userData.streetLamp = true;
 
   object.add(rig);
-  colliders.push({ kind: "circle", x, z, r: 0.3, soft: "solid" });
+  colliders.push({ kind: "circle", x: px, z: pz, r: 0.3, soft: "solid" });
 }
 
 function addLamps(object: THREE.Group, colliders: Collider[]) {

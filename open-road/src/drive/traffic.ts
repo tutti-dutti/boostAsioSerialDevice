@@ -9,6 +9,7 @@ import {
   RAMPS,
   carSurfaceHeight,
   heightAt,
+  nearestRoadClearance,
   type PathDef,
 } from "./mapData";
 import { SKYWAY, skywayPaths } from "./mapZones";
@@ -18,6 +19,8 @@ const SIM_RADIUS = 400;
 const MAX_CARS = 36;
 const GAP = 14;
 const CITY_R = 380;
+/** Minimum clearance past road edge for poles / lights (meters). */
+const OFF_ROAD_PAD = 1.25;
 
 export type TrafficDot = { x: number; z: number };
 
@@ -42,6 +45,8 @@ type TrafficCar = {
   along: number;
   dir: 1 | -1;
   lane: number;
+  /** Extra lateral offset toward shoulder when avoiding oncoming player (meters). */
+  shoulder: number;
   x: number;
   z: number;
   yaw: number;
@@ -60,10 +65,12 @@ type TrafficCar = {
 type Signal = {
   x: number;
   z: number;
-  /** 0 = NS green, 1 = EW green (approx by world axes). */
+  /** Seconds into cycle. */
   phase: number;
   cycle: number;
   mesh?: THREE.Group;
+  /** Lamp materials: [NSred, NSyel, NSgrn, EWred, EWyel, EWgrn] */
+  lamps?: THREE.MeshStandardMaterial[];
 };
 
 const COLORS = [
@@ -254,25 +261,103 @@ export class TrafficSystem {
     }
   }
 
-  /** Visual signal heads (optional world props). */
+  /** Push a point onto the sidewalk / corner — never leave a pole on asphalt. */
+  private pushOffRoad(x: number, z: number, minPad = OFF_ROAD_PAD): { x: number; z: number } {
+    let px = x;
+    let pz = z;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const clear = nearestRoadClearance(px, pz);
+      const need = clear.half + minPad;
+      if (clear.d >= need) break;
+      // Prefer the NE corner of the intersection, then fan outward.
+      const ox = px - x || 1;
+      const oz = pz - z || 1;
+      const diag = Math.hypot(ox, oz) || 1;
+      const push = need - clear.d + 0.6;
+      px += (ox / diag) * push * 0.35 + push * 0.55;
+      pz += (oz / diag) * push * 0.35 + push * 0.55;
+    }
+    // Absolute fallback: walk out on a diagonal until clear.
+    for (let k = 0; k < 16; k++) {
+      const clear = nearestRoadClearance(px, pz);
+      if (clear.d >= clear.half + minPad) break;
+      px += 1.2;
+      pz += 1.2;
+    }
+    return { x: px, z: pz };
+  }
+
+  /**
+   * Mast-arm signals: pole on the sidewalk/corner (≥1 m off pavement),
+   * arm reaches out over the lane with G/Y/R lamps.
+   */
   addSignalMeshes(scene: THREE.Scene) {
+    const steel = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.55, metalness: 0.35 });
     for (const s of this.signals) {
+      // Start NE of the intersection center, then force off the road.
+      const corner = this.pushOffRoad(s.x + 8, s.z + 8, OFF_ROAD_PAD);
+      const y0 = heightAt(corner.x, corner.z);
+      const towardX = s.x - corner.x;
+      const towardZ = s.z - corner.z;
+      const yaw = Math.atan2(towardX, towardZ);
+      const armLen = Math.min(7.5, Math.max(4.2, Math.hypot(towardX, towardZ) * 0.55));
+
       const g = new THREE.Group();
-      const pole = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.08, 0.1, 4.2, 6),
-        new THREE.MeshStandardMaterial({ color: 0x333333 }),
-      );
-      pole.position.y = 2.1;
+      g.position.set(corner.x, y0, corner.z);
+      g.rotation.y = yaw;
+
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 5.4, 8), steel);
+      pole.position.y = 2.7;
       g.add(pole);
-      const box = new THREE.Mesh(
-        new THREE.BoxGeometry(0.35, 0.9, 0.25),
-        new THREE.MeshStandardMaterial({ color: 0x222222 }),
-      );
-      box.position.y = 4.0;
-      g.add(box);
-      g.position.set(s.x + 6, heightAt(s.x, s.z), s.z + 6);
+
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, armLen), steel);
+      arm.position.set(0, 5.15, armLen * 0.5);
+      g.add(arm);
+
+      const lamps: THREE.MeshStandardMaterial[] = [];
+      // Heads facing along and across the arm (NS + EW approaches).
+      for (let head = 0; head < 2; head++) {
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.1, 0.3), steel);
+        const hx = head === 0 ? 0 : 0.35;
+        const hz = armLen - 0.35;
+        box.position.set(hx, 4.55, hz);
+        if (head === 1) box.rotation.y = Math.PI / 2;
+        g.add(box);
+        const colors = [0xff2200, 0xffcc00, 0x22cc44];
+        for (let i = 0; i < 3; i++) {
+          const mat = new THREE.MeshStandardMaterial({
+            color: colors[i],
+            emissive: colors[i],
+            emissiveIntensity: 0.05,
+          });
+          lamps.push(mat);
+          const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), mat);
+          lamp.position.set(hx + (head === 0 ? 0 : 0.2), 4.9 - i * 0.3, hz + (head === 0 ? 0.2 : 0));
+          g.add(lamp);
+        }
+      }
       scene.add(g);
       s.mesh = g;
+      s.lamps = lamps;
+    }
+  }
+
+  private updateSignalLamps() {
+    for (const s of this.signals) {
+      if (!s.lamps || s.lamps.length < 6) continue;
+      const t = (s.phase % s.cycle) / s.cycle;
+      // NS: green 0–0.38, yellow 0.38–0.48, red rest
+      // EW: green 0.5–0.88, yellow 0.88–0.98, red rest
+      const ns = t < 0.38 ? "g" : t < 0.48 ? "y" : "r";
+      const ew = t >= 0.5 && t < 0.88 ? "g" : t >= 0.88 && t < 0.98 ? "y" : "r";
+      const set = (base: number, mode: string) => {
+        for (let i = 0; i < 3; i++) s.lamps![base + i].emissiveIntensity = 0.06;
+        if (mode === "r") s.lamps![base].emissiveIntensity = 2.4;
+        if (mode === "y") s.lamps![base + 1].emissiveIntensity = 2.2;
+        if (mode === "g") s.lamps![base + 2].emissiveIntensity = 2.4;
+      };
+      set(0, ns);
+      set(3, ew);
     }
   }
 
@@ -312,10 +397,15 @@ export class TrafficSystem {
         break;
       }
     }
+    // Two-way roads: either direction, but ALWAYS offset to the RIGHT of travel.
     const dir: 1 | -1 = this.rand() > 0.5 || route.closed ? (this.rand() > 0.5 ? 1 : -1) : 1;
-    const along = this.rand() * route.total;
+    // Keep spawns off open-route ends so cars don't immediately despawn / face wrong way.
+    const along = route.closed
+      ? this.rand() * route.total
+      : 20 + this.rand() * Math.max(10, route.total - 40);
     const laneBase = Math.min(3.4, route.width * 0.22);
-    const lane = (dir === 1 ? 1 : -1) * laneBase * (route.highway && this.rand() > 0.55 ? 1.55 : 1);
+    // lane is a positive distance to the right of the car's facing direction.
+    const lane = laneBase * (route.highway && this.rand() > 0.55 ? 1.55 : 1);
     const kind = this.pickKind();
     const color = COLORS[Math.floor(this.rand() * COLORS.length)];
     const { mesh, glow, signal, brakes } = makeBody(kind, color);
@@ -325,6 +415,7 @@ export class TrafficSystem {
       along,
       dir,
       lane,
+      shoulder: 0,
       x: 0,
       z: 0,
       yaw: 0,
@@ -353,14 +444,81 @@ export class TrafficSystem {
   private place(car: TrafficCar) {
     const sample = sampleRoute(car.route, car.along);
     const yaw = car.dir === 1 ? sample.yaw : sample.yaw + Math.PI;
+    // Right of travel = (cos yaw, -sin yaw) — keep every car on the RIGHT side.
+    const laneDist = Math.abs(car.lane) + Math.max(0, car.shoulder);
     const rx = Math.cos(yaw);
     const rz = -Math.sin(yaw);
-    car.x = sample.x + rx * car.lane;
-    car.z = sample.z + rz * car.lane;
+    car.x = sample.x + rx * laneDist;
+    car.z = sample.z + rz * laneDist;
     car.yaw = yaw;
+    car.lane = Math.abs(car.lane);
     const y = carSurfaceHeight(car.x, car.z, car.route.skyway ? SKYWAY.height + 2 : 2);
     car.mesh.position.set(car.x, y, car.z);
     car.mesh.rotation.y = yaw;
+  }
+
+  /** True when traffic is facing the wrong way relative to its route/dir. */
+  private isWrongWay(car: TrafficCar): boolean {
+    const sample = sampleRoute(car.route, car.along);
+    const expectYaw = car.dir === 1 ? sample.yaw : sample.yaw + Math.PI;
+    let dyaw = Math.abs(((car.yaw - expectYaw + Math.PI) % (Math.PI * 2)) - Math.PI);
+    return dyaw > Math.PI / 2;
+  }
+
+  /**
+   * Player avoidance: never steer toward the player.
+   * Same-lane ahead → brake / stop behind. Oncoming wrong-side → brake + shoulder.
+   */
+  private avoidPlayers(
+    car: TrafficCar,
+    players: { x: number; z: number; yaw: number; speed: number; y: number }[],
+  ): number {
+    let targetMul = 1;
+    let wantShoulder = 0;
+    const fx = Math.sin(car.yaw);
+    const fz = Math.cos(car.yaw);
+    const rx = Math.cos(car.yaw);
+    const rz = -Math.sin(car.yaw);
+    for (const p of players) {
+      const dx = p.x - car.x;
+      const dz = p.z - car.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 36) continue;
+      const ahead = dx * fx + dz * fz;
+      const side = dx * rx + dz * rz; // + = to traffic's right
+      const pfx = Math.sin(p.yaw);
+      const pfz = Math.cos(p.yaw);
+      const closing = -(pfx * fx + pfz * fz); // >0 when player faces traffic
+      const sameDir = pfx * fx + pfz * fz > 0.25;
+
+      if (sameDir && ahead > 0.5 && ahead < 28 && Math.abs(side) < 4.5) {
+        // Player in our lane ahead — slow and stop behind; never steer into them.
+        targetMul = Math.min(targetMul, Math.max(0, (ahead - 6) / 18));
+        if (ahead < 10) targetMul = 0;
+        if (car.honkCd <= 0 && Math.abs(p.speed) > 2) {
+          this.honk();
+          car.honkCd = 1.8;
+        }
+      } else if (closing > 0.2 && ahead > -4 && ahead < 32 && Math.abs(side) < 6) {
+        // Oncoming player on our side / wrong side — brake and move to shoulder (more right).
+        targetMul = Math.min(targetMul, Math.max(0, (ahead - 8) / 20));
+        if (ahead < 16) targetMul = 0;
+        wantShoulder = Math.max(wantShoulder, Math.min(4.5, 5.5 - Math.abs(side)));
+        car.turnSignal = Math.max(car.turnSignal, 1.2);
+        if (car.honkCd <= 0) {
+          this.honk();
+          car.honkCd = 1.6;
+        }
+      } else if (ahead > 0 && ahead < 14 && d < 10) {
+        // Close side threat — brake only, do not steer toward player.
+        targetMul = Math.min(targetMul, 0.35);
+      }
+    }
+    // Ease shoulder out / back.
+    const goal = wantShoulder;
+    car.shoulder += (goal - car.shoulder) * 0.12;
+    if (Math.abs(car.shoulder) < 0.05 && goal === 0) car.shoulder = 0;
+    return targetMul;
   }
 
   private lightAllows(x: number, z: number, yaw: number): boolean {
@@ -374,18 +532,18 @@ export class TrafficSystem {
       }
     }
     if (!nearest) return true;
-    // Approaching the intersection from ~8–20 m out.
     const fx = Math.sin(yaw);
     const fz = Math.cos(yaw);
     const toX = nearest.x - x;
     const toZ = nearest.z - z;
     const ahead = toX * fx + toZ * fz;
     if (ahead < 4 || ahead > 22) return true;
-    const ns = Math.abs(fz) >= Math.abs(fx); // mostly N/S travel
+    const ns = Math.abs(fz) >= Math.abs(fx);
     const t = (nearest.phase % nearest.cycle) / nearest.cycle;
-    const nsGreen = t < 0.42;
-    const ewGreen = t >= 0.5 && t < 0.92;
-    return ns ? nsGreen : ewGreen;
+    // Green or yellow = go; red = stop (matches lamp colors).
+    const nsGo = t < 0.48;
+    const ewGo = t >= 0.5 && t < 0.98;
+    return ns ? nsGo : ewGo;
   }
 
   private leaderGap(car: TrafficCar): number {
@@ -407,13 +565,13 @@ export class TrafficSystem {
     if (car.stunned > 0 || car.waiting > 0) return;
     if (this.rand() > 0.002) return;
     const laneBase = Math.min(3.4, car.route.width * 0.22);
-    const outer = (car.dir === 1 ? 1 : -1) * laneBase * 1.55;
-    const inner = (car.dir === 1 ? 1 : -1) * laneBase;
+    // Same-direction lanes only (both positive right offsets — never cross center).
+    const outer = laneBase * 1.55;
+    const inner = laneBase;
     const next = Math.abs(car.lane - outer) < 0.5 ? inner : outer;
-    // Clear gap in target lane
     for (const o of this.cars) {
       if (o === car || o.route.id !== car.route.id || o.dir !== car.dir) continue;
-      if (Math.abs(o.lane - next) > 1.5) continue;
+      if (Math.abs(Math.abs(o.lane) - next) > 1.5) continue;
       let delta = (o.along - car.along) * car.dir;
       if (car.route.closed && delta < 0) delta += car.route.total;
       if (Math.abs(delta) < GAP) return;
@@ -454,10 +612,19 @@ export class TrafficSystem {
   update(dt: number, players: { x: number; z: number; yaw: number; speed: number; y: number }[], night: number) {
     this.time += dt;
     for (const s of this.signals) s.phase += dt;
+    this.updateSignalLamps();
 
-    // Despawn far / maintain pool near any player.
+    // Despawn far / wrong-way / open-route ends (no U-turns) / maintain pool near players.
     const keep: TrafficCar[] = [];
     for (const c of this.cars) {
+      if (this.isWrongWay(c)) {
+        this.root.remove(c.mesh);
+        continue; // facing wrong way — respawn correctly later
+      }
+      if (!c.route.closed && (c.along >= c.route.total - 2 || c.along <= 2)) {
+        this.root.remove(c.mesh);
+        continue; // end of open route — despawn instead of turning around
+      }
       let near = false;
       for (const p of players) {
         if (Math.hypot(c.x - p.x, c.z - p.z) < SIM_RADIUS + 80) {
@@ -502,25 +669,8 @@ export class TrafficSystem {
       if (gap < GAP) target = Math.min(target, Math.max(0, (gap - 4) * 1.1));
       if (gap < 6) target = 0;
 
-      // Player interaction — brake / swerve / honk.
-      for (const p of players) {
-        const d = Math.hypot(c.x - p.x, c.z - p.z);
-        if (d > 28) continue;
-        const fx = Math.sin(c.yaw);
-        const fz = Math.cos(c.yaw);
-        const ahead = (p.x - c.x) * fx + (p.z - c.z) * fz;
-        if (ahead > 0 && ahead < 22 && d < 12) {
-          target = Math.min(target, Math.max(0, ahead - 4));
-          if (c.honkCd <= 0 && Math.abs(p.speed) > 2) {
-            this.honk();
-            c.honkCd = 1.8;
-          }
-          if (d < 9 && (c.route.highway || c.route.skyway)) {
-            c.lane += (this.rand() > 0.5 ? 1 : -1) * 0.8;
-            c.turnSignal = 1.2;
-          }
-        }
-      }
+      // Player avoidance — brake / stop behind / shoulder; never steer toward player.
+      target *= this.avoidPlayers(c, players);
 
       if (!this.lightAllows(c.x, c.z, c.yaw)) {
         target = 0;
@@ -529,8 +679,8 @@ export class TrafficSystem {
         c.waiting = 0;
       }
 
-      // Occasional turn intent near path end (open routes reverse).
-      if (!c.route.closed && c.along > c.route.total - 30) c.turnSignal = Math.max(c.turnSignal, 0.8);
+      // Signal near open-route end (then despawn — no U-turn).
+      if (!c.route.closed && c.along > c.route.total - 40) c.turnSignal = Math.max(c.turnSignal, 0.8);
 
       this.tryLaneChange(c);
 
@@ -541,12 +691,9 @@ export class TrafficSystem {
       c.along += c.speed * dt * c.dir;
       if (c.route.closed) {
         c.along = ((c.along % c.route.total) + c.route.total) % c.route.total;
-      } else if (c.along >= c.route.total - 1) {
-        c.dir = -1;
-        c.along = c.route.total - 1;
-      } else if (c.along <= 1) {
-        c.dir = 1;
-        c.along = 1;
+      } else {
+        // Clamp; despawn pass above removes cars that reach the ends.
+        c.along = Math.max(0.5, Math.min(c.route.total - 0.5, c.along));
       }
 
       this.place(c);
@@ -564,7 +711,10 @@ export class TrafficSystem {
     }
   }
 
-  /** Returns true if the player crashed into traffic hard enough to trigger cops. */
+  /**
+   * Soft-separate from traffic. Returns true only when the PLAYER caused the
+   * crash (closing speed dominated by the player) — traffic hitting you does not.
+   */
   collidePlayer(car: Car): boolean {
     let hit = false;
     for (const t of this.cars) {
@@ -577,9 +727,17 @@ export class TrafficSystem {
       t.z += nz * push;
       car.x -= nx * push * 0.35;
       car.z -= nz * push * 0.35;
-      if (Math.abs(car.speed) > 4) {
+      const pvx = Math.sin(car.yaw) * car.speed;
+      const pvz = Math.cos(car.yaw) * car.speed;
+      const tvx = Math.sin(t.yaw) * t.speed;
+      const tvz = Math.cos(t.yaw) * t.speed;
+      const playerClosing = pvx * nx + pvz * nz;
+      const trafficClosing = -(tvx * nx + tvz * nz);
+      t.stunned = Math.max(t.stunned, 1.2);
+      t.speed *= 0.3;
+      if (playerClosing > 4 && playerClosing >= trafficClosing - 0.5 && Math.abs(car.speed) > 4) {
         hit = true;
-        t.stunned = Math.max(t.stunned, 1.6);
+        t.stunned = Math.max(t.stunned, 1.8);
         t.speed = 0;
         car.speed *= 0.72;
         if (t.honkCd <= 0) {

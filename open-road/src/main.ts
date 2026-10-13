@@ -146,7 +146,8 @@ const game = new DriveGame(canvas, (info) => {
 function paintHud(info: FrameInfo) {
   carNameEl.textContent = info.split && info.p2 ? `P1 ${info.carName}` : info.carName;
   speedEl.textContent = String(info.mph);
-  limitEl.textContent = info.speedLimit != null ? `LIM ${info.speedLimit}` : "";
+  limitEl.textContent =
+    info.speedLimit == null ? "" : info.speedLimit >= 900 ? "LIM —" : `LIM ${info.speedLimit}`;
   gearEl.textContent = info.gear;
   surfaceEl.textContent = info.surface;
   camEl.textContent = info.camera;
@@ -176,7 +177,7 @@ function paintHud(info: FrameInfo) {
   hudP2.classList.toggle("is-hidden", !info.split || !info.p2);
   if (info.split && info.p2) {
     speedP2.textContent = String(Math.round(info.p2.mph));
-    limitP2.textContent = `LIM ${info.p2.speedLimit}`;
+    limitP2.textContent = info.p2.speedLimit >= 900 ? "LIM —" : `LIM ${info.p2.speedLimit}`;
     gearP2.textContent = info.p2.gear;
     const w2 = info.p2.wanted > 0 || info.p2.chase;
     wantedP2.classList.toggle("is-hidden", !w2);
@@ -282,18 +283,25 @@ function paintMap(info: FrameInfo) {
     }
     mapCtx.stroke();
   }
-  // Landmarks
+  // Landmarks — restaurants, car wash, dealership, mud park, speed track
   for (const lm of LANDMARKS) {
     if (lm.kind === "restaurant") {
       mapCtx.fillStyle = lm.id === "pizza" ? "#ff3355" : lm.id === "pho" ? "#ffcc33" : "#33cc66";
       mapCtx.beginPath();
-      mapCtx.arc(X(lm.x), Y(lm.z), 3, 0, Math.PI * 2);
+      mapCtx.arc(X(lm.x), Y(lm.z), 3.5, 0, Math.PI * 2);
       mapCtx.fill();
+      // Tiny food mark
+      mapCtx.fillStyle = "#111";
+      mapCtx.font = "bold 8px sans-serif";
+      mapCtx.textAlign = "center";
+      mapCtx.fillText(lm.id === "pizza" ? "P" : lm.id === "pho" ? "Ph" : "B", X(lm.x), Y(lm.z) + 2.5);
     } else if (lm.kind === "carwash") {
       mapCtx.fillStyle = "#66d0ff";
       mapCtx.fillRect(X(lm.x) - 3, Y(lm.z) - 3, 6, 6);
+      mapCtx.strokeStyle = "#fff";
+      mapCtx.lineWidth = 1;
+      mapCtx.strokeRect(X(lm.x) - 3, Y(lm.z) - 3, 6, 6);
     } else if (lm.kind === "dealership") {
-      // Car icon for the garage / dealership
       mapCtx.fillStyle = "#ffcc33";
       mapCtx.beginPath();
       mapCtx.moveTo(X(lm.x), Y(lm.z) + 5);
@@ -303,6 +311,21 @@ function paintMap(info: FrameInfo) {
       mapCtx.fill();
       mapCtx.fillStyle = "#222222";
       mapCtx.fillRect(X(lm.x) - 3.5, Y(lm.z) - 1, 7, 3);
+    } else if (lm.kind === "park") {
+      // Mud / off-road park
+      mapCtx.fillStyle = "#a06020";
+      mapCtx.beginPath();
+      mapCtx.arc(X(lm.x), Y(lm.z), 4, 0, Math.PI * 2);
+      mapCtx.fill();
+      mapCtx.strokeStyle = "#ffcc66";
+      mapCtx.lineWidth = 1.5;
+      mapCtx.stroke();
+    } else if (lm.kind === "speed") {
+      // Speed track entrance
+      mapCtx.fillStyle = "#ffffff";
+      mapCtx.fillRect(X(lm.x) - 2, Y(lm.z) - 4, 4, 8);
+      mapCtx.fillStyle = "#ffcc33";
+      mapCtx.fillRect(X(lm.x) - 3, Y(lm.z) - 1, 6, 2);
     }
   }
   // Traffic (gray) then cops

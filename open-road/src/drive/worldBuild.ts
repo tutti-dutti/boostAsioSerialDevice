@@ -185,11 +185,35 @@ const GRADE_COLOR: Record<string, string> = {
   hard: "#1a1a1a",
 };
 
-/** JOB 2 — trail posts + grade signs (off the trail edge). */
+const GRADE_LABEL: Record<string, string> = {
+  easy: "EASY",
+  medium: "MEDIUM",
+  hard: "HARD",
+};
+
+function labelTexture(text: string, bg: string, fg = "#ffffff", w = 512, h = 256) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext("2d")!;
+  g.fillStyle = bg;
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = fg;
+  g.font = `bold ${Math.floor(h * 0.38)}px sans-serif`;
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillText(text, w / 2, h / 2);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** JOB 2 — trail posts + grade signs, ruts, hard-trail rocks. */
 export function addTrailMarkers(object: THREE.Group, colliders: Collider[]) {
   const postMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 0.9 });
-  const boardMat = (hex: string) =>
-    new THREE.MeshStandardMaterial({ color: hex, roughness: 0.7, emissive: hex, emissiveIntensity: 0.15 });
+  const dirt = new THREE.MeshStandardMaterial({ color: 0x5a3a18, roughness: 0.95 });
+  const rock = new THREE.MeshStandardMaterial({ color: 0x6a6560, roughness: 0.95 });
+  const root = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.9 });
   for (const trail of TRAILS) {
     const pts = trail.points;
     for (let i = 0; i < pts.length; i += Math.max(1, Math.floor(pts.length / 4))) {
@@ -209,10 +233,48 @@ export function addTrailMarkers(object: THREE.Group, colliders: Collider[]) {
       object.add(post);
       colliders.push({ kind: "circle", x: px, z: pz, r: 0.25, soft: "solid" });
       if (i === 0 || i === pts.length - 1) {
-        const board = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.7, 0.08), boardMat(GRADE_COLOR[trail.grade]));
-        board.position.set(px, y + 1.7, pz);
+        const fg = trail.grade === "hard" ? "#ffffff" : "#0a0a0a";
+        const board = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.8, 0.9),
+          new THREE.MeshStandardMaterial({
+            map: labelTexture(GRADE_LABEL[trail.grade] ?? "TRAIL", GRADE_COLOR[trail.grade], fg, 256, 128),
+            roughness: 0.55,
+            side: THREE.DoubleSide,
+          }),
+        );
+        board.position.set(px, y + 1.75, pz);
         board.rotation.y = Math.atan2(nx, nz);
         object.add(board);
+      }
+    }
+    // Ruts / roots / bumps along the trail bed.
+    for (let i = 1; i < pts.length - 1; i += 2) {
+      const [x, z] = pts[i];
+      const next = pts[i + 1];
+      const yaw = Math.atan2(next[0] - x, next[1] - z);
+      const y = heightAt(x, z);
+      const rut = new THREE.Mesh(new THREE.BoxGeometry(trail.width * 0.35, 0.12, 4.5), dirt);
+      rut.position.set(x + Math.cos(yaw) * 0.8, y + 0.04, z - Math.sin(yaw) * 0.8);
+      rut.rotation.y = yaw;
+      object.add(rut);
+      if (i % 4 === 0) {
+        const rootMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 2.2, 5), root);
+        rootMesh.rotation.z = Math.PI / 2;
+        rootMesh.rotation.y = yaw;
+        rootMesh.position.set(x, y + 0.15, z);
+        object.add(rootMesh);
+      }
+    }
+    // Hard trails: big rocks that block low cars.
+    if (trail.grade === "hard") {
+      for (let i = 1; i < pts.length - 1; i++) {
+        const [x, z] = pts[i];
+        const s = 1.3 + (i % 3) * 0.35;
+        const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.9, 0), rock);
+        boulder.scale.set(s, s * 0.75, s);
+        boulder.position.set(x + ((i % 2) * 2 - 1) * 1.2, heightAt(x, z) + 0.45 * s, z);
+        object.add(boulder);
+        colliders.push({ kind: "circle", x, z, r: 0.85 * s, soft: "solid" });
       }
     }
   }
@@ -225,22 +287,28 @@ export function addMudPark(object: THREE.Group, colliders: Collider[]) {
   const rock = new THREE.MeshStandardMaterial({ color: 0x6a6560, roughness: 0.95 });
   const water = new THREE.MeshStandardMaterial({ color: 0x2a7a90, roughness: 0.2, metalness: 0.4, transparent: true, opacity: 0.75 });
 
-  // Entrance sign
+  // Entrance sign (off to the side of the dirt entrance)
   const ex = MUD_PARK.entrance.x;
   const ez = MUD_PARK.entrance.z;
   const ey = heightAt(ex, ez);
   const postL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.2, 0.2), wood);
-  postL.position.set(ex - 3, ey + 1.6, ez);
+  postL.position.set(ex - 4.5, ey + 1.6, ez + 4);
   const postR = postL.clone();
-  postR.position.set(ex + 3, ey + 1.6, ez);
+  postR.position.set(ex - 4.5 + 7, ey + 1.6, ez + 4);
   const banner = new THREE.Mesh(
-    new THREE.BoxGeometry(6.5, 1.2, 0.15),
-    new THREE.MeshStandardMaterial({ color: 0xc45a12, emissive: 0x3a1a00, emissiveIntensity: 0.3 }),
+    new THREE.PlaneGeometry(7.2, 1.5),
+    new THREE.MeshStandardMaterial({
+      map: labelTexture("OFF-ROAD PARK", "#c45a12", "#ffffff", 512, 128),
+      roughness: 0.5,
+      side: THREE.DoubleSide,
+      emissive: 0x3a1a00,
+      emissiveIntensity: 0.25,
+    }),
   );
-  banner.position.set(ex, ey + 3.0, ez);
+  banner.position.set(ex - 1, ey + 3.1, ez + 4);
   object.add(postL, postR, banner);
-  colliders.push({ kind: "circle", x: ex - 3, z: ez, r: 0.35, soft: "solid" });
-  colliders.push({ kind: "circle", x: ex + 3, z: ez, r: 0.35, soft: "solid" });
+  colliders.push({ kind: "circle", x: ex - 4.5, z: ez + 4, r: 0.35, soft: "solid" });
+  colliders.push({ kind: "circle", x: ex + 2.5, z: ez + 4, r: 0.35, soft: "solid" });
 
   // Dirt jumps (ramps)
   const jumps = [
@@ -320,9 +388,37 @@ export function addSpeedTrackProps(object: THREE.Group, colliders: Collider[]) {
   const sx = 40;
   const sz = 1500;
   const sy = heightAt(sx, sz);
-  const banner = new THREE.Mesh(new THREE.BoxGeometry(8, 1.4, 0.2), signMat);
+  const banner = new THREE.Mesh(
+    new THREE.PlaneGeometry(9, 1.6),
+    new THREE.MeshStandardMaterial({
+      map: labelTexture("SPEED TRACK", "#ffcc33", "#111111", 512, 128),
+      roughness: 0.45,
+      side: THREE.DoubleSide,
+      emissive: 0x443300,
+      emissiveIntensity: 0.3,
+    }),
+  );
   banner.position.set(sx, sy + 3.2, sz);
   object.add(banner);
+  // Banked turnaround loops (visual outer banking).
+  const asphalt = new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.9 });
+  for (const cx of [SPEED_TRACK.x0, SPEED_TRACK.x1]) {
+    const cz = z;
+    const r = 100;
+    for (let i = 0; i < 24; i++) {
+      const a0 = (i / 24) * Math.PI * 2;
+      const a1 = ((i + 1) / 24) * Math.PI * 2;
+      const mx = cx + Math.cos((a0 + a1) / 2) * r;
+      const mz = cz + Math.sin((a0 + a1) / 2) * r;
+      const yaw = Math.atan2(Math.cos((a0 + a1) / 2), Math.sin((a0 + a1) / 2));
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(SPEED_TRACK.width, 0.6, ((2 * Math.PI * r) / 24) + 1.2), asphalt);
+      slab.position.set(mx, heightAt(mx, mz) + 0.8, mz);
+      slab.rotation.order = "YXZ";
+      slab.rotation.y = yaw;
+      slab.rotation.z = 0.22; // bank toward the outside of the loop
+      object.add(slab);
+    }
+  }
   // Launch ramp off to the side near the east end
   const rx = SPEED_TRACK.x1 - 200;
   const rz = z + 40;
@@ -389,7 +485,8 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
     center.rotation.y = yaw;
     object.add(center);
 
-    if (i % 2 === 0 && clearOfRoads(mx, mz, 10)) {
+    // Pillars under the deck only — never on a road / ramp / bridge surface.
+    if (i % 2 === 0 && clearOfRoads(mx, mz, 12)) {
       const ground = terrainHeightAt(mx, mz);
       const ph = h - ground;
       if (ph > 4) {
@@ -409,7 +506,7 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
     }
   }
 
-  // Big green SKYWAY signs beside each on-ramp (highway end, off to the side).
+  // Big green SKYWAY signs beside each on-ramp (highway end, off the pavement).
   for (const ramp of ramps) {
     const hwy = ramp.points[ramp.points.length - 1];
     const prev = ramp.points[ramp.points.length - 2];
@@ -418,8 +515,16 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
     const len = Math.hypot(dx, dz) || 1;
     const nx = -dz / len;
     const nz = dx / len;
-    const sx = hwy[0] + nx * 16;
-    const sz = hwy[1] + nz * 16;
+    let sx = hwy[0] + nx * 14;
+    let sz = hwy[1] + nz * 14;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const clear = nearestRoadClearance(sx, sz);
+      if (clear.d >= clear.half + 3.5) break;
+      sx += nx * 1.4;
+      sz += nz * 1.4;
+    }
+    // No sign collider on asphalt — skip the post if we still can't clear the road.
+    if (!clearOfRoads(sx, sz, 2.5)) continue;
     const y0 = terrainHeightAt(sx, sz);
     const post = new THREE.Mesh(
       new THREE.CylinderGeometry(0.14, 0.16, 4.2, 8),
@@ -455,8 +560,8 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
   // Long gentle ramp slabs with barriers + support pillars (no tall arch walls).
   for (const ramp of ramps) {
     const rp = ramp.points;
-    // Skip the last highway-toe segment so a thick slab never sits at car height on the road.
-    for (let i = 0; i < rp.length - 2; i++) {
+    // Skip the last few highway-toe segments so nothing sits at car height on the ring.
+    for (let i = 0; i < rp.length - 3; i++) {
       const [x1, z1] = rp[i];
       const [x2, z2] = rp[i + 1];
       const t0 = i / (rp.length - 1);
@@ -492,14 +597,22 @@ export function addSkyway(object: THREE.Group, colliders: Collider[]) {
         wall.rotation.x = -pitch;
         object.add(wall);
       }
-      if (i % 2 === 0) {
+      // Support pillars beside the ramp (not under the driving lane), never on pavement.
+      if (i % 2 === 0 && t0 < 0.72) {
         const ground = terrainHeightAt(mx, mz);
         const ph = my - 0.6 - ground;
-        if (ph > 3) {
-          const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, ph, 1.6), concrete);
-          pillar.position.set(mx, ground + ph * 0.5, mz);
+        if (ph <= 5) continue;
+        for (const side of [-1, 1]) {
+          const px = mx - Math.sin(yaw) * side * (ramp.width * 0.55 + 1.2);
+          const pz = mz - Math.cos(yaw) * side * (ramp.width * 0.55 + 1.2);
+          if (!clearOfRoads(px, pz, 6)) continue;
+          const g = terrainHeightAt(px, pz);
+          const pillarH = my - 0.6 - g;
+          if (pillarH <= 5) continue;
+          const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, pillarH, 1.6), concrete);
+          pillar.position.set(px, g + pillarH * 0.5, pz);
           object.add(pillar);
-          colliders.push({ kind: "circle", x: mx, z: mz, r: 1.1, soft: "solid", maxY: my - 2 });
+          colliders.push({ kind: "circle", x: px, z: pz, r: 1.1, soft: "solid", maxY: my - 2 });
         }
       }
     }
@@ -619,16 +732,27 @@ export function addRestaurants(object: THREE.Group, colliders: Collider[]) {
     colliders.push({ kind: "box", x: s.x, z: s.z, hx: 7, hz: 6 });
 
     const sign = new THREE.Mesh(
-      new THREE.BoxGeometry(10, 2.2, 0.4),
+      new THREE.PlaneGeometry(10, 2.4),
       new THREE.MeshStandardMaterial({
-        color: s.accent,
+        map: labelTexture(s.sign, `#${s.accent.toString(16).padStart(6, "0")}`, s.id === "pho" ? "#c41e2a" : "#ffffff", 512, 128),
         emissive: s.accent,
-        emissiveIntensity: 0.55,
-        roughness: 0.45,
+        emissiveIntensity: 0.35,
+        roughness: 0.4,
+        side: THREE.DoubleSide,
       }),
     );
-    sign.position.set(s.x, y0 + 8.2, s.z);
+    sign.position.set(s.x, y0 + 8.2, s.z + 6.2);
     object.add(sign);
+    // Pizza slice / bowl accents on roof
+    if (s.id === "pizza") {
+      const slice = new THREE.Mesh(
+        new THREE.ConeGeometry(1.6, 0.35, 3),
+        new THREE.MeshStandardMaterial({ color: 0xffcc33, roughness: 0.6 }),
+      );
+      slice.rotation.x = Math.PI / 2;
+      slice.position.set(s.x, y0 + 9.6, s.z);
+      object.add(slice);
+    }
 
     // Outdoor tables
     for (let i = 0; i < 3; i++) {
